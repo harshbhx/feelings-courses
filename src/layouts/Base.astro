@@ -1,0 +1,60 @@
+---
+import "../styles/fonts.css";
+import "../styles/tokens.css";
+import "../styles/global.css";
+import "../styles/motion.css";
+import { site } from "../data/site";
+import { course } from "../data/course";
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+const canonical = new URL(Astro.url.pathname.replace(/\.html$/, "").replace(/\/index$/, "/") || "/", site.url).href;
+---
+
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {/* Demo: kept out of search until the client confirms the course (also X-Robots-Tag in public/_headers). */}
+    {course.demo && <meta name="robots" content="noindex, nofollow" />}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  </head>
+  <body>
+    {
+      course.demo && (
+        <p class="demo-ribbon" role="note">
+          Demo preview: the price and lessons are examples, and payments run in test mode. No real money is charged.
+        </p>
+      )
+    }
+    <slot />
+  </body>
+</html>
+
+<style>
+  .demo-ribbon {
+    margin: 0;
+    padding: 0.5rem 1rem;
+    background: var(--maroon-800, var(--text));
+    color: var(--bg);
+    font-size: 0.8125rem;
+    font-weight: var(--weight-ui);
+    text-align: center;
+  }
+</style>

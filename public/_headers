@@ -1,0 +1,19 @@
+# Cloudflare Pages headers.
+# Content-Security-Policy: not written here. scripts/csp.mjs (the last step of `npm run build`)
+# hashes every inline script and adds the policy to this rule in dist/_headers.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  X-Frame-Options: SAMEORIGIN
+  Strict-Transport-Security: max-age=31536000
+  # Demo: the whole site stays out of search until the client confirms the course.
+  X-Robots-Tag: noindex
+
+# Hashed build assets never change, so cache them for a year.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The course area is personal: never cache it in shared caches.
+/learn*
+  Cache-Control: private, no-store

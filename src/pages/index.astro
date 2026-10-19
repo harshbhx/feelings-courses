@@ -1,0 +1,25 @@
+---
+// Landing page skeleton. The landing-page work fills these sections; see CLAUDE.md "Contracts".
+// Every "Enroll" button is a plain link with data-enroll: the checkout script opens the payment
+// sheet on click, and without JavaScript the link still scrolls to the price card.
+import Base from "../layouts/Base.astro";
+import { course } from "../data/course";
+import { site } from "../data/site";
+---
+
+<Base title={`${course.title} by ${course.teacher} | ${site.name}`} description={course.subtitle}>
+  <main>
+    <section id="hero">
+      <h1>{course.title}</h1>
+      <p>{course.subtitle}</p>
+      <a href="#pricing" data-enroll>Enroll for {course.price.display}</a>
+    </section>
+    <section id="glimpses" aria-label="Glimpses from the course"></section>
+    <section id="learn" aria-label="What you will learn"></section>
+    <section id="curriculum" aria-label="Lessons"></section>
+    <section id="teacher" aria-label="Your teacher"></section>
+    <section id="for-who" aria-label="Who it is for"></section>
+    <section id="pricing" aria-label="Price"></section>
+    <section id="faq" aria-label="Questions"></section>
+  </main>
+</Base>

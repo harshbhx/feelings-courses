@@ -1,0 +1,508 @@
+/*
+  Motion system. Small, everywhere, never large or looping.
+
+  Tiers (prefers-reduced-motion: reduce):
+    1. removed   – page slides, image zoom, word rise, hover lifts
+    2. softened  – reveals become a 160ms fade with no movement
+    3. kept      – colour changes, focus rings, the open-now pulse becomes static
+
+  Hooks used by markup:
+    data-reveal            fade + rise when scrolled into view (default)
+    data-reveal="fade"     fade only
+    data-reveal="image"    fade + settle from a slight zoom, for photos
+    data-reveal="stagger"  children reveal one after another
+    .words > span          hero headline words rise in order
+  The observer that adds .is-in lives in layouts/Base.astro.
+*/
+
+/* ── Page transitions (cross-document) ──────────────────────────── */
+
+@view-transition {
+  navigation: auto;
+}
+
+.site-header {
+  view-transition-name: site-header;
+}
+
+.mobile-bar {
+  view-transition-name: mobile-bar;
+}
+
+::view-transition-old(root) {
+  animation: vt-out 180ms var(--ease-out) both;
+}
+
+::view-transition-new(root) {
+  animation: vt-in 380ms var(--ease-soft) both;
+}
+
+@keyframes vt-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* ── Page morphs: the tapped photo (and a card's title) flies into its place on the next page ── */
+/* Over the root fade above. src/lib/page-morph.js names only the tapped element and its
+   counterpart ("morph-media-…", "morph-title-…"), only while the transition runs, and nothing at
+   all under reduced motion. The parts are marked data-morph-part in the markup. */
+[data-morph-part="media"] {
+  view-transition-class: morph morph-media;
+}
+
+[data-morph-part="title"] {
+  view-transition-class: morph morph-text;
+}
+
+::view-transition-group(*.morph) {
+  animation-duration: 360ms;
+  animation-timing-function: var(--ease-soft);
+}
+
+/* Photos are cropped, never stretched, while the frame changes shape. The old photo stays solid
+   and the new one fades in over it, so the frame never looks washed out or empty. */
+::view-transition-old(*.morph-media),
+::view-transition-new(*.morph-media) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(*.morph-media) {
+  animation: morph-hold 360ms linear both;
+}
+
+::view-transition-new(*.morph-media) {
+  animation: morph-show 360ms linear both;
+}
+
+@keyframes morph-hold {
+  from,
+  70% {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes morph-show {
+  from,
+  20% {
+    opacity: 0;
+  }
+
+  70%,
+  to {
+    opacity: 1;
+  }
+}
+
+/* Titles change size and line breaks, so the two versions cross quickly rather than linger. A
+   card's title sits under its photo and a post's above it, so the title flies over the photo. */
+::view-transition-group(*.morph-text) {
+  z-index: 1;
+}
+
+::view-transition-old(*.morph-text) {
+  animation: fade-out 150ms var(--ease-out) both;
+}
+
+::view-transition-new(*.morph-text) {
+  animation: fade-in 220ms var(--ease-out) 100ms both;
+}
+
+/* The header and the phone booking bar stay on top of anything flying under them. */
+::view-transition-group(site-header),
+::view-transition-group(mobile-bar) {
+  z-index: 2;
+}
+
+/* A part whose counterpart is missing (scrolled away, or not on the new page) fades with the page. */
+::view-transition-old(*.morph):only-child {
+  animation: vt-out 180ms var(--ease-out) both;
+}
+
+::view-transition-new(*.morph):only-child {
+  animation: vt-in 380ms var(--ease-soft) both;
+}
+
+/* The element a morph lands on is already in place: no entrance of its own (rise, settle, reveal). */
+[data-morph-landed],
+[data-morph-landed] img {
+  animation: none !important;
+}
+
+.morphing [data-morph-landed],
+.morphing [data-morph-landed] img {
+  transition: none !important;
+}
+
+/* ── Gallery viewer: the tapped photo grows into the viewer, and back ── */
+/* A same-document View Transition started by the gallery script (beauty-gallery-jamnagar.astro),
+   which sets html.lb-morph (+ .lb-opening or .lb-closing) and the name "lb-photo" only while it
+   runs. The script skips it entirely under reduced motion or without browser support. */
+
+/* The header and phone bar stay part of the page snapshot, so they sit under the viewer's
+   backdrop instead of floating above it during the morph. */
+html.lb-morph .site-header,
+html.lb-morph .mobile-bar {
+  view-transition-name: none;
+}
+
+/* The page stays put; the backdrop and controls fade in over it (or the page fades back in). */
+html.lb-morph::view-transition-old(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html.lb-morph::view-transition-new(root) {
+  animation: fade-in 300ms var(--ease-out) both;
+  mix-blend-mode: normal;
+}
+
+html.lb-morph::view-transition-group(lb-photo) {
+  animation-duration: 420ms;
+  animation-timing-function: var(--ease-soft);
+}
+
+/* Only the full photo is drawn while it moves, cropped like the thumbnail (--lb-focus is the
+   thumbnail's object-position). The thumbnail is that same crop, so both ends match exactly. */
+html.lb-morph::view-transition-old(lb-photo),
+html.lb-morph::view-transition-new(lb-photo) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--lb-focus, 50% 50%);
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html.lb-opening::view-transition-old(lb-photo),
+html.lb-closing::view-transition-new(lb-photo) {
+  opacity: 0;
+}
+
+/* ── Scroll reveals ────────────────────────────────────────────── */
+/* Only hidden when JS is running (html.js), so content never disappears without it. */
+
+.js [data-reveal]:not([data-reveal="stagger"]):not(.is-in),
+.js [data-reveal="stagger"]:not(.is-in) > * {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .js [data-reveal]:not([data-reveal="fade"], [data-reveal="image"], [data-reveal="stagger"]):not(.is-in),
+  .js [data-reveal="stagger"]:not(.is-in) > * {
+    transform: translate3d(0, var(--reveal-distance), 0);
+  }
+
+  .js [data-reveal],
+  .js [data-reveal="stagger"] > * {
+    transition:
+      opacity var(--dur-reveal) var(--ease-soft),
+      transform var(--dur-reveal) var(--ease-soft);
+    transition-delay: calc(var(--d, 0) * 1ms);
+  }
+
+  .js [data-reveal="stagger"] > * {
+    transition-delay: calc(var(--d, 0) * 1ms + var(--i, 0) * 80ms);
+  }
+
+  /* Photos: fade in while the image settles from a slight zoom. Opacity and transform only,
+     both compositor-friendly, so it stays smooth on mid-range phones (no clip-path). */
+  .js [data-reveal="image"] {
+    transition: opacity 600ms var(--ease-soft);
+  }
+
+  .js [data-reveal="image"] img {
+    transition: transform 1100ms var(--ease-soft);
+  }
+
+  .js [data-reveal="image"]:not(.is-in) img {
+    transform: scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js [data-reveal],
+  .js [data-reveal="stagger"] > * {
+    transition: opacity 160ms ease-out;
+  }
+}
+
+/* ── Photo previews: a late photo fades in over its preview ───── */
+/* Photo.astro paints each photo's preview behind it (its colour, or a blurred copy). Its script
+   marks photos that were below the fold on arrival data-ph="wait" until they load, then "in".
+   Eager photos (the hero, the first gallery look) and photos already on screen are never marked,
+   so they paint the moment they decode. Reduced motion: nothing is marked; photos just appear. */
+img[data-ph="wait"] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  img[data-ph="in"] {
+    animation: fade-in 300ms var(--ease-out) both;
+  }
+}
+
+/* A photo a page morph lands on shows at once, loaded or not (its animation is off above). */
+[data-morph-landed] img[data-ph] {
+  opacity: 1;
+}
+
+/* ── Hero headline: words rise in order ───────────────────────── */
+
+.words > span {
+  display: inline-block;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .words > span {
+    animation: word-rise 640ms var(--ease-soft) both;
+    animation-delay: calc(60ms + var(--w, 0) * 55ms);
+  }
+
+  @keyframes word-rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 0.45em, 0);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .words > span {
+    animation: fade-in 200ms ease-out both;
+  }
+}
+
+/* Generic entrance for hero copy, buttons and badges. */
+@media (prefers-reduced-motion: no-preference) {
+  .enter {
+    animation: enter 600ms var(--ease-soft) both;
+    animation-delay: calc(140ms + var(--i, 0) * 80ms);
+  }
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 12px, 0);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter {
+    animation: fade-in 200ms ease-out both;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Hero photo settles from a slight zoom. Transform only: the photo (the LCP) is painted from
+   the first frame and never faded in. */
+@media (prefers-reduced-motion: no-preference) {
+  .settle img {
+    animation: settle 1400ms var(--ease-soft) both;
+  }
+
+  @keyframes settle {
+    from {
+      transform: scale(1.05);
+    }
+  }
+}
+
+/* ── The bindi lands: once per page, on the main heading ────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  h1 .bindi {
+    animation: bindi-in 520ms cubic-bezier(0.34, 1.5, 0.5, 1) both;
+    animation-delay: 520ms;
+  }
+
+  @keyframes bindi-in {
+    from {
+      transform: scale(0);
+    }
+  }
+}
+
+/* ── Micro-interactions ─────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: no-preference) and (hover: hover) {
+  .btn {
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-base) var(--ease-out),
+      transform var(--dur-base) var(--ease-out);
+  }
+
+  .btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:hover {
+    box-shadow: var(--shadow-accent);
+  }
+
+  .btn:hover .icon {
+    animation: nudge 520ms var(--ease-soft);
+  }
+
+  @keyframes nudge {
+    40% {
+      transform: rotate(-10deg) scale(1.08);
+    }
+  }
+}
+
+/* Text links draw their underline from the left. */
+.link-draw {
+  text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0 1px;
+  transition: background-size 320ms var(--ease-soft), color var(--dur-fast) var(--ease-out);
+  padding-bottom: 0.1em;
+}
+
+.link-draw:hover,
+.link-draw:focus-visible {
+  background-size: 100% 1px;
+}
+
+/* Native <details> opening smoothly where supported. */
+@supports (interpolate-size: allow-keywords) {
+  :root {
+    interpolate-size: allow-keywords;
+  }
+
+  details::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition:
+      block-size 360ms var(--ease-soft),
+      content-visibility 360ms allow-discrete;
+  }
+
+  details[open]::details-content {
+    block-size: auto;
+  }
+}
+
+/* Header gains a soft shadow once the page scrolls, and on phones tucks away while scrolling
+   down (Base.astro adds .is-tucked). */
+.site-header {
+  transition:
+    box-shadow var(--dur-base) var(--ease-out),
+    background-color var(--dur-base) var(--ease-out),
+    transform 300ms var(--ease-soft);
+}
+
+.site-header.is-scrolled {
+  box-shadow: var(--shadow-header);
+}
+
+@media (max-width: 47.99rem) {
+  .site-header.is-tucked {
+    transform: translateY(-100%);
+    box-shadow: none;
+  }
+}
+
+/* Phone booking bar: slides up once per visit (html.bar-seen is set from sessionStorage), and
+   steps aside while the page's own booking buttons are on screen (body.booking-in-view, set
+   from [data-booking] in Base.astro). */
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.bar-seen) .mobile-bar {
+    animation: bar-up 560ms var(--ease-soft) 500ms backwards;
+  }
+
+  @keyframes bar-up {
+    from {
+      transform: translateY(110%);
+    }
+  }
+}
+
+.mobile-bar {
+  transition: transform 320ms var(--ease-soft), visibility 0s linear 0s;
+}
+
+body.booking-in-view .mobile-bar {
+  transform: translateY(calc(100% + 1px));
+  visibility: hidden;
+  transition: transform 320ms var(--ease-soft), visibility 0s linear 320ms;
+}
+
+html.menu-open .mobile-bar {
+  display: none;
+}
+
+/* ── Reduced motion: tier 1 off, tier 3 kept ───────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 120ms;
+    animation-name: fade-in;
+  }
+
+  ::view-transition-old(root) {
+    animation-direction: reverse;
+  }
+
+  /* page-morph.js names nothing under reduced motion; should a morph start anyway, nothing flies. */
+  ::view-transition-group(*.morph),
+  ::view-transition-old(*.morph),
+  ::view-transition-new(*.morph) {
+    animation: none !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  /* No hover zooms or lifts anywhere. */
+  .frame img,
+  .tile img,
+  .look img,
+  .feature-media img,
+  .card-media img,
+  .featured-media img {
+    transition: none !important;
+    transform: none !important;
+  }
+
+  details::details-content {
+    transition: none !important;
+  }
+
+  .mobile-bar,
+  .site-header {
+    transition: none;
+  }
+}

@@ -1,0 +1,20 @@
+---
+// Inline SVG icons from Phosphor (MIT), copied into src/icons by scripts/prepare-assets.mjs.
+// One icon family only. Add new icons there, not from another library.
+interface Props {
+  name: string;
+  label?: string;
+  class?: string;
+}
+
+const { name, label, class: className = "icon" } = Astro.props;
+
+const files = import.meta.glob<string>("../icons/*.svg", { query: "?raw", import: "default", eager: true });
+const raw = files[`../icons/${name}.svg`];
+if (!raw) throw new Error(`Unknown icon "${name}". Available: ${Object.keys(files).join(", ")}`);
+
+const a11y = label ? `role="img" aria-label="${label}"` : `aria-hidden="true" focusable="false"`;
+const svg = raw.replace("<svg ", `<svg class="${className}" ${a11y} `);
+---
+
+<Fragment set:html={svg} />

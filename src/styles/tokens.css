@@ -1,0 +1,159 @@
+/*
+  Design tokens. The ONLY file in src/ allowed to contain raw colour values.
+  Components use the semantic layer (--bg, --text, --accent, --tone-*).
+  Full rationale and contrast figures: docs/03-design-system.md
+*/
+
+:root {
+  /* ── Palette (raw) ───────────────────────────────────────────── */
+  --white: #ffffff;
+  --rose-50: #fff7f6;    /* warm white band */
+  --rose-100: #fbeceb;   /* blush tint surface */
+  --rose-200: #f2d8d6;   /* strong hairline on blush */
+  --rose-line: #efe3e1;  /* default hairline */
+
+  --ink-900: #1e1214;    /* headings, 18.2:1 on white */
+  --ink-700: #4b3b3e;    /* body, 10.5:1 */
+  --ink-500: #76656a;    /* muted, 5.5:1 */
+  --ink-300: #9a888d;    /* control outlines and empty stars, 3.3:1 (non-text minimum is 3:1) */
+
+  --red-600: #b3121b;    /* sindoor: primary action, 7.0:1 */
+  --red-700: #8f0e16;    /* pressed / hover */
+  --maroon-800: #5c0a14; /* deep band, white text 13.9:1 */
+  --maroon-900: #3a0710; /* footer */
+
+  /* the red family: one tone per service, never larger than a dot, rule or chip */
+  --rose-600: #be1e5a;   /* nails, 6.0:1 */
+  --henna-600: #9a3b1b;  /* mehndi, 7.0:1 */
+  --coral-600: #c2412d;  /* salon, 5.1:1 */
+  --plum-700: #6e1e4e;   /* academy, 10.6:1 */
+
+  /* the same five tones lifted (OKLCH lightness 0.66, same hue) for dots on maroon,
+     where the darker tones disappear: each is 5:1 or more on --maroon-900 */
+  --red-400: #f05750;
+  --rose-400: #ee5180;
+  --henna-400: #d77252;
+  --coral-400: #e7634d;
+  --plum-400: #c971a0;
+
+  /* ── Semantic ─────────────────────────────────────────────────── */
+  --bg: var(--white);
+  --bg-soft: var(--rose-50);
+  --bg-tint: var(--rose-100);
+  --bg-deep: var(--maroon-800);
+  --bg-deepest: var(--maroon-900);
+
+  --text: var(--ink-900);
+  --text-body: var(--ink-700);
+  --text-muted: var(--ink-500);
+  --text-on-deep: var(--white);
+  --text-on-deep-muted: rgb(255 255 255 / 0.76);
+
+  --accent: var(--red-600);
+  --accent-hover: var(--red-700);
+  --on-accent: var(--white);
+  --on-accent-muted: rgb(255 255 255 / 0.86);   /* secondary text on sindoor: 5.3:1 */
+
+  --border: var(--rose-line);
+  --border-strong: var(--rose-200);
+  --border-control: var(--ink-300);             /* form fields: must stay visible (WCAG 1.4.11) */
+  --border-on-deep: rgb(255 255 255 / 0.16);
+  --focus: var(--red-600);
+
+  --bg-glass: rgb(255 255 255 / 0.94);          /* phone booking bar (the header is solid --bg) */
+  --tap: rgb(179 18 27 / 0.1);                  /* tap highlight on phones (sindoor, faint) */
+  --scrim: rgb(30 18 20 / 0.94);                /* photo viewer backdrop */
+  --scrim-control: rgb(30 18 20 / 0.6);
+  --scrim-soft: rgb(30 18 20 / 0.42);           /* behind a bottom sheet: the page stays readable */
+  --border-on-scrim: rgb(255 255 255 / 0.24);
+  --text-on-scrim-muted: rgb(255 255 255 / 0.8);
+
+  --tone-bridal: var(--red-600);
+  --tone-nails: var(--rose-600);
+  --tone-mehndi: var(--henna-600);
+  --tone-salon: var(--coral-600);
+  --tone-academy: var(--plum-700);
+
+  /* Service dots on the maroon footer only. Same rule: dots and small marks, never fills. */
+  --tone-bridal-on-deep: var(--red-400);
+  --tone-nails-on-deep: var(--rose-400);
+  --tone-mehndi-on-deep: var(--henna-400);
+  --tone-salon-on-deep: var(--coral-400);
+  --tone-academy-on-deep: var(--plum-400);
+  /* The bindi on maroon, where sindoor would disappear (current-page mark in the footer). */
+  --accent-on-deep: var(--red-400);
+
+  /* ── Type ─────────────────────────────────────────────────────── */
+  /* One family, Plus Jakarta Sans (variable 200-800, with a true italic): bold,
+     professional and modern, chosen by the owner over a thin didone (2026-10-18).
+     Hierarchy comes from weight and size, never from a second typeface. The two
+     tokens stay separate so a display face could be swapped in later. */
+  --font-display: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-body: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --weight-body: 400;     /* running text */
+  --weight-ui: 600;       /* nav, meta, quiet labels */
+  --weight-strong: 700;   /* buttons, sub-heads, names, eyebrow */
+  --weight-display: 800;  /* h1, h2, big numerals */
+
+  --text-xs: 0.8125rem;                                  /* 13px  labels only */
+  --text-sm: 0.9375rem;                                  /* 15px  meta, captions */
+  --text-base: 1.0625rem;                                /* 17px  body (large x-height) */
+  --text-lg: 1.25rem;                                    /* 20px  lead, h3 */
+  --text-xl: clamp(1.375rem, 1.15rem + 0.9vw, 1.75rem);  /* 22-28 sub-heads, names */
+  --text-2xl: clamp(1.875rem, 1.3rem + 2.3vw, 3rem);     /* 30-48 h2 */
+  --text-3xl: clamp(2.5rem, 1.5rem + 4vw, 4.5rem);       /* 40-72 h1 */
+
+  --leading-tight: 1.04;
+  --leading-snug: 1.1;
+  --leading-body: 1.65;
+
+  /* ── Space (4px base) ─────────────────────────────────────────── */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+  --space-10: 8rem;
+  --section-y: clamp(3.25rem, 2.2rem + 4vw, 7rem);
+  --section-y-tight: clamp(2.75rem, 2rem + 3vw, 5rem);
+
+  --container: 76rem;  /* 1216px */
+  --container-narrow: 46rem;
+  --gutter: clamp(1.25rem, 0.6rem + 2.6vw, 2.5rem);
+  --header-h: 4rem;      /* phones; 4.5rem from 48rem (below) */
+  --mobile-bar-h: 4.75rem;
+
+  /* ── Shape & depth ────────────────────────────────────────────── */
+  --radius-sm: 6px;   /* inputs, chips */
+  --radius-md: 12px;  /* cards */
+  --radius-lg: 22px;  /* large media */
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgb(30 18 20 / 0.06), 0 2px 8px -2px rgb(30 18 20 / 0.08);
+  --shadow-md: 0 1px 2px rgb(30 18 20 / 0.05), 0 14px 34px -14px rgb(30 18 20 / 0.24);
+  --shadow-accent: 0 10px 24px -10px rgb(179 18 27 / 0.55);
+  --shadow-header: 0 10px 30px -18px rgb(30 18 20 / 0.28);
+
+  /* ── Motion: small and everywhere, never large or looping (see motion.css) ── */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-soft: cubic-bezier(0.25, 1, 0.35, 1);
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-enter: 420ms;
+  --dur-reveal: 720ms;
+  --reveal-distance: 18px;
+
+  color-scheme: light;
+}
+
+/* The header is a little shorter on phones, where every pixel of height counts. */
+@media (min-width: 48rem) {
+  :root {
+    --header-h: 4.5rem;
+  }
+}
