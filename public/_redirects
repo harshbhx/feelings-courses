@@ -1,0 +1,4 @@
+# Cloudflare Pages redirects. Short links for Instagram, tagged so Web Analytics shows where
+# visitors came from. 302, so the targets can change later without browsers remembering them.
+/ig     /?utm_source=instagram&utm_medium=social&utm_campaign=bio  302
+/reel   /?utm_source=instagram&utm_medium=reel&utm_campaign=bio    302
