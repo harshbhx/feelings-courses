@@ -58,7 +58,14 @@ export interface Course {
 export interface Coupon {
   id: string;
   code: string;
+  /** "percent" (the default) or "flat" (rupees off). Read through withDefaults() in demo-store-coupons.ts. */
+  kind?: "percent" | "flat";
+  /** Percent off; 0 for a flat code. */
   percent: number;
+  /** Rupees off, for a flat code. */
+  amount?: number;
+  /** The one course the code works on, or null/absent for every course. */
+  courseId?: string | null;
   /** Last day the code works, YYYY-MM-DD, or null for no expiry. */
   expires: string | null;
   /** Most times the code can be used, or null for no limit. */
@@ -241,10 +248,20 @@ function seedCourses(now: string): Course[] {
 
 function seedCoupons(today: Date, now: string): Coupon[] {
   const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+  const day = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const at = (days: number, hour = 11) => {
+    const d = addDays(day, days);
+    d.setHours(hour, 0, 0, 0);
+    return d.toISOString();
+  };
   return [
-    { id: "cp_insta10", code: "INSTA10", percent: 10, expires: null, limit: null, active: true, createdAt: now },
-    { id: "cp_reel15", code: "REEL15", percent: 15, expires: ymd(endOfNextMonth), limit: 100, active: true, createdAt: now },
-    { id: "cp_bride20", code: "BRIDE20", percent: 20, expires: null, limit: 50, active: false, createdAt: now },
+    { id: "cp_insta10", code: "INSTA10", kind: "percent", percent: 10, expires: null, limit: null, active: true, createdAt: now },
+    { id: "cp_reel15", code: "REEL15", kind: "percent", percent: 15, expires: ymd(endOfNextMonth), limit: 100, active: true, createdAt: now },
+    { id: "cp_bride20", code: "BRIDE20", kind: "percent", percent: 20, expires: null, limit: 50, active: false, createdAt: now },
+    // An old launch offer that ended before the example payments start (its example uses live in
+    // demo-store-coupons.ts), and a new code made for the next reel, with no sales yet.
+    { id: "cp_launch500", code: "LAUNCH500", kind: "flat", amount: 500, percent: 0, courseId: null, expires: ymd(addDays(day, -75)), limit: 30, active: true, createdAt: at(-100) },
+    { id: "cp_reel3", code: "REEL3", kind: "flat", amount: 300, percent: 0, courseId: MAIN_COURSE_ID, expires: ymd(addDays(day, 30)), limit: 50, active: true, createdAt: at(-2, 18) },
   ];
 }
 

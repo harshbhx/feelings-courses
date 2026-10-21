@@ -76,7 +76,11 @@ Types: `Course`, `Module`, `Lesson`, `Cover`, `Coupon`, `Student`, `Payment`, `P
 Saved (localStorage key `fbc-admin-demo-v1`, seeded on first read):
 - `getCourses()`, `getCourse(id)`, `getPublishedCourses()`, `saveCourse(course)`, `deleteCourse(id)`,
   `blankCourse()`, `newCourseId(title)`, `lessonTotal(course)`, `minuteTotal(course)`.
-- `getCoupons()`, `saveCoupon(coupon)`, `deleteCoupon(id)`. Seed: `INSTA10`, `REEL15`, `BRIDE20` (off).
+- `getCoupons()`, `saveCoupon(coupon)`, `deleteCoupon(id)`. Seed: `INSTA10`, `REEL15`, `BRIDE20` (off),
+  `LAUNCH500` (₹500 off, ended) and `REEL3` (₹300 off, main course only). A coupon's optional
+  `kind` (`"percent"` default, or `"flat"`), `amount` (₹ off) and `courseId` (null = every course)
+  are read through `withDefaults()`; show a discount with `discountLabel()` and a price with
+  `priceWith()` from `src/lib/demo-store-coupons.ts`, never `${percent}% off` by hand.
 - `resetDemo()`: back to the seed (Settings uses it).
 - `storageIsBlocked()`: true in a private window or with storage blocked.
 - Every `save…` returns a `SaveResult` (`{ ok: true }` or `{ ok: false, reason: "quota" | "blocked" }`):
@@ -94,7 +98,16 @@ the same numbers and the history always ends today):
 To add **your own seed data**, put it in your new store file (e.g. `demo-store-students.ts`), derived
 from `getActivity()` where you can, so the numbers agree with the dashboard. Keep anything you
 persist under your own localStorage key prefixed `fbc-admin-demo-`, and wrap every read and write
-in try/catch. Settings' "Reset demo data" should also clear those keys.
+in try/catch. Settings' "Reset demo data" clears every key with that prefix (it keeps the sign-in).
+
+Browser storage keys in use:
+
+| Key | Where | What |
+|---|---|---|
+| `fbc-admin-demo-v1` (localStorage) | `src/lib/demo-store.ts` | Courses and coupons |
+| `fbc-admin-demo-coupons-v1` (localStorage) | `src/lib/demo-store-coupons.ts` | Flag: the extra example codes were added |
+| `fbc-admin-demo-settings-v1` (localStorage) | `src/components/admin/settings/prefs.ts` | Notification choices on the Settings screen |
+| `fbc-admin-demo-session` (sessionStorage) | `src/lib/demo-store.ts`, `src/layouts/Admin.astro` | The demo sign-in flag |
 
 ## Shared client helpers (`src/components/admin/client/`)
 

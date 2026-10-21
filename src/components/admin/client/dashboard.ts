@@ -3,6 +3,7 @@ import { fromYmd, getActivity, getCourses, lessonTotal, studentCounts, type Day,
 import { $, fill, h, icon, ready, s } from "./dom";
 import { ago, change, dayMonth, fullDate, initials, inr, inrShort, longDate, num, plural } from "./format";
 import { coverImage } from "./covers";
+import { discountLabel, getCouponList } from "../../../lib/demo-store-coupons";
 
 const now = new Date();
 const { days, payments, students } = getActivity(now);
@@ -70,8 +71,10 @@ function kpis(): void {
   for (const p of thisMonth) if (p.coupon) counts.set(p.coupon, (counts.get(p.coupon) ?? 0) + 1);
   const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
   if (top) {
+    const saved = getCouponList().find((c) => c.code === top[0]);
     setText("coupon", top[0]);
-    setText("coupon-meta", `Used ${plural(top[1], "time")} this month`);
+    const used = `${plural(top[1], "time")} this month`;
+    setText("coupon-meta", saved ? `${discountLabel(saved)} · used ${used}` : `Used ${used}`);
   } else {
     setText("coupon", "None yet");
     setText("coupon-meta", "No coupon used this month");
