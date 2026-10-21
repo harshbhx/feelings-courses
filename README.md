@@ -32,14 +32,25 @@ npm run test:learn   # course-area gate tests (Node 22, no packages)
 
 ## Payments
 
-Checkout runs in one of two modes. The server picks the mode from the Cloudflare secrets; the browser never chooses it.
+Checkout runs in one of three modes. The server picks the mode from the Cloudflare secrets and `course.demo` (`functions/_lib/checkout.ts`, `paymentMode()`); the browser never chooses it. The amount always comes from `src/data/course.ts`, in every mode.
 
-| Mode | When | What the buyer sees |
-|---|---|---|
-| **Demo** | No Razorpay keys are set (and `course.demo` is true) | A built-in sheet labelled "Test payment: no money is charged". Nothing goes to Razorpay. |
-| **Razorpay** | `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are set | Razorpay Checkout, with UPI, cards and netbanking. |
+| Mode | When | What the buyer sees | How the payment is checked |
+|---|---|---|---|
+| **Razorpay** | `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are both set | Razorpay Checkout, with UPI, cards and netbanking. | Fully: a server-side order, Razorpay's signature, and Razorpay's own record of the payment. |
+| **Razorpay test** (`razorpay-test`) | `course.demo` is true, no Key Secret is set, and a test Key ID exists: `RAZORPAY_KEY_ID` (`rzp_test_…`) if set, otherwise the committed one below | Razorpay's real Checkout in **Test Mode**, without an order. Before it opens, checkout says "Test payment by Razorpay. No money is charged." | **Not checked.** See below. |
+| **Demo** | `course.demo` is true, no Key Secret, and no test Key ID. Also the Razorpay test mode's fallback in Instagram's and Facebook's in-app browsers | A built-in sheet labelled "Test payment: no money is charged". Nothing goes to Razorpay. In the in-app fallback, a note says to open the page in Chrome to try Razorpay's test checkout. | Not needed: no money is involved. |
 
-While `course.demo` is true, only **Test Mode** keys (`rzp_test_…`) work. Live keys (`rzp_live_…`) are refused with a 503 until the course goes live. Once `demo` is false, it's the other way round: test keys are refused, so test payments can't unlock the real course.
+While `course.demo` is true, only **Test Mode** keys (`rzp_test_…`) work. Live keys (`rzp_live_…`) are refused with a 503 until the course goes live, even a live Key ID on its own. Once `demo` is false, it's the other way round: test keys are refused, so test payments can't unlock the real course. The Razorpay test and Demo modes don't exist then: the live course needs both keys and `ENROLL_SECRET`.
+
+### The committed test Key ID
+
+`src/data/payments.ts` has `RAZORPAY_TEST_KEY_ID = "rzp_test_1DP5mmOlF5G5ag"`. It is a **public Test Mode Key ID**, not a secret: Razorpay Checkout sends a Key ID to the browser anyway, and a test key can't move money. The owner approved committing it on 2026-10-21. It lets the demo open Razorpay's real Checkout before the client has a Razorpay account. **There is no Key Secret for it, and a Key Secret never goes in the repo.**
+
+**What "not checked" means.** Without a Key Secret, the server can't create a Razorpay order, so there is no signature, and it can't ask Razorpay's API about the payment either. `/api/verify` accepts any payment id shaped like Razorpay's (`pay_` and 14 letters or digits) and unlocks the course for it. So someone could type one in and get the demo course for free. That is acceptable only for the demo: the demo sheet unlocks it for free anyway, and Test Mode moves no money. It is impossible once `course.demo` is false, and as soon as the Key Secret is set the full Razorpay mode takes over. Payments in this mode also have no order, and Razorpay's docs say such payments can't be captured: in Test Mode that changes nothing.
+
+**Instagram and Facebook.** Their in-app browsers can't show Checkout in a frame. The Razorpay mode works round that with Razorpay's redirect flow (`callback_url`), but Razorpay's docs list `order_id` as mandatory and don't document that flow without one. So in those browsers the Razorpay test mode opens the demo sheet instead, with a note to open the page in Chrome.
+
+**Going live.** Set a new `ENROLL_SECRET` when the course goes live (or set it then for the first time), so enrollments from test payments stop working.
 
 ### Turn on Razorpay test mode
 
@@ -72,10 +83,12 @@ From [Razorpay's test integration docs](https://razorpay.com/docs/payments/payme
 
 - **Netbanking and wallets:** pick any bank; a mock page offers **Success** and **Failure**.
 
-### How a payment is checked
+### How a payment is checked (Razorpay mode)
 
 1. `POST /api/order` creates a Razorpay order on the server. The amount comes from `src/data/course.ts`, never from the browser.
 2. Razorpay Checkout opens in the browser. In Instagram's and Facebook's in-app browsers, where its window can't open in a frame, Razorpay sends the buyer back to `/api/verify` instead (`callback_url`).
 3. `POST /api/verify` checks Razorpay's signature (HMAC-SHA256 of `order_id|payment_id` with the key secret). It then asks Razorpay for the payment and checks its status, order and amount. Only then does it set the enrollment cookie and send the buyer to `/thank-you`.
+
+In the Razorpay test mode, `POST /api/order` returns the Key ID, amount and prefill with no order id, Checkout's handler gets a `razorpay_payment_id`, and the browser posts `{ mode: "razorpay-test", razorpay_payment_id }` to `/api/verify`, which checks only the id's shape (see above).
 
 The site stores nothing about the buyer. Name, phone and email only prefill Razorpay's form, and Razorpay keeps the payment record. Run the checkout tests with `npm run test:checkout`.
