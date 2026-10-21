@@ -156,6 +156,7 @@ const firstName = course.teacher.split(" ")[0];
     gap: var(--space-1);
     padding: var(--space-4);
     min-width: 0;
+    container-type: inline-size;
   }
 
   .kpi-label {
@@ -168,11 +169,13 @@ const firstName = course.teacher.split(" ")[0];
 
   .kpi-value {
     color: var(--text);
-    font-size: clamp(1.375rem, 1.1rem + 1.2vw, 2rem);
+    font-size: 1.5rem;
+    /* Sized to the card, so "₹1,04,965" always fits on one line. */
+    font-size: clamp(1.25rem, 15cqi, 2.125rem);
     font-weight: var(--weight-display);
     letter-spacing: -0.03em;
     line-height: 1.15;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
   }
 
   .kpi-today {
@@ -217,9 +220,8 @@ const firstName = course.teacher.split(" ")[0];
     color: var(--accent);
   }
 
-  @media (min-width: 64rem) {
+  @media (min-width: 48rem) {
     .kpis {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: var(--space-4);
       margin-bottom: var(--space-5);
     }
@@ -227,6 +229,12 @@ const firstName = course.teacher.split(" ")[0];
     .kpi {
       padding: var(--space-5);
       gap: var(--space-2);
+    }
+  }
+
+  @media (min-width: 80rem) {
+    .kpis {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
   }
 
@@ -239,14 +247,16 @@ const firstName = course.teacher.split(" ")[0];
   }
 
   @media (min-width: 64rem) {
-    .dash-grid {
-      grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
-      align-items: start;
-    }
-
     .dash-grid,
     .dash-col {
       gap: var(--space-5);
+    }
+  }
+
+  @media (min-width: 80rem) {
+    .dash-grid {
+      grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+      align-items: start;
     }
   }
 
@@ -288,7 +298,7 @@ const firstName = course.teacher.split(" ")[0];
 
   .chart .axis text {
     fill: var(--text-muted);
-    font-size: 11.5px;
+    font-size: 13px;
     font-weight: 600;
     font-family: var(--font-body);
     font-variant-numeric: tabular-nums;

@@ -915,6 +915,13 @@
   transform: translateX(1.375rem);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .switch-track,
+  .switch-track::after {
+    transition: none;
+  }
+}
+
 .switch input:focus-visible + .switch-track {
   outline: 2px solid var(--focus);
   outline-offset: 3px;

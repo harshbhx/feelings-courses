@@ -20,6 +20,7 @@ function setText(key: string, ...parts: (string | Node)[]): void {
 
 function delta(pct: number | null, label: string): (string | Node)[] {
   if (pct === null) return [label];
+  if (pct === 0) return [`Same as ${label.replace(/^vs /, "")}`];
   const up = pct >= 0;
   return [h("span", { class: up ? "delta" : "delta is-down" }, icon(up ? "trend-up" : "trend-down"), `${up ? "+" : "−"}${Math.abs(pct)}%`), label];
 }

@@ -296,7 +296,10 @@ const glimpses = await getGlimpseCovers(320);
     .ed-bar {
       display: none;
     }
+  }
 
+  /* Side column (publish, card preview) once the main column has room: 1280px and up. */
+  @media (min-width: 80rem) {
     .ed {
       grid-template-columns: minmax(0, 1fr) 20rem;
       gap: var(--space-5);
@@ -730,6 +733,17 @@ const glimpses = await getGlimpseCovers(320);
     .cardprev img {
       aspect-ratio: 4 / 3;
       object-position: 50% 25%;
+    }
+  }
+
+  @media (min-width: 64rem) and (max-width: 79.99rem) {
+    .ed-side {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .ed-delete {
+      grid-column: 1 / -1;
     }
   }
 
