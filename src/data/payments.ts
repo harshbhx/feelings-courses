@@ -17,6 +17,14 @@
 export const RAZORPAY_TEST_KEY_ID = "rzp_test_1DP5mmOlF5G5ag";
 
 /**
+ * Off since 2026-10-21: that sample key's Razorpay account has no payment methods switched on, so
+ * Checkout only showed "No appropriate payment method found". With this false, the demo course uses
+ * the built-in demo sheet (UPI, card, netbanking) unless a test Key ID is set in Cloudflare
+ * (RAZORPAY_KEY_ID), which still opens Razorpay's test Checkout, and both keys give the full flow.
+ */
+export const USE_COMMITTED_TEST_KEY = false;
+
+/**
  * Instagram's and Facebook's in-app browsers (and Android web views), where Razorpay Checkout
  * can't open its window in a frame. Matched against the User-Agent, in the browser and on the server.
  */

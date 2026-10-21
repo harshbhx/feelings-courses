@@ -212,8 +212,9 @@ test("enrollment: payment refs that could break the cookie format are refused", 
 
 // ---------- modes ----------
 
-test("mode: no keys + demo course → razorpay-test with the committed key, or demo without one; live course → off", () => {
-  assert.deepEqual(paymentMode({}, true), { kind: "razorpay-test", keyId: RAZORPAY_TEST_KEY_ID });
+test("mode: no keys + demo course → the demo sheet (committed key switched off), or razorpay-test when passed one; live course → off", () => {
+  assert.deepEqual(paymentMode({}, true), { kind: "demo" });
+  assert.deepEqual(paymentMode({}, true, RAZORPAY_TEST_KEY_ID), { kind: "razorpay-test", keyId: RAZORPAY_TEST_KEY_ID });
   assert.equal(paymentMode({}, true, "").kind, "demo");
   assert.equal(paymentMode({}, false).kind, "off");
   assert.equal(paymentMode({}, false, "").kind, "off");
@@ -423,6 +424,9 @@ test("verify (demo): malformed demo ids and Razorpay ids without keys are refuse
   assert.equal(res.headers.get("Set-Cookie"), null);
 });
 
+// A test Key ID set in Cloudflare, the way the owner turns on Razorpay's test Checkout.
+const TEST_KEY_ENV = { RAZORPAY_KEY_ID: RAZORPAY_TEST_KEY_ID };
+
 // ---------- razorpay-test (Razorpay's test Checkout without an order) ----------
 
 test("mode: every combination of keys, course state and committed test key", () => {
@@ -459,7 +463,8 @@ test("mode: every combination of keys, course state and committed test key", () 
   }
   // The env Key ID wins over the committed one, and the committed one is used when env has none.
   assert.equal(paymentMode({ RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID }, true).keyId, TEST_KEYS.RAZORPAY_KEY_ID);
-  assert.equal(paymentMode({}, true).keyId, "rzp_test_1DP5mmOlF5G5ag");
+  // The committed key is switched off (USE_COMMITTED_TEST_KEY): no keys at all means the demo sheet.
+  assert.equal(paymentMode({}, true).kind, "demo");
 });
 
 test("razorpay-test: never possible on the live course, whatever the env", () => {
@@ -485,7 +490,7 @@ test("order (razorpay-test): Checkout details without an order id, the amount fr
       order_id: "order_FromBrowser1",
       keyId: "rzp_test_FromBrowser",
     }),
-    env: {},
+    env: TEST_KEY_ENV,
   });
   assert.equal(res.status, 200);
   const text = await res.text();
@@ -519,20 +524,20 @@ test("order (razorpay-test): Instagram's and Facebook's in-app browsers get the 
     "Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0 Mobile Safari/537.36",
   ];
   for (const ua of uas) {
-    const res = await orderFn({ request: post("/api/order", { amount: 1 }, { "User-Agent": ua }), env: {} });
+    const res = await orderFn({ request: post("/api/order", { amount: 1 }, { "User-Agent": ua }), env: TEST_KEY_ENV });
     const data = await res.json();
     assert.equal(data.mode, "demo", ua);
     assert.equal(data.fallback, "in_app_browser");
     assert.match(data.orderId, /^demo_[0-9a-f]{24}$/);
     assert.equal(data.amount, course.price.amount);
     // …and that demo order is accepted in this mode.
-    const verify = await verifyFn({ request: post("/api/verify", { demo_order_id: data.orderId }), env: {} });
+    const verify = await verifyFn({ request: post("/api/verify", { demo_order_id: data.orderId }), env: TEST_KEY_ENV });
     assert.equal(verify.status, 200);
     assert.ok(await verifyEnrollment({}, withCookie(verify.headers.get("Set-Cookie"))));
   }
   // A normal phone or desktop browser still gets Razorpay's test Checkout.
   const chrome = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36";
-  const res = await orderFn({ request: post("/api/order", {}, { "User-Agent": chrome }), env: {} });
+  const res = await orderFn({ request: post("/api/order", {}, { "User-Agent": chrome }), env: TEST_KEY_ENV });
   assert.equal((await res.json()).mode, "razorpay-test");
 });
 
@@ -547,7 +552,7 @@ test("order (razorpay-test): refused on the live course", async () => {
 test("verify (razorpay-test): a well-formed payment id → enrollment for that id and /thank-you", async (t) => {
   const calls = noFetch(t);
   const body = { mode: "razorpay-test", razorpay_payment_id: TEST_PAYMENT_ID };
-  const res = await verifyFn({ request: post("/api/verify", body), env: ENROLL });
+  const res = await verifyFn({ request: post("/api/verify", body), env: { ...ENROLL, ...TEST_KEY_ENV } });
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { ok: true, redirect: "/thank-you" });
   const enrollment = await verifyEnrollment(ENROLL, withCookie(res.headers.get("Set-Cookie")));
@@ -555,7 +560,7 @@ test("verify (razorpay-test): a well-formed payment id → enrollment for that i
   assert.equal(calls.length, 0, "nothing to ask Razorpay without a Key Secret");
 
   // Without ENROLL_SECRET the demo key signs it, as for demo orders.
-  const demoKey = await verifyFn({ request: post("/api/verify", body), env: {} });
+  const demoKey = await verifyFn({ request: post("/api/verify", body), env: TEST_KEY_ENV });
   assert.equal(demoKey.status, 200);
   assert.ok(await verifyEnrollment({}, withCookie(demoKey.headers.get("Set-Cookie"))));
 });
@@ -576,13 +581,13 @@ test("verify (razorpay-test): a bad payment id is refused", async () => {
     "pay_FakeTestPay001.x",
   ];
   for (const id of bad) {
-    const res = await verifyFn({ request: post("/api/verify", { mode: "razorpay-test", razorpay_payment_id: id }), env: {} });
+    const res = await verifyFn({ request: post("/api/verify", { mode: "razorpay-test", razorpay_payment_id: id }), env: TEST_KEY_ENV });
     assert.equal(res.status, 400, JSON.stringify(id));
     assert.equal((await res.json()).error, "invalid_payment");
     assert.equal(res.headers.get("Set-Cookie"), null);
   }
   // Without mode "razorpay-test", order-and-signature ids can't be checked here (no Key Secret).
-  const signed = await verifyFn({ request: post("/api/verify", signedIds()), env: {} });
+  const signed = await verifyFn({ request: post("/api/verify", signedIds()), env: TEST_KEY_ENV });
   assert.equal(signed.status, 400);
   assert.equal(signed.headers.get("Set-Cookie"), null);
 });

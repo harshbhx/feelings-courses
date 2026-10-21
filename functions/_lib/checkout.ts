@@ -26,7 +26,7 @@
  */
 
 import { course } from "../../src/data/course.ts";
-import { IN_APP_BROWSER, RAZORPAY_TEST_KEY_ID } from "../../src/data/payments.ts";
+import { IN_APP_BROWSER, RAZORPAY_TEST_KEY_ID, USE_COMMITTED_TEST_KEY } from "../../src/data/payments.ts";
 import { site } from "../../src/data/site.ts";
 import { randomHex } from "./crypto.ts";
 import { issueEnrollment, newEnrollment } from "./enrollment.ts";
@@ -75,7 +75,7 @@ const SIGNATURE = /^[0-9a-f]{64}$/i;
 export function paymentMode(
   env: CheckoutEnv,
   demo: boolean = course.demo,
-  testKeyId: string = RAZORPAY_TEST_KEY_ID,
+  testKeyId: string = USE_COMMITTED_TEST_KEY ? RAZORPAY_TEST_KEY_ID : "",
 ): PaymentMode {
   const keyId = env.RAZORPAY_KEY_ID?.trim() ?? "";
   const keySecret = env.RAZORPAY_KEY_SECRET?.trim() ?? "";
