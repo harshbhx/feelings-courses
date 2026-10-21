@@ -1,0 +1,99 @@
+---
+// After a verified payment, /api/verify sets the enrollment cookie and sends the buyer here.
+// The page is static: it never shows payment details, so anyone opening it directly just sees
+// the next steps, and /learn itself checks the cookie.
+import ResultPage from "../components/checkout/ResultPage.astro";
+import Icon from "../components/Icon.astro";
+import { course, lessonCount } from "../data/course";
+import { site } from "../data/site";
+import { whatsappLink } from "../lib/whatsapp";
+
+const firstModule = course.modules[0].title;
+const askUrmi = whatsappLink(`Hi Urmi, I just enrolled in the ${course.title}. I have a question.`);
+---
+
+<ResultPage title={`You're enrolled | ${course.title} | ${site.name}`} description={`Your ${course.title} lessons are ready.`}>
+  <section class="ty" aria-labelledby="ty-title">
+    <span class="ty-mark" aria-hidden="true"><Icon name="check-circle" /></span>
+    <h1 id="ty-title">You're enrolled<span class="bindi" aria-hidden="true"></span></h1>
+    <p class="lead">Welcome to the {course.title}. All {lessonCount} lessons are ready for you.</p>
+    {course.demo && <p class="ty-test">This was a test payment. No money was charged.</p>}
+  </section>
+
+  <div class="btn-row">
+    <a class="btn btn-primary" href="/learn">Start learning <Icon name="arrow-right" /></a>
+    <a class="btn btn-secondary" href={askUrmi} target="_blank" rel="noopener">
+      <Icon name="whatsapp" /> WhatsApp Urmi
+    </a>
+  </div>
+
+  <section class="ty-next" aria-labelledby="ty-next-title">
+    <h2 id="ty-next-title" class="ty-h2">What happens next</h2>
+    <ol class="dot-list">
+      <li>Your access is saved in this browser for {course.access}. Open the course from this phone or laptop.</li>
+      <li>Start with “{firstModule}” and go at your own pace. Each lesson is a short video.</li>
+      <li>Want to watch on another phone, or stuck on a lesson? Message Urmi on WhatsApp.</li>
+    </ol>
+  </section>
+</ResultPage>
+
+<style>
+  .ty {
+    display: grid;
+    gap: var(--space-4);
+    justify-items: start;
+  }
+
+  .ty-mark {
+    display: grid;
+    place-items: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    background: var(--bg-tint);
+    color: var(--accent);
+  }
+
+  .ty-mark :global(.icon) {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .ty h1 {
+    font-size: var(--text-2xl);
+  }
+
+  .ty-test {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+  }
+
+  .ty-next {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .ty-h2 {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-strong);
+    letter-spacing: -0.01em;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .ty-mark {
+      animation: ty-pop 420ms var(--ease-soft) both;
+    }
+
+    @keyframes ty-pop {
+      from {
+        opacity: 0;
+        transform: scale(0.8);
+      }
+    }
+  }
+</style>
