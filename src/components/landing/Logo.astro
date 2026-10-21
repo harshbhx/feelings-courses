@@ -1,0 +1,50 @@
+---
+// The studio's logo, drawn as a CSS mask so the one file shows in maroon on white or in white on
+// maroon (the main site's Logo.astro does the same). The 1024px source is resized at build time to
+// what the header needs at 2x, so the mask costs a few KB instead of ~22.
+import { getImage } from "astro:assets";
+import logo from "../../assets/brand/logo.webp";
+import { site } from "../../data/site";
+
+interface Props {
+  /** Any CSS length. */
+  width?: string;
+  tone?: "ink" | "white";
+  decorative?: boolean;
+}
+
+const { width = "8.75rem", tone = "ink", decorative = false } = Astro.props;
+const mask = await getImage({ src: logo, width: 360, format: "webp", quality: 80 });
+---
+
+<span
+  class:list={["logo", `logo-${tone}`]}
+  style={`--logo-url: url(${mask.src}); width: ${width}; aspect-ratio: ${logo.width} / ${logo.height};`}
+  role={decorative ? undefined : "img"}
+  aria-label={decorative ? undefined : site.name}
+  aria-hidden={decorative ? "true" : undefined}></span>
+
+<style>
+  .logo {
+    display: block;
+    background-color: currentColor;
+    -webkit-mask: var(--logo-url) center / contain no-repeat;
+    mask: var(--logo-url) center / contain no-repeat;
+  }
+
+  .logo-ink {
+    color: var(--maroon-800);
+  }
+
+  .logo-white {
+    color: var(--white);
+  }
+
+  /* Windows high contrast: a system colour keeps the logo visible. */
+  @media (forced-colors: active) {
+    .logo {
+      forced-color-adjust: none;
+      background-color: CanvasText;
+    }
+  }
+</style>

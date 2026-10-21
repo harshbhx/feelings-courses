@@ -1,0 +1,190 @@
+---
+/**
+ * Glimpses: a swipeable strip of vertical clips, like a row of reels, so visitors from Instagram
+ * feel at home. Tap one to play it in place (Reel.astro); one plays at a time.
+ *
+ * The hero already shows the first clip, so the strip starts from the second. The clips are the
+ * studio's own YouTube Shorts until the course's promo clips arrive (see course.ts), so the
+ * heading speaks of the studio, not of lessons. When course clips replace them, the heading can
+ * become "Glimpses from the lessons".
+ *
+ * The strip scrolls sideways inside itself: it is position: relative and clips its overflow, so it
+ * never widens the page. Arrows appear from 56rem, and only when the clips overflow.
+ */
+import Icon from "../Icon.astro";
+import Reel from "./Reel.astro";
+import { course } from "../../data/course";
+import { site } from "../../data/site";
+import { teacherFirstName } from "./facts";
+
+const clips = course.glimpses.slice(1);
+---
+
+{
+  clips.length > 0 && (
+    <section class="section band-soft glimpses" id="glimpses" aria-labelledby="glimpses-title" data-strip>
+      <div class="container">
+        <div class="glimpses-head" data-reveal>
+          <div class="section-head">
+            <h2 id="glimpses-title">
+              Glimpses from the studio<span class="bindi" aria-hidden="true" />
+            </h2>
+            <p class="lead">
+              Short clips from {teacherFirstName}’s studio in {site.address.city}. Tap one to watch it here.
+            </p>
+          </div>
+          <div class="strip-nav">
+            <button type="button" class="nav-btn" data-prev aria-controls="glimpses-rail" aria-label="Previous clips" aria-disabled="true">
+              <Icon name="caret-left" />
+            </button>
+            <button type="button" class="nav-btn" data-next aria-controls="glimpses-rail" aria-label="Next clips">
+              <Icon name="caret-right" />
+            </button>
+          </div>
+        </div>
+
+        <ul class="rail" id="glimpses-rail" data-rail data-reveal="stagger">
+          {clips.map((clip, i) => (
+            <li class="rail-item" style={`--i: ${i}`}>
+              <Reel id={clip.id} label={clip.label} caption sizes="(min-width: 64rem) 15rem, (min-width: 48rem) 13.5rem, 58vw" widths={[270, 360, 450, 540]} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+<script>
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  document.querySelectorAll<HTMLElement>("[data-strip]").forEach((root) => {
+    const rail = root.querySelector<HTMLElement>("[data-rail]");
+    const prev = root.querySelector<HTMLButtonElement>("[data-prev]");
+    const next = root.querySelector<HTMLButtonElement>("[data-next]");
+    if (!rail || !prev || !next) return;
+
+    const step = () => Math.max(rail.clientWidth * 0.8, 200);
+    const go = (dir: number) => rail.scrollBy({ left: dir * step(), behavior: reduceMotion.matches ? "auto" : "smooth" });
+    prev.addEventListener("click", () => prev.getAttribute("aria-disabled") !== "true" && go(-1));
+    next.addEventListener("click", () => next.getAttribute("aria-disabled") !== "true" && go(1));
+
+    // Layout is read only after the browser's own layout: in the ResizeObserver callback (first
+    // call right after observe, then on every size change) and on scroll, once per frame.
+    let frame = 0;
+    const sync = () => {
+      const max = rail.scrollWidth - rail.clientWidth;
+      root.toggleAttribute("data-overflow", max > 4);
+      prev.setAttribute("aria-disabled", String(rail.scrollLeft <= 4));
+      next.setAttribute("aria-disabled", String(rail.scrollLeft >= max - 4));
+    };
+    rail.addEventListener(
+      "scroll",
+      () => {
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(sync);
+      },
+      { passive: true },
+    );
+    new ResizeObserver(sync).observe(rail);
+  });
+</script>
+
+<style>
+  .glimpses-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-5);
+    margin-bottom: var(--space-6);
+  }
+
+  .glimpses-head .section-head {
+    margin-bottom: 0;
+  }
+
+  /* Arrows: from 56rem, and only when there is something to scroll. */
+  .strip-nav {
+    display: none;
+    flex: none;
+    gap: var(--space-2);
+  }
+
+  @media (min-width: 56rem) {
+    .glimpses[data-overflow] .strip-nav {
+      display: flex;
+    }
+  }
+
+  .nav-btn {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    transition:
+      border-color var(--dur-fast) var(--ease-out),
+      opacity var(--dur-fast) var(--ease-out);
+  }
+
+  .nav-btn:hover:not([aria-disabled="true"]) {
+    border-color: var(--text);
+  }
+
+  .nav-btn[aria-disabled="true"] {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .nav-btn :global(.icon) {
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+
+  /* The strip bleeds to the screen edges on phones, so the next clip peeks in from the side. It is
+     positioned, and clips its own overflow, so nothing inside it can widen the page. */
+  .rail {
+    list-style: none;
+    position: relative;
+    display: flex;
+    gap: var(--space-4);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--gutter);
+    margin-inline: calc(var(--gutter) * -1);
+    /* Room for the 2px focus ring at a 3px offset. */
+    padding: 6px var(--gutter) var(--space-2);
+    scrollbar-width: none;
+  }
+
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rail-item {
+    flex: 0 0 min(58vw, 15rem);
+    scroll-snap-align: start;
+  }
+
+  @media (min-width: 48rem) {
+    .rail-item {
+      flex-basis: 13.5rem;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .rail-item {
+      flex-basis: 15rem;
+    }
+
+    .rail {
+      scroll-snap-type: x proximity;
+    }
+  }
+</style>

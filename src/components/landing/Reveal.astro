@@ -1,0 +1,34 @@
+---
+// The scroll-reveal hook for motion.css: marks <html> as "js" (reveals hide content only then)
+// and adds .is-in to each [data-reveal] block as it enters the viewport, once.
+//
+// Inline and placed at the top of <body>, so html.js is set before any revealed block is parsed
+// or painted (no flash), and so the observer runs even if a bundled script fails. Without
+// IntersectionObserver everything is shown at once. scripts/csp.mjs hashes this script.
+---
+
+<script is:inline>
+  (() => {
+    document.documentElement.classList.add("js");
+    const start = () => {
+      const items = document.querySelectorAll("[data-reveal]");
+      if (!("IntersectionObserver" in window)) {
+        items.forEach((el) => el.classList.add("is-in"));
+        return;
+      }
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            entry.target.classList.add("is-in");
+            observer.unobserve(entry.target);
+          }
+        },
+        { rootMargin: "0px 0px -6% 0px" },
+      );
+      items.forEach((el) => observer.observe(el));
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
+    else start();
+  })();
+</script>

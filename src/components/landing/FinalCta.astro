@@ -1,0 +1,77 @@
+---
+// The closing call to action: one red button and the WhatsApp question link, on a blush band.
+import Icon from "../Icon.astro";
+import Avatar from "./Avatar.astro";
+import { course } from "../../data/course";
+import { whatsappLink } from "../../lib/whatsapp";
+import { lessonsLabel, minutesLabel, teacherFirstName } from "./facts";
+---
+
+<section class="section band-tint final" aria-labelledby="final-title">
+  <div class="container-narrow final-inner" data-reveal>
+    <Avatar size="5rem" class="final-avatar" />
+    <h2 id="final-title">Start with lesson one<span class="bindi" aria-hidden="true"></span></h2>
+    <p class="lead">
+      {lessonsLabel} and {minutesLabel} with {course.teacher}, at your own pace, on your phone.
+    </p>
+    <div class="final-actions" data-cta-zone>
+      <a class="btn btn-primary final-enroll" href="#pricing" data-enroll>
+        Enroll for {course.price.display}
+        <Icon name="arrow-right" />
+      </a>
+      <a class="btn btn-secondary" href={whatsappLink()} target="_blank" rel="noopener">
+        <Icon name="whatsapp" />
+        Ask {teacherFirstName} a question
+      </a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .final-inner {
+    display: grid;
+    gap: var(--space-5);
+    justify-items: center;
+    text-align: center;
+  }
+
+  /* A white ring lifts the portrait off the blush band. */
+  .final-inner :global(.final-avatar) {
+    box-shadow:
+      0 0 0 4px var(--bg),
+      var(--shadow-md);
+  }
+
+  .final-inner .lead {
+    max-width: 28em;
+  }
+
+  .final-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-3);
+    width: 100%;
+    margin-top: var(--space-2);
+  }
+
+  .final-enroll {
+    min-height: 3.375rem;
+    font-size: var(--text-lg);
+  }
+
+  .final-actions .btn {
+    min-height: 3.375rem;
+  }
+
+  .final-actions .btn-secondary :global(.icon) {
+    color: var(--bg-deep);
+  }
+
+  /* Phones: stacked, full width, even edges. */
+  @media (max-width: 29.99rem) {
+    .final-actions .btn {
+      flex: 1 1 100%;
+    }
+  }
+</style>

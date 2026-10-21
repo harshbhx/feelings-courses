@@ -1,0 +1,49 @@
+---
+// A slim brand bar: the studio's logo, so visitors from Instagram know whose course this is, and a
+// quiet WhatsApp link for questions. Not sticky: on a phone the enroll bar at the bottom is the
+// only fixed element.
+import Icon from "../Icon.astro";
+import Logo from "./Logo.astro";
+import { whatsappLink } from "../../lib/whatsapp";
+import { teacherFirstName } from "./facts";
+---
+
+<header class="lp-header">
+  <div class="container lp-header-inner">
+    <a class="lp-brand" href="/">
+      <Logo width="clamp(7.5rem, 6.4rem + 3vw, 9.25rem)" />
+    </a>
+    <a class="btn btn-secondary lp-ask" href={whatsappLink()} target="_blank" rel="noopener">
+      <Icon name="whatsapp" />
+      Ask {teacherFirstName}
+    </a>
+  </div>
+</header>
+
+<style>
+  .lp-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    min-height: var(--header-h);
+  }
+
+  .lp-brand {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+
+  /* 44px tall: a real thumb target, still quieter than the red enroll button. */
+  .lp-ask {
+    min-height: 2.75rem;
+    padding: 0.5rem 1rem;
+    font-size: var(--text-sm);
+  }
+
+  .lp-ask :global(.icon) {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+</style>

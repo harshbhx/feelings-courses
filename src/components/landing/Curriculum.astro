@@ -1,0 +1,326 @@
+---
+/**
+ * What you'll learn (the outcomes), then the lessons: one native <details> per module, so the
+ * accordion works with keyboard, screen readers and without JS. The first module starts open.
+ * Each module shows its lessons and minutes; the header shows the totals.
+ */
+import Icon from "../Icon.astro";
+import { course } from "../../data/course";
+import { lessonsLabel, minutesLabel, moduleMinutes, plural } from "./facts";
+
+const pad = (n: number) => String(n).padStart(2, "0");
+---
+
+<section class="section learn" id="learn" aria-labelledby="learn-title">
+  <div class="container learn-grid">
+    <div class="outcomes-block" data-reveal>
+      <h2 id="learn-title">What you’ll learn<span class="bindi" aria-hidden="true"></span></h2>
+      <ul class="outcomes">
+        {
+          course.outcomes.map((outcome) => (
+            <li>
+              <Icon name="check-circle" />
+              <span>{outcome}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <div class="curriculum" id="curriculum">
+      <div class="curriculum-head" data-reveal>
+        <h2 id="curriculum-title">The lessons</h2>
+        <p class="totals">
+          <span>{plural(course.modules.length, "module")}</span>
+          <span>{lessonsLabel}</span>
+          <span>{minutesLabel} in all</span>
+        </p>
+      </div>
+
+      <div class="modules" data-reveal="stagger">
+        {
+          course.modules.map((m, i) => (
+            <details class="module" open={i === 0} style={`--i: ${i}`}>
+              <summary>
+                <span class="module-num" aria-hidden="true">{pad(i + 1)}</span>
+                <span class="module-name">
+                  <h3>
+                    <span class="visually-hidden">Module {i + 1}: </span>
+                    {m.title}
+                  </h3>
+                  <span class="module-meta">
+                    {plural(m.lessons.length, "lesson")} · {moduleMinutes(m)} min
+                  </span>
+                </span>
+                <span class="toggle" aria-hidden="true" />
+              </summary>
+              <ol class="lessons">
+                {m.lessons.map((lesson, j) => (
+                  <li>
+                    <span class="lesson-num" aria-hidden="true">
+                      {i + 1}.{j + 1}
+                    </span>
+                    <span class="lesson-title">{lesson.title}</span>
+                    <span class="lesson-min">
+                      <Icon name="clock" />
+                      {lesson.minutes} min
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .learn-grid {
+    display: grid;
+    gap: var(--space-8);
+  }
+
+  .outcomes-block {
+    display: grid;
+    gap: var(--space-6);
+    align-content: start;
+  }
+
+  .outcomes {
+    list-style: none;
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .outcomes li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-3);
+    align-items: start;
+    font-size: var(--text-lg);
+    line-height: 1.45;
+    color: var(--text);
+  }
+
+  .outcomes :global(.icon) {
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-top: 0.05rem;
+    color: var(--bg-deep);
+  }
+
+  /* ── Lessons ── */
+  .curriculum {
+    min-width: 0;
+  }
+
+  .curriculum-head {
+    display: grid;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+  }
+
+  .totals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Bindis between the totals. */
+  .totals span + span::before {
+    content: "";
+    display: inline-block;
+    width: 0.32em;
+    height: 0.32em;
+    margin-right: var(--space-4);
+    border-radius: 50%;
+    background: var(--accent);
+    vertical-align: middle;
+  }
+
+  .modules {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  /* No transition of its own: the stagger reveal (motion.css) owns this element's transition. */
+  .module {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--bg);
+  }
+
+  .module[open] {
+    box-shadow: var(--shadow-sm);
+  }
+
+  summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: var(--space-4);
+    align-items: center;
+    min-height: 4.5rem;
+    padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .module-num {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+
+  .module[open] .module-num {
+    color: var(--accent);
+  }
+
+  .module-name {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .module-name h3 {
+    font-size: var(--text-lg);
+    line-height: 1.3;
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+
+  summary:hover h3 {
+    color: var(--accent);
+  }
+
+  .module-meta {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Plus that turns into a minus: the FAQ uses the same toggle. */
+  .toggle {
+    position: relative;
+    flex: none;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    color: var(--text);
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+  }
+
+  .toggle::before,
+  .toggle::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 11px;
+    height: 1.5px;
+    margin: -0.75px 0 0 -5.5px;
+    background: currentColor;
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+
+  .toggle::after {
+    transform: rotate(90deg);
+  }
+
+  .module[open] .toggle {
+    background: var(--bg-deep);
+    border-color: var(--bg-deep);
+    color: var(--text-on-deep);
+  }
+
+  .module[open] .toggle::after {
+    transform: rotate(0deg);
+  }
+
+  .lessons {
+    list-style: none;
+    margin: 0 var(--space-4) var(--space-3) var(--space-5);
+    border-top: 1px solid var(--border);
+  }
+
+  .lessons li {
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: baseline;
+    padding-block: var(--space-3);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .lessons li:last-child {
+    border-bottom: 0;
+  }
+
+  .lesson-num {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .lesson-title {
+    color: var(--text);
+    line-height: 1.45;
+  }
+
+  .lesson-min {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .lesson-min :global(.icon) {
+    width: 1em;
+    height: 1em;
+    align-self: center;
+  }
+
+  @media (min-width: 64rem) {
+    .learn-grid {
+      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+      column-gap: var(--space-9);
+      align-items: start;
+    }
+
+    /* The outcomes stay in view beside a long list of lessons. */
+    .outcomes-block {
+      position: sticky;
+      top: var(--space-6);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toggle::before,
+    .toggle::after {
+      transition: none;
+    }
+  }
+</style>
