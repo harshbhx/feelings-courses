@@ -1,0 +1,67 @@
+---
+// Where a payment that didn't go through ends up: Razorpay's redirect flow on a failure, the demo
+// sheet's "Simulate failure", or the checkout's "Get help". Calm words, a retry and WhatsApp.
+// The retry is a [data-enroll] link, so the checkout mounted below opens right here.
+import ResultPage from "../components/checkout/ResultPage.astro";
+import Checkout from "../components/checkout/Checkout.astro";
+import Icon from "../components/Icon.astro";
+import { course } from "../data/course";
+import { site } from "../data/site";
+import { whatsappLink } from "../lib/whatsapp";
+
+const help = whatsappLink(`Hi Urmi, my payment for the ${course.title} didn't go through. Can you help?`);
+---
+
+<ResultPage title={`Payment not completed | ${site.name}`} description={`The payment for the ${course.title} didn't go through.`}>
+  <section class="pf" aria-labelledby="pf-title">
+    <h1 id="pf-title">Payment not completed</h1>
+    {
+      course.demo ? (
+        <p class="lead">Nothing to worry about: this is a test, so no money was taken. You can try again now.</p>
+      ) : (
+        <p class="lead">
+          The payment didn't go through. If any amount left your account for it, your bank returns it automatically.
+        </p>
+      )
+    }
+  </section>
+
+  <div class="btn-row">
+    <a class="btn btn-primary" href="/#pricing" data-enroll>Try again <Icon name="arrow-right" /></a>
+    <a class="btn btn-secondary" href={help} target="_blank" rel="noopener"><Icon name="whatsapp" /> WhatsApp us</a>
+  </div>
+
+  <section class="pf-tips" aria-labelledby="pf-tips-title">
+    <h2 id="pf-tips-title" class="pf-h2">Before you try again</h2>
+    <ul class="dot-list">
+      <li>Check that your phone has a steady connection.</li>
+      <li>Try another way to pay: UPI, card or netbanking.</li>
+      <li>Opened this from Instagram? If the payment window doesn't appear, open the page in Chrome or Safari.</li>
+    </ul>
+  </section>
+  <p class="small muted"><a href="/">Back to the course page</a></p>
+
+  <Checkout />
+</ResultPage>
+
+<style>
+  .pf {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .pf h1 {
+    font-size: var(--text-2xl);
+  }
+
+  .pf-tips {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .pf-h2 {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-strong);
+    letter-spacing: -0.01em;
+  }
+</style>

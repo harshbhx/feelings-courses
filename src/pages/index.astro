@@ -5,6 +5,7 @@
 import Base from "../layouts/Base.astro";
 import { course } from "../data/course";
 import { site } from "../data/site";
+import Checkout from "../components/checkout/Checkout.astro";
 ---
 
 <Base title={`${course.title} by ${course.teacher} | ${site.name}`} description={course.subtitle}>
@@ -21,5 +22,6 @@ import { site } from "../data/site";
     <section id="for-who" aria-label="Who it is for"></section>
     <section id="pricing" aria-label="Price"></section>
     <section id="faq" aria-label="Questions"></section>
+    <Checkout />
   </main>
 </Base>
