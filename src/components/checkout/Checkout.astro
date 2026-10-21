@@ -2,8 +2,9 @@
 // Checkout: include once per page. Every [data-enroll] element opens it. Those are plain links
 // (to #pricing on the landing page), so without JavaScript they still work.
 //
-// Flow: buyer details → POST /api/order → either Razorpay Checkout (loaded only now, after the click)
-// or, when the server has no Razorpay keys, the built-in demo payment sheet → POST /api/verify →
+// Flow: buyer details → POST /api/order → either Razorpay Checkout (loaded only now, after the click),
+// with a server-side order ("razorpay") or, on the demo course without a Key Secret, in Test Mode
+// without one ("razorpay-test"), or the built-in demo payment sheet ("demo") → POST /api/verify →
 // /thank-you. The server decides the mode and the amount; this script never sends a price.
 import Icon from "../Icon.astro";
 import { course } from "../../data/course";
@@ -35,6 +36,14 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
 
     <!-- Step 1: buyer details (name and phone required; that's what Razorpay's prefill wants). -->
     <form class="co-step" data-step="details" data-co-form novalidate>
+      {
+        course.demo && (
+          <p class="co-test" data-co-test-badge>
+            <span class="co-test-dot" aria-hidden="true" />
+            <span data-co-test-badge-text>Test payment by Razorpay. No money is charged.</span>
+          </p>
+        )
+      }
       <div class="co-field">
         <label for="co-name">Your name</label>
         <input
@@ -88,9 +97,13 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
       <p class="co-note">Next you choose UPI, card or netbanking. This site doesn't save your details.</p>
     </form>
 
-    <!-- Step 2 (demo only, when the server has no Razorpay keys): a pretend payment. -->
+    <!-- Step 2 (demo only: no Razorpay Key Secret, and either no test Key ID or an in-app browser): a pretend payment. -->
     <div class="co-step" data-step="demo" hidden>
       <p class="co-test"><span class="co-test-dot" aria-hidden="true"></span>Test payment: no money is charged</p>
+      <p class="co-hint co-inapp" data-co-inapp-note hidden>
+        Razorpay's test checkout can't open inside Instagram or Facebook, so this is the built-in test. To try
+        Razorpay's, open this page in Chrome: tap the ⋯ menu, then Open in browser.
+      </p>
       <fieldset class="co-methods">
         <legend class="co-legend">Choose how to pay</legend>
         <div class="co-method-grid">
@@ -599,30 +612,38 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
 </style>
 
 <script>
+  import { IN_APP_BROWSER } from "../../data/payments";
+
   type Buyer = { name: string; phone: string; email: string };
-  type DemoOrder = { mode: "demo"; orderId: string; amount: number; currency: string };
-  type RazorpayOrder = {
-    mode: "razorpay";
+  // `fallback`: the server would have opened Razorpay's test Checkout, but this is an in-app browser.
+  type DemoOrder = { mode: "demo"; orderId: string; amount: number; currency: string; fallback?: "in_app_browser" };
+  type CheckoutDetails = {
     keyId: string;
-    orderId: string;
     amount: number;
     currency: string;
     name: string;
     description: string;
     prefill: Record<string, string>;
   };
-  type Order = DemoOrder | RazorpayOrder;
+  // A server-side Razorpay order, checked by its signature.
+  type RazorpayOrder = CheckoutDetails & { mode: "razorpay"; orderId: string };
+  // Razorpay's Test Mode without an order: there is no Key Secret to create one.
+  type RazorpayTestCheckout = CheckoutDetails & { mode: "razorpay-test" };
+  type RazorpayCheckout = RazorpayOrder | RazorpayTestCheckout;
+  type Order = DemoOrder | RazorpayCheckout;
   type VerifyBody =
     | { demo_order_id: string }
-    | { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
+    | { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }
+    | { mode: "razorpay-test"; razorpay_payment_id: string };
   type RazorpayInstance = { open(): void; on(event: string, handler: (response: any) => void): void };
   type RazorpayConstructor = new (options: Record<string, unknown>) => RazorpayInstance;
   type Step = "details" | "demo" | "working" | "problem";
 
   const RAZORPAY_SCRIPT = "https://checkout.razorpay.com/v1/checkout.js";
   // Instagram's and Facebook's in-app browsers (and Android web views) can't show Checkout in a
-  // frame, so there Razorpay posts the result to /api/verify and the buyer follows a redirect.
-  const IN_APP_BROWSER = /Instagram|FBAN|FBAV|FB_IAB|; wv\)/i;
+  // frame. With an order, Razorpay posts the result to /api/verify and the buyer follows a redirect;
+  // without one ("razorpay-test"), the server sends the demo sheet instead.
+  const inApp = IN_APP_BROWSER.test(navigator.userAgent);
 
   const TITLES: Record<Step, string> = {
     details: "Your details",
@@ -658,6 +679,10 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
     const submit = find<HTMLButtonElement>("[data-co-submit]");
     const submitLabel = find<HTMLElement>("[data-co-submit-label]");
     const methodNote = find<HTMLElement>("[data-co-method-note]");
+    const inAppNote = find<HTMLElement>("[data-co-inapp-note]");
+    // In Instagram's or Facebook's browser the test may be the built-in sheet, not Razorpay's.
+    const testBadgeText = dialog.querySelector<HTMLElement>("[data-co-test-badge-text]");
+    if (testBadgeText && inApp) testBadgeText.textContent = "Test payment. No money is charged.";
     const payButton = find<HTMLButtonElement>("[data-co-pay]");
     const progress = find<HTMLElement>("[data-co-progress]");
     const workingText = find<HTMLElement>("[data-co-working-text]");
@@ -861,6 +886,7 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
         }
         order = data as Order;
         if (order.mode === "demo") {
+          inAppNote.hidden = order.fallback !== "in_app_browser";
           show("demo");
           announce("Test payment. No money is charged.");
         } else {
@@ -921,9 +947,14 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
       return /^#[0-9a-f]{6}$/i.test(value) ? value : undefined;
     }
 
-    async function openRazorpay(rzpOrder: RazorpayOrder) {
+    async function openRazorpay(rzpOrder: RazorpayCheckout) {
       busy = true;
-      working("Opening secure payment…", "Razorpay's payment window opens in a moment.", 2400);
+      const testMode = rzpOrder.keyId.startsWith("rzp_test_");
+      working(
+        "Opening secure payment…",
+        testMode ? "Test payment by Razorpay. No money is charged." : "Razorpay's payment window opens in a moment.",
+        2400,
+      );
       let Razorpay: RazorpayConstructor;
       try {
         Razorpay = await loadRazorpay();
@@ -938,10 +969,11 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
       let paid = false;
       let lastError = "";
       const color = accentHex();
-      const inApp = IN_APP_BROWSER.test(navigator.userAgent);
+      const withOrder = rzpOrder.mode === "razorpay";
       const checkout = new Razorpay({
         key: rzpOrder.keyId,
-        order_id: rzpOrder.orderId,
+        // "razorpay-test" has no order: without a Key Secret the server can't create one.
+        ...(withOrder && { order_id: rzpOrder.orderId }),
         amount: rzpOrder.amount,
         currency: rzpOrder.currency,
         name: rzpOrder.name,
@@ -949,23 +981,28 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
         image: new URL("/apple-touch-icon.png", location.href).href,
         prefill: rzpOrder.prefill,
         ...(color && { theme: { color } }),
-        ...(inApp && { callback_url: new URL("/api/verify", location.href).href, redirect: true }),
+        // The redirect flow is only documented with an order; "razorpay-test" never reaches here in-app.
+        ...(withOrder && inApp && { callback_url: new URL("/api/verify", location.href).href, redirect: true }),
         retry: { enabled: true },
-        handler: (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+        handler: (response: { razorpay_order_id?: string; razorpay_payment_id: string; razorpay_signature?: string }) => {
           paid = true;
           reopen();
           working("Confirming your payment…", "Please keep this page open.", 1600);
-          void confirm({
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-          });
+          void confirm(
+            withOrder
+              ? {
+                  razorpay_order_id: String(response.razorpay_order_id ?? ""),
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: String(response.razorpay_signature ?? ""),
+                }
+              : { mode: "razorpay-test", razorpay_payment_id: response.razorpay_payment_id },
+          );
         },
         modal: {
           ondismiss: () => {
             if (paid) return;
             reopen();
-            const testNote = rzpOrder.keyId.startsWith("rzp_test_") ? " This is test mode, so no real money moves." : "";
+            const testNote = testMode ? " This is test mode, so no real money moves." : "";
             problem(
               lastError
                 ? `The last try didn't go through: ${lastError}. If any amount left your account for it, your bank returns it automatically.${testNote}`

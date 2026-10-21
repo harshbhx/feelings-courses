@@ -25,11 +25,18 @@ import {
   verifyEnrollment,
 } from "../functions/_lib/enrollment.ts";
 import { course } from "../src/data/course.ts";
+import { RAZORPAY_TEST_KEY_ID } from "../src/data/payments.ts";
 
 const SITE = "https://courses.example.test";
 const TEST_KEYS = { RAZORPAY_KEY_ID: "rzp_test_FakeKeyId0001", RAZORPAY_KEY_SECRET: "fake_test_secret_not_real" };
 const LIVE_KEYS = { RAZORPAY_KEY_ID: "rzp_live_FakeKeyId0001", RAZORPAY_KEY_SECRET: "fake_live_secret_not_real" };
 const ENROLL = { ENROLL_SECRET: "fake-enroll-secret-for-tests" };
+// The built-in demo sheet: no Key Secret and no committed test Key ID either.
+const NO_TEST_KEY = { testKeyId: "" };
+const INSTAGRAM_UA =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 345.0.0.0.0";
+// Shaped like the id Razorpay Checkout hands its handler: "pay_" and 14 letters or digits.
+const TEST_PAYMENT_ID = "pay_FakeTestPay001";
 
 // ---------- helpers ----------
 
@@ -205,15 +212,22 @@ test("enrollment: payment refs that could break the cookie format are refused", 
 
 // ---------- modes ----------
 
-test("mode: no keys + demo course → demo; no keys + live course → off", () => {
-  assert.equal(paymentMode({}, true).kind, "demo");
+test("mode: no keys + demo course → razorpay-test with the committed key, or demo without one; live course → off", () => {
+  assert.deepEqual(paymentMode({}, true), { kind: "razorpay-test", keyId: RAZORPAY_TEST_KEY_ID });
+  assert.equal(paymentMode({}, true, "").kind, "demo");
   assert.equal(paymentMode({}, false).kind, "off");
+  assert.equal(paymentMode({}, false, "").kind, "off");
 });
 
-test("mode: half-set or odd keys turn payments off", () => {
-  assert.equal(paymentMode({ RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID }, true).kind, "off");
+test("mode: half-set or odd keys turn payments off (a test Key ID alone on the demo is razorpay-test)", () => {
+  assert.deepEqual(paymentMode({ RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID }, true), {
+    kind: "razorpay-test",
+    keyId: TEST_KEYS.RAZORPAY_KEY_ID,
+  });
+  assert.equal(paymentMode({ RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID }, false).kind, "off");
   assert.equal(paymentMode({ RAZORPAY_KEY_SECRET: "x" }, true).kind, "off");
   assert.equal(paymentMode({ RAZORPAY_KEY_ID: "pk_test_123", RAZORPAY_KEY_SECRET: "x" }, true).kind, "off");
+  assert.equal(paymentMode({ RAZORPAY_KEY_ID: "pk_test_123" }, true).kind, "off");
 });
 
 test("order: live keys are refused while the course is a demo", async (t) => {
@@ -256,10 +270,11 @@ test("verify: demo payments are refused on the live course", async () => {
 // ---------- amount ----------
 
 test("order (demo): the amount comes from course.ts, whatever the browser sends", async () => {
-  const res = await orderFn({
-    request: post("/api/order", { name: "Asha", phone: "9876543210", amount: 100, currency: "USD", price: { amount: 1 } }),
-    env: {},
-  });
+  const res = await handleOrder(
+    post("/api/order", { name: "Asha", phone: "9876543210", amount: 100, currency: "USD", price: { amount: 1 } }),
+    {},
+    NO_TEST_KEY,
+  );
   assert.equal(res.status, 200);
   const data = await res.json();
   assert.equal(data.mode, "demo");
@@ -388,7 +403,8 @@ test("verify (Razorpay callback form): a failure or a forgery → 303 /payment-f
 // ---------- verify (demo) ----------
 
 test("verify (demo): a demo order gets a demo enrollment", async () => {
-  const order = await (await orderFn({ request: post("/api/order", {}), env: {} })).json();
+  const order = await (await handleOrder(post("/api/order", {}), {}, NO_TEST_KEY)).json();
+  assert.equal(order.mode, "demo");
   const res = await verifyFn({ request: post("/api/verify", { demo_order_id: order.orderId }), env: {} });
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { ok: true, redirect: "/thank-you" });
@@ -404,6 +420,203 @@ test("verify (demo): malformed demo ids and Razorpay ids without keys are refuse
   }
   const res = await verifyFn({ request: post("/api/verify", signedIds()), env: {} });
   assert.equal(res.status, 400);
+  assert.equal(res.headers.get("Set-Cookie"), null);
+});
+
+// ---------- razorpay-test (Razorpay's test Checkout without an order) ----------
+
+test("mode: every combination of keys, course state and committed test key", () => {
+  const cases = [
+    // [env, demo, committed test key id, expected kind (and code when off)]
+    [{}, true, RAZORPAY_TEST_KEY_ID, "razorpay-test"],
+    [{}, true, "", "demo"],
+    [{}, true, "rzp_live_Committed01", "demo"], // a committed live id is never used
+    [{}, false, RAZORPAY_TEST_KEY_ID, "off:payments_not_configured"],
+    [{}, false, "", "off:payments_not_configured"],
+    [{ RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID }, true, RAZORPAY_TEST_KEY_ID, "razorpay-test"],
+    [{ RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID }, true, "", "razorpay-test"],
+    [{ RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID }, false, RAZORPAY_TEST_KEY_ID, "off:payments_misconfigured"],
+    [{ RAZORPAY_KEY_ID: LIVE_KEYS.RAZORPAY_KEY_ID }, true, RAZORPAY_TEST_KEY_ID, "off:live_keys_in_demo"],
+    [{ RAZORPAY_KEY_ID: LIVE_KEYS.RAZORPAY_KEY_ID }, false, RAZORPAY_TEST_KEY_ID, "off:payments_misconfigured"],
+    [{ RAZORPAY_KEY_ID: "pk_test_123" }, true, RAZORPAY_TEST_KEY_ID, "off:payments_misconfigured"],
+    [{ RAZORPAY_KEY_SECRET: "x" }, true, RAZORPAY_TEST_KEY_ID, "off:payments_misconfigured"],
+    [{ RAZORPAY_KEY_SECRET: "x" }, false, RAZORPAY_TEST_KEY_ID, "off:payments_misconfigured"],
+    [TEST_KEYS, true, RAZORPAY_TEST_KEY_ID, "razorpay"],
+    [TEST_KEYS, true, "", "razorpay"],
+    [TEST_KEYS, false, RAZORPAY_TEST_KEY_ID, "off:test_keys_on_live"],
+    [LIVE_KEYS, true, RAZORPAY_TEST_KEY_ID, "off:live_keys_in_demo"],
+    [LIVE_KEYS, false, RAZORPAY_TEST_KEY_ID, "off:enroll_secret_missing"],
+    [{ ...LIVE_KEYS, ...ENROLL }, false, RAZORPAY_TEST_KEY_ID, "razorpay"],
+    [{ ...LIVE_KEYS, ...ENROLL }, false, "", "razorpay"],
+    // Blank values count as unset.
+    [{ RAZORPAY_KEY_ID: "  ", RAZORPAY_KEY_SECRET: "" }, true, RAZORPAY_TEST_KEY_ID, "razorpay-test"],
+  ];
+  for (const [env, demo, testKeyId, expected] of cases) {
+    const mode = paymentMode(env, demo, testKeyId);
+    const got = mode.kind === "off" ? `off:${mode.code}` : mode.kind;
+    assert.equal(got, expected, JSON.stringify({ env, demo, testKeyId }));
+    if (mode.kind === "razorpay-test" || mode.kind === "demo") assert.equal(demo, true, "only on the demo course");
+  }
+  // The env Key ID wins over the committed one, and the committed one is used when env has none.
+  assert.equal(paymentMode({ RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID }, true).keyId, TEST_KEYS.RAZORPAY_KEY_ID);
+  assert.equal(paymentMode({}, true).keyId, "rzp_test_1DP5mmOlF5G5ag");
+});
+
+test("razorpay-test: never possible on the live course, whatever the env", () => {
+  const envs = [{}, { RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID }, { RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID, ...ENROLL }, ENROLL];
+  for (const env of envs) {
+    for (const testKeyId of [RAZORPAY_TEST_KEY_ID, "", "rzp_test_Another0001"]) {
+      const kind = paymentMode(env, false, testKeyId).kind;
+      assert.notEqual(kind, "razorpay-test", JSON.stringify(env));
+      assert.notEqual(kind, "demo", JSON.stringify(env));
+    }
+  }
+});
+
+test("order (razorpay-test): Checkout details without an order id, the amount from course.ts, no call to Razorpay", async (t) => {
+  const calls = noFetch(t);
+  const res = await orderFn({
+    request: post("/api/order", {
+      name: " Asha  Patel ",
+      phone: "98765 43210",
+      email: "asha@example.com",
+      amount: 100,
+      currency: "USD",
+      order_id: "order_FromBrowser1",
+      keyId: "rzp_test_FromBrowser",
+    }),
+    env: {},
+  });
+  assert.equal(res.status, 200);
+  const text = await res.text();
+  assertNoSecrets(text);
+  assert.deepEqual(JSON.parse(text), {
+    mode: "razorpay-test",
+    keyId: RAZORPAY_TEST_KEY_ID,
+    amount: course.price.amount,
+    currency: course.price.currency,
+    name: "Feelings Beauty Care",
+    description: course.title,
+    prefill: { name: "Asha Patel", contact: "+919876543210", email: "asha@example.com" },
+  });
+  assert.equal(calls.length, 0, "no Key Secret, so Razorpay's API is never called");
+});
+
+test("order (razorpay-test): a test Key ID set in env is used instead of the committed one", async (t) => {
+  noFetch(t);
+  const res = await orderFn({ request: post("/api/order", {}), env: { RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID } });
+  const data = await res.json();
+  assert.equal(data.mode, "razorpay-test");
+  assert.equal(data.keyId, TEST_KEYS.RAZORPAY_KEY_ID);
+  assert.equal(data.orderId, undefined);
+  assert.equal(data.amount, course.price.amount);
+});
+
+test("order (razorpay-test): Instagram's and Facebook's in-app browsers get the demo sheet instead", async () => {
+  const uas = [
+    INSTAGRAM_UA,
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) [FBAN/FB4A;FBAV/450.0.0.0;]",
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0 Mobile Safari/537.36",
+  ];
+  for (const ua of uas) {
+    const res = await orderFn({ request: post("/api/order", { amount: 1 }, { "User-Agent": ua }), env: {} });
+    const data = await res.json();
+    assert.equal(data.mode, "demo", ua);
+    assert.equal(data.fallback, "in_app_browser");
+    assert.match(data.orderId, /^demo_[0-9a-f]{24}$/);
+    assert.equal(data.amount, course.price.amount);
+    // …and that demo order is accepted in this mode.
+    const verify = await verifyFn({ request: post("/api/verify", { demo_order_id: data.orderId }), env: {} });
+    assert.equal(verify.status, 200);
+    assert.ok(await verifyEnrollment({}, withCookie(verify.headers.get("Set-Cookie"))));
+  }
+  // A normal phone or desktop browser still gets Razorpay's test Checkout.
+  const chrome = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36";
+  const res = await orderFn({ request: post("/api/order", {}, { "User-Agent": chrome }), env: {} });
+  assert.equal((await res.json()).mode, "razorpay-test");
+});
+
+test("order (razorpay-test): refused on the live course", async () => {
+  for (const env of [{}, { RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID }]) {
+    const res = await handleOrder(post("/api/order", {}), env, { demo: false });
+    assert.equal(res.status, 503, JSON.stringify(env));
+    assert.notEqual((await res.json()).mode, "razorpay-test");
+  }
+});
+
+test("verify (razorpay-test): a well-formed payment id → enrollment for that id and /thank-you", async (t) => {
+  const calls = noFetch(t);
+  const body = { mode: "razorpay-test", razorpay_payment_id: TEST_PAYMENT_ID };
+  const res = await verifyFn({ request: post("/api/verify", body), env: ENROLL });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true, redirect: "/thank-you" });
+  const enrollment = await verifyEnrollment(ENROLL, withCookie(res.headers.get("Set-Cookie")));
+  assert.equal(enrollment.paymentRef, TEST_PAYMENT_ID);
+  assert.equal(calls.length, 0, "nothing to ask Razorpay without a Key Secret");
+
+  // Without ENROLL_SECRET the demo key signs it, as for demo orders.
+  const demoKey = await verifyFn({ request: post("/api/verify", body), env: {} });
+  assert.equal(demoKey.status, 200);
+  assert.ok(await verifyEnrollment({}, withCookie(demoKey.headers.get("Set-Cookie"))));
+});
+
+test("verify (razorpay-test): a bad payment id is refused", async () => {
+  const bad = [
+    undefined,
+    "",
+    42,
+    ["pay_FakeTestPay001"],
+    "pay_Short1",
+    "pay_FakeTestPay0012", // 15 characters
+    "pay_FakeTest-ay001",
+    "pay_FakeTestPay00 ",
+    "PAY_FakeTestPay001",
+    "order_FakeTestPa01",
+    "demo_0123456789abcdef01234567",
+    "pay_FakeTestPay001.x",
+  ];
+  for (const id of bad) {
+    const res = await verifyFn({ request: post("/api/verify", { mode: "razorpay-test", razorpay_payment_id: id }), env: {} });
+    assert.equal(res.status, 400, JSON.stringify(id));
+    assert.equal((await res.json()).error, "invalid_payment");
+    assert.equal(res.headers.get("Set-Cookie"), null);
+  }
+  // Without mode "razorpay-test", order-and-signature ids can't be checked here (no Key Secret).
+  const signed = await verifyFn({ request: post("/api/verify", signedIds()), env: {} });
+  assert.equal(signed.status, 400);
+  assert.equal(signed.headers.get("Set-Cookie"), null);
+});
+
+test("verify (razorpay-test): refused on the live course, with a Key Secret, or without a test Key ID", async (t) => {
+  const calls = noFetch(t);
+  const body = { mode: "razorpay-test", razorpay_payment_id: TEST_PAYMENT_ID };
+  const attempts = [
+    // [env, options, expected status]
+    [{}, { demo: false }, 503],
+    [{ RAZORPAY_KEY_ID: TEST_KEYS.RAZORPAY_KEY_ID, ...ENROLL }, { demo: false }, 503],
+    [{ ...LIVE_KEYS, ...ENROLL }, { demo: false }, 403],
+    [TEST_KEYS, {}, 403],
+    [{ RAZORPAY_KEY_SECRET: "x" }, {}, 503],
+    [{ RAZORPAY_KEY_ID: LIVE_KEYS.RAZORPAY_KEY_ID }, {}, 503],
+    [{}, NO_TEST_KEY, 403],
+  ];
+  for (const [env, options, status] of attempts) {
+    const res = await handleVerify(post("/api/verify", body), env, options);
+    assert.equal(res.status, status, JSON.stringify({ env, options }));
+    assert.equal(res.headers.get("Set-Cookie"), null);
+  }
+  // The in-app redirect flow doesn't exist in this mode.
+  const form = await verifyFn({ request: postForm("/api/verify", { razorpay_payment_id: TEST_PAYMENT_ID }), env: {} });
+  assert.equal(form.status, 303);
+  assert.equal(form.headers.get("Location"), `${SITE}/payment-failed`);
+  assert.equal(form.headers.get("Set-Cookie"), null);
+  assert.equal(calls.length, 0);
+});
+
+test("verify (razorpay-test): cross-site posts are refused", async () => {
+  const body = { mode: "razorpay-test", razorpay_payment_id: TEST_PAYMENT_ID };
+  const res = await verifyFn({ request: post("/api/verify", body, { Origin: "https://evil.example" }), env: {} });
+  assert.equal(res.status, 403);
   assert.equal(res.headers.get("Set-Cookie"), null);
 });
 

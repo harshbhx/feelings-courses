@@ -44,7 +44,8 @@ Three parts were built in parallel. Keep these boundaries:
 **Test mode only while `course.demo` is true.**
 - **Flow:** `POST /api/order` creates a Razorpay order on the server, using the secret key. The browser opens Razorpay Checkout. `POST /api/verify` checks Razorpay's signature (HMAC-SHA256 of `order_id|payment_id` with the key secret) and only then issues the enrollment cookie. Amounts always come from `course.ts` on the server, never from the browser.
 - **Secrets:** `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `ENROLL_SECRET`. The owner sets them in the Cloudflare dashboard (Pages project → Settings → Variables and Secrets). Secrets never go in the repo or through the assistant.
-- **Demo fallback:** without Razorpay keys, checkout opens a built-in demo payment sheet. It is clearly labelled "test, no money is charged", and the rest of the flow is the same, so the client can try it before any account exists.
+- **Razorpay test mode without a secret (`razorpay-test`):** while `course.demo` is true and no Key Secret is set, checkout opens Razorpay's real Checkout in Test Mode with the public test Key ID committed in `src/data/payments.ts` (owner-approved, not a secret), without an order. `/api/verify` can't verify those payments (no secret), so it accepts any well-formed `pay_…` id: acceptable only for the demo. Never possible once `demo` is false. Never commit a Key Secret.
+- **Demo fallback:** with no Key Secret and no test Key ID, and in Instagram's and Facebook's in-app browsers in the mode above, checkout opens a built-in demo payment sheet. It is clearly labelled "test, no money is charged", and the rest of the flow is the same.
 
 ## Rules
 
