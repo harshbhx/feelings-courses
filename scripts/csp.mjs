@@ -42,21 +42,38 @@ if (!existsSync(dist)) {
   process.exit(1);
 }
 
+// Razorpay Checkout (standard web integration), loaded only after a buyer taps Enroll. Razorpay
+// doesn't publish a CSP list, so this is what checkout.js itself loads on our page (checked against
+// the live script and in a headless browser, 2026-10-20):
+// - script: checkout.js, and the risk-detection bundle it injects from cdn.razorpay.com;
+// - frame: the payment form itself, api.razorpay.com/v1/checkout/public;
+// - connect: its event and error beacons (lumberjack.razorpay.com seen; -cx and -metrics are in the
+//   script too).
+// Nothing more: card fields, UPI and bank pages run inside Razorpay's own frame and windows, and in
+// Instagram's and Facebook's in-app browsers (redirect flow) Razorpay posts only to our own
+// /api/verify, which form-action 'self' already allows.
+const RAZORPAY = {
+  script: ["https://checkout.razorpay.com", "https://cdn.razorpay.com"],
+  frame: ["https://api.razorpay.com"],
+  connect: ["https://lumberjack.razorpay.com", "https://lumberjack-cx.razorpay.com", "https://lumberjack-metrics.razorpay.com"],
+};
+
 // Everything the site loads, and from where. Keep this list to what the pages really use.
 const policy = (scriptHashes) => ({
   "default-src": ["'self'"],
   // Our bundles, the hashed inline scripts, and Cloudflare Web Analytics' beacon if the owner
   // switches it on.
-  "script-src": ["'self'", ...scriptHashes, "https://static.cloudflareinsights.com"],
+  "script-src": ["'self'", ...scriptHashes, "https://static.cloudflareinsights.com", ...RAZORPAY.script],
   "style-src": ["'self'", "'unsafe-inline'"],
   // YouTube thumbnails (stories, Shorts rail) and Google reviewers' photos (live reviews).
   "img-src": ["'self'", "data:", "https://i.ytimg.com", "https://*.googleusercontent.com"],
   // Vite inlines the smallest Fontsource subset (cyrillic-ext) into the CSS as a data: URL.
   "font-src": ["'self'", "data:"],
-  // /api/reviews and /api/tap are same-origin; Web Analytics reports to cloudflareinsights.com.
-  "connect-src": ["'self'", "https://cloudflareinsights.com"],
-  // The embeds run in their own frames: YouTube (privacy mode), Instagram's profile embed, Google Maps.
-  "frame-src": ["https://www.youtube-nocookie.com", "https://www.instagram.com", "https://www.google.com"],
+  // /api/* is same-origin; Web Analytics reports to cloudflareinsights.com.
+  "connect-src": ["'self'", "https://cloudflareinsights.com", ...RAZORPAY.connect],
+  // The embeds run in their own frames: YouTube (privacy mode), Instagram's profile embed, Google Maps,
+  // and Razorpay's payment form.
+  "frame-src": ["https://www.youtube-nocookie.com", "https://www.instagram.com", "https://www.google.com", ...RAZORPAY.frame],
   "media-src": ["'self'"],
   "object-src": ["'none'"],
   "base-uri": ["'self'"],
