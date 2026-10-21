@@ -1,0 +1,87 @@
+---
+// The course area's header: the logo (back to the course home) and help on WhatsApp.
+// The logo file is drawn as a CSS mask in maroon, the same way as on the main site.
+import Icon from "../Icon.astro";
+import logo from "../../assets/brand/logo.webp";
+import { whatsappLink } from "../../lib/whatsapp";
+import { site } from "../../data/site";
+---
+
+<header class="learn-header">
+  <div class="container bar">
+    <a class="brand" href="/learn">
+      <span
+        class="logo"
+        style={`--logo-url: url(${logo.src}); aspect-ratio: ${logo.width} / ${logo.height};`}
+        aria-hidden="true"></span>
+      <span class="visually-hidden">{site.name}: </span>
+      <span class="brand-tag">Course</span>
+    </a>
+    <a class="btn btn-secondary btn-sm help" href={whatsappLink()} target="_blank" rel="noopener">
+      <Icon name="whatsapp" />
+      Help<span class="visually-hidden"> on WhatsApp (opens WhatsApp)</span>
+    </a>
+  </div>
+</header>
+
+<style>
+  .learn-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    view-transition-name: learn-header;
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    min-height: var(--header-h);
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 2.75rem;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .logo {
+    display: block;
+    width: 7.25rem;
+    background-color: var(--bg-deep);
+    -webkit-mask: var(--logo-url) center / contain no-repeat;
+    mask: var(--logo-url) center / contain no-repeat;
+  }
+
+  .brand-tag {
+    padding-left: var(--space-3);
+    border-left: 1px solid var(--border-strong);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-strong);
+    line-height: 1.6;
+    color: var(--text-muted);
+  }
+
+  .help {
+    min-height: 2.75rem;
+  }
+
+  @media (min-width: 48rem) {
+    .logo {
+      width: 8.5rem;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .logo {
+      forced-color-adjust: none;
+      background-color: CanvasText;
+    }
+  }
+</style>

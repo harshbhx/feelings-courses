@@ -1,0 +1,84 @@
+---
+// Help on WhatsApp: a plain wa.me link with a prefilled message.
+import Icon from "../Icon.astro";
+import { whatsappLink, DEFAULT_MESSAGE } from "../../lib/whatsapp";
+
+interface Props {
+  title?: string;
+  text?: string;
+  message?: string;
+}
+
+const {
+  title = "Stuck on a step?",
+  text = "Message Urmi on WhatsApp and say which lesson you are on.",
+  message = DEFAULT_MESSAGE,
+} = Astro.props;
+---
+
+<section class="help" aria-labelledby="help-title">
+  <span class="disc" aria-hidden="true"><Icon name="whatsapp" /></span>
+  <div class="copy">
+    <h2 id="help-title" class="title">{title}</h2>
+    <p class="text">{text}</p>
+  </div>
+  <a class="btn btn-secondary btn-sm go" href={whatsappLink(message)} target="_blank" rel="noopener">
+    Ask on WhatsApp<span class="visually-hidden"> (opens WhatsApp)</span>
+  </a>
+</section>
+
+<style>
+  .help {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: var(--space-3) var(--space-4);
+    padding: var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-soft);
+  }
+
+  .disc {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .disc :global(.icon) {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
+
+  .copy {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .title {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-strong);
+    line-height: 1.25;
+  }
+
+  .text {
+    font-size: var(--text-sm);
+    color: var(--text-body);
+  }
+
+  .go {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  @media (max-width: 29.99rem) {
+    .go {
+      justify-self: stretch;
+    }
+  }
+</style>

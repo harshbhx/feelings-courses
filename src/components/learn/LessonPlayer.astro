@@ -1,0 +1,232 @@
+---
+// The lesson's video. Nothing loads from YouTube until the viewer taps play: the poster is our
+// own markup, and the tap swaps in a youtube-nocookie player (learn-ui.ts). Without JavaScript the
+// poster is a plain link to the video on YouTube.
+//
+// DEMO: no lesson video exists yet (src/data/lessons.ts), so a studio clip from course.glimpses
+// stands in, and the caption says so in plain words.
+import Icon from "../Icon.astro";
+import type { Lesson } from "../../data/lessons";
+
+interface Props {
+  lesson: Lesson;
+}
+
+const { lesson } = Astro.props;
+const { video } = lesson;
+const watchUrl = `https://www.youtube.com/watch?v=${video.id}`;
+const playerTitle = video.demo ? `Demo clip: ${video.label}` : `${lesson.title}, lesson video`;
+---
+
+<figure
+  class="player"
+  data-player
+  data-video-id={video.id}
+  data-video-title={playerTitle}
+  data-vertical={video.vertical ? "true" : "false"}
+>
+  <div class="stage" data-stage>
+    <a class="poster" href={watchUrl} target="_blank" rel="noopener" data-play>
+      <span class="poster-meta" aria-hidden="true">Module {lesson.moduleNumber} · Lesson {lesson.number}</span>
+      <span class="poster-num" aria-hidden="true">{String(lesson.number).padStart(2, "0")}</span>
+      <span class="play" aria-hidden="true"><Icon name="play-fill" /></span>
+      <span class="poster-label">
+        {video.demo ? "Play the demo clip" : "Play the lesson"}
+        <span class="visually-hidden">: {playerTitle} (YouTube)</span>
+      </span>
+    </a>
+  </div>
+  {
+    video.demo && (
+      <figcaption class="demo-note">
+        <span class="chip">Demo</span>
+        <span>
+          <strong>Lesson video coming soon. Demo uses a studio clip</strong>: {video.label}.
+        </span>
+      </figcaption>
+    )
+  }
+</figure>
+
+<style>
+  .player {
+    margin: 0;
+  }
+
+  .stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: var(--bg-deep);
+    color: var(--text-on-deep);
+  }
+
+  .poster {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: var(--space-3);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .poster:focus-visible {
+    outline: 2px solid var(--white);
+    outline-offset: -6px;
+    border-radius: var(--radius-md);
+  }
+
+  /* A typographic cover: the module and lesson, and the lesson's number set large and faint. */
+  .poster-meta {
+    position: absolute;
+    top: var(--space-4);
+    left: var(--space-4);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-on-deep-muted);
+  }
+
+  .poster-num {
+    position: absolute;
+    right: var(--space-4);
+    bottom: calc(var(--space-2) * -1);
+    font-size: clamp(5rem, 3rem + 9vw, 9rem);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.05em;
+    line-height: 1;
+    color: var(--text-on-deep);
+    opacity: 0.12;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .play {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    background: var(--white);
+    color: var(--accent);
+    box-shadow: var(--shadow-md);
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+
+  .play :global(.icon) {
+    width: 1.6rem;
+    height: 1.6rem;
+    margin-left: 0.2rem;
+  }
+
+  .poster-label {
+    position: relative;
+    font-weight: var(--weight-strong);
+    font-size: var(--text-sm);
+  }
+
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .poster:hover .play {
+      transform: scale(1.06);
+    }
+  }
+
+  @media (hover: none) and (prefers-reduced-motion: no-preference) {
+    .poster:active .play {
+      transform: scale(0.94);
+    }
+  }
+
+  /* Playing: the player fills the stage. An upright clip keeps its shape, centred. */
+  .player[data-playing="true"] .stage {
+    background: var(--bg-deepest);
+  }
+
+  .stage :global(iframe) {
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  .player[data-playing="true"][data-vertical="true"] .stage {
+    aspect-ratio: auto;
+  }
+
+  .player[data-playing="true"][data-vertical="true"] .stage :global(iframe) {
+    width: auto;
+    height: min(78svh, 40rem);
+    aspect-ratio: 9 / 16;
+  }
+
+  /* Phones: fit between the sticky header and the lesson's bottom bar, so no control is covered. */
+  @media (max-width: 47.99rem) {
+    .player[data-playing="true"][data-vertical="true"] .stage :global(iframe) {
+      height: min(100svh - var(--header-h) - var(--mobile-bar-h) - var(--space-7), 40rem);
+    }
+  }
+
+  .demo-note {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-soft);
+    font-size: var(--text-sm);
+    color: var(--text-body);
+  }
+
+  .demo-note strong {
+    font-weight: var(--weight-strong);
+    color: var(--text);
+  }
+
+  .chip {
+    flex: none;
+    padding: 0.1rem 0.6rem;
+    border-radius: var(--radius-pill);
+    background: var(--bg-tint);
+    color: var(--text);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+  }
+
+  /* Phones: edge to edge, like a video app. From tablets: a rounded frame in the column. */
+  @media (max-width: 47.99rem) {
+    .player {
+      margin-inline: calc(var(--gutter) * -1);
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .player {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+    }
+
+    .demo-note {
+      border-bottom: 0;
+      padding-inline: var(--space-5);
+    }
+
+    .play {
+      width: 4.75rem;
+      height: 4.75rem;
+    }
+
+    .poster-meta {
+      top: var(--space-5);
+      left: var(--space-5);
+    }
+
+    .poster-num {
+      right: var(--space-5);
+    }
+  }
+</style>

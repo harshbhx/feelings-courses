@@ -1,0 +1,83 @@
+---
+// The course area's footer: where progress is kept, logging out of this device, the main site.
+import { site } from "../../data/site";
+---
+
+<footer class="learn-footer">
+  <div class="container inner">
+    <p class="saved">Your ticks are saved in this browser, on this device only.</p>
+    <details class="logout">
+      <summary>Log out of this device</summary>
+      <div class="logout-body">
+        <p>This removes your course access from this browser. Your ticks stay.</p>
+        <form method="post" action="/learn/logout">
+          <button class="btn btn-secondary btn-sm" type="submit">Log out</button>
+        </form>
+      </div>
+    </details>
+    <p class="studio">
+      {site.name}, {site.address.city}, since {site.foundedYear}.
+      <a href={site.mainUrl}>{site.mainUrl.replace("https://", "")}</a>
+    </p>
+  </div>
+</footer>
+
+<style>
+  .learn-footer {
+    margin-top: var(--space-8);
+    padding-block: var(--space-6);
+    border-top: 1px solid var(--border);
+    background: var(--bg-soft);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+
+  .inner {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .studio a {
+    display: inline-block;
+    padding-block: var(--space-2);
+    color: var(--text);
+    font-weight: var(--weight-ui);
+  }
+
+  .logout summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    color: var(--text);
+    font-weight: var(--weight-ui);
+    text-decoration: underline;
+    text-decoration-color: var(--border-strong);
+    text-underline-offset: 0.2em;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .logout summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .logout-body {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-3);
+    padding-bottom: var(--space-2);
+  }
+
+  @media (min-width: 64rem) {
+    .inner {
+      grid-template-columns: 1fr auto;
+      align-items: start;
+      column-gap: var(--space-7);
+    }
+
+    .logout {
+      grid-row: span 2;
+      justify-self: end;
+    }
+  }
+</style>
