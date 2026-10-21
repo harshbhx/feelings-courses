@@ -1,0 +1,24 @@
+---
+// "Reset demo data" (DEMO): clears every admin demo key on this browser, after a confirmation.
+import Icon from "../../Icon.astro";
+---
+
+<section class="card set-card" aria-labelledby="set-reset-title">
+  <div class="card-pad set-body">
+    <div class="set-reset">
+      <span class="set-ic"><Icon name="arrow-counter-clockwise" /></span>
+      <div>
+        <h2 class="card-title" id="set-reset-title">Reset demo data</h2>
+        <p>
+          Puts every admin screen back to the example data on this browser: courses, coupons, notification choices and
+          anything else you changed. You stay signed in.
+        </p>
+        <p class="set-reset-count" aria-live="polite" data-set-reset-count></p>
+      </div>
+    </div>
+    <button class="btn btn-danger set-reset-btn" type="button" data-set-reset>
+      <Icon name="arrow-counter-clockwise" />
+      Reset demo data
+    </button>
+  </div>
+</section>

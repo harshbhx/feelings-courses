@@ -1,0 +1,51 @@
+---
+// Payment mode (DEMO): Razorpay in test mode, and what going live needs. The course facts still to
+// confirm come from course.toConfirm, so this list shrinks as the client confirms them.
+import Icon from "../../Icon.astro";
+import { course } from "../../../data/course";
+
+const list = (items: readonly string[]) =>
+  items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+const toConfirm = list(course.toConfirm);
+
+const steps = [
+  { title: "Razorpay account activated", text: "Sign up and finish KYC with your PAN, bank account and business details." },
+  { title: "Policy pages on the course site", text: "Terms, privacy, refunds and contact. Razorpay checks them before it activates an account." },
+  { title: "Course details confirmed", text: toConfirm ? `Still to confirm: ${toConfirm}.` : "Everything is confirmed." },
+  { title: "Live keys saved in Cloudflare", text: "Added as secrets in the hosting dashboard, never sent on WhatsApp or email." },
+  { title: "One real purchase, then a refund", text: "Buy the course once yourself to check the money reaches your bank." },
+];
+---
+
+<section class="card set-card" aria-labelledby="set-pay-title">
+  <div class="card-head">
+    <div>
+      <h2 class="card-title" id="set-pay-title">Payments</h2>
+      <p class="card-sub">Razorpay checkout on the course page</p>
+    </div>
+    <span class="set-mode">Test mode</span>
+  </div>
+  <div class="card-pad set-body">
+    <div class="set-paystate">
+      <span class="set-ic"><Icon name="credit-card" /></span>
+      <div>
+        <p class="set-paystate-title">Razorpay: test mode</p>
+        <p>Buyers see a test payment screen. No money is charged and nothing reaches a bank.</p>
+      </div>
+    </div>
+    <div class="set-golive">
+      <h3 class="set-h3">What going live needs</h3>
+      <ol class="set-steps">
+        {
+          steps.map((s) => (
+            <li>
+              <strong>{s.title}</strong>
+              <span>{s.text}</span>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+    <button class="btn btn-secondary set-live-btn" type="button" data-set-live>Switch to live payments</button>
+  </div>
+</section>
