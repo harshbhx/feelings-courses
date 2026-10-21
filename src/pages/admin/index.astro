@@ -1,0 +1,248 @@
+---
+// /admin: the demo sign-in. No password and no account: "Enter demo" sets a flag in
+// sessionStorage and opens the dashboard (or the admin page the visitor was sent here from).
+import Admin from "../../layouts/Admin.astro";
+import Icon from "../../components/Icon.astro";
+import Logo from "../../components/landing/Logo.astro";
+import { site } from "../../data/site";
+import { course } from "../../data/course";
+
+const features = [
+  { icon: "book-open-text", text: "Create a course and publish it in minutes" },
+  { icon: "users-three", text: "See every student and how far they’ve got" },
+  { icon: "credit-card", text: "Follow payments as they come in" },
+  { icon: "ticket", text: "Make a coupon code for each reel" },
+];
+---
+
+<Admin title="Sign in" bare>
+  <div class="signin">
+    <section class="signin-panel" aria-labelledby="signin-pitch">
+      <Logo tone="white" width="10rem" />
+      <div class="pitch">
+        <h2 id="signin-pitch">Your makeup course, run from your phone<span class="bindi" aria-hidden="true"></span></h2>
+        <ul class="pitch-list">
+          {
+            features.map((f) => (
+              <li>
+                <span class="pitch-ic">
+                  <Icon name={f.icon} />
+                </span>
+                {f.text}
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+      <p class="pitch-foot">{site.name}, {site.address.city}</p>
+    </section>
+
+    <main id="main" class="signin-main" tabindex="-1">
+      <div class="signin-logo">
+        <Logo width="9rem" />
+      </div>
+      <div class="signin-card">
+        <img class="signin-icon" src="/favicon.svg" width="56" height="56" alt="" />
+        <div class="signin-text">
+          <h1>Course admin</h1>
+          <p>Courses, students, payments and coupons for {course.title} and every course {course.teacher.split(" ")[0]} adds next.</p>
+        </div>
+        <button class="btn btn-primary signin-enter" type="button" data-enter>
+          Enter demo
+          <Icon name="arrow-right" />
+        </button>
+        <p class="signin-otp">
+          <Icon name="device-mobile" />
+          The real version signs in with your phone number (OTP).
+        </p>
+      </div>
+      <p class="signin-foot">
+        <Icon name="info" />
+        Demo data only. Nothing here charges money or reaches a student.
+      </p>
+    </main>
+  </div>
+</Admin>
+
+<script>
+  import { signIn } from "../../lib/demo-store";
+
+  const button = document.querySelector<HTMLButtonElement>("[data-enter]");
+  button?.addEventListener("click", () => {
+    signIn();
+    // Only admin pages on this site: never an outside address.
+    const next = new URLSearchParams(location.search).get("next") ?? "";
+    const safe = /^\/admin\/[a-z0-9/_-]*(\?[\w=&%.-]*)?$/i.test(next) && !next.startsWith("//");
+    location.href = safe ? next : "/admin/dashboard";
+  });
+</script>
+
+<style>
+  .signin {
+    display: grid;
+    min-height: 100dvh;
+  }
+
+  .signin-panel {
+    display: none;
+  }
+
+  .signin-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-5);
+    padding: var(--space-6) var(--space-4) calc(var(--space-6) + env(safe-area-inset-bottom));
+    outline: none;
+  }
+
+  .signin-logo {
+    margin-bottom: var(--space-2);
+  }
+
+  .signin-card {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-5);
+    width: min(100%, 25rem);
+    padding: var(--space-6) var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg);
+    box-shadow: var(--shadow-md);
+    text-align: center;
+  }
+
+  .signin-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 14px;
+    box-shadow: var(--shadow-accent);
+  }
+
+  .signin-text {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .signin-text h1 {
+    font-size: 1.875rem;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+  }
+
+  .signin-text p {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  .signin-enter {
+    width: 100%;
+    min-height: 3.25rem;
+    font-size: var(--text-base);
+  }
+
+  .signin-otp,
+  .signin-foot {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: var(--space-2);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+    text-align: left;
+  }
+
+  .signin-otp :global(.icon),
+  .signin-foot :global(.icon) {
+    width: 1rem;
+    height: 1rem;
+    margin-top: 0.1rem;
+    color: var(--maroon-800);
+  }
+
+  @media (min-width: 64rem) {
+    .signin {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .signin-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: var(--space-7);
+      padding: var(--space-7) clamp(var(--space-7), 6vw, var(--space-9));
+      background: var(--bg-deep);
+      color: var(--text-on-deep-muted);
+    }
+
+    .signin-panel :focus-visible {
+      outline-color: var(--white);
+    }
+
+    .pitch {
+      display: grid;
+      gap: var(--space-6);
+      max-width: 30rem;
+    }
+
+    .pitch h2 {
+      color: var(--text-on-deep);
+      font-size: clamp(2.25rem, 1.4rem + 1.8vw, 3.25rem);
+      line-height: 1.05;
+      letter-spacing: -0.032em;
+    }
+
+    .pitch .bindi {
+      background: var(--accent-on-deep);
+    }
+
+    .pitch-list {
+      list-style: none;
+      display: grid;
+      gap: var(--space-4);
+      font-size: var(--text-base);
+      font-weight: var(--weight-ui);
+      color: var(--text-on-deep);
+    }
+
+    .pitch-list li {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .pitch-ic {
+      display: grid;
+      place-items: center;
+      flex: none;
+      width: 2.5rem;
+      height: 2.5rem;
+      border: 1px solid var(--border-on-deep);
+      border-radius: 50%;
+    }
+
+    .pitch-ic :global(.icon) {
+      width: 1.2rem;
+      height: 1.2rem;
+    }
+
+    .pitch-foot {
+      font-size: var(--text-sm);
+    }
+
+    .signin-logo {
+      display: none;
+    }
+
+    .signin-main {
+      background: var(--bg-soft);
+    }
+
+    .signin-card {
+      padding: var(--space-7) var(--space-6);
+    }
+  }
+</style>

@@ -1,0 +1,165 @@
+---
+// The course admin's layout (DEMO). Its own shell, not the landing page's: a top bar with the
+// "Demo data" badge, a bottom tab bar on phones and tablets, a sidebar from 64rem (1024px).
+// Always noindexed. No real sign-in: a "signed in" flag in sessionStorage, checked before paint
+// by the small inline script below (scripts/csp.mjs hashes it; it is the same on every page).
+import "../styles/fonts.css";
+import "../styles/tokens.css";
+import "../styles/global.css";
+import "../styles/motion.css";
+import "../components/admin/admin.css";
+import Icon from "../components/Icon.astro";
+import Logo from "../components/landing/Logo.astro";
+import IconSprite from "../components/admin/IconSprite.astro";
+import { site } from "../data/site";
+import { course } from "../data/course";
+
+export type NavKey = "dashboard" | "courses" | "students" | "payments" | "coupons" | "settings";
+
+interface Props {
+  title: string;
+  active?: NavKey;
+  /** The sign-in screen: no shell, no guard. */
+  bare?: boolean;
+  /** Hide the phone tab bar (the editor shows its own Save bar there). */
+  noTabbar?: boolean;
+  /** Extra icons the page's script builds markup with. */
+  icons?: string[];
+}
+
+const { title, active, bare = false, noTabbar = false, icons = [] } = Astro.props;
+
+const nav: { key: NavKey; href: string; label: string; icon: string; desktopOnly?: boolean }[] = [
+  { key: "dashboard", href: "/admin/dashboard", label: "Dashboard", icon: "squares-four" },
+  { key: "courses", href: "/admin/courses", label: "Courses", icon: "book-open-text" },
+  { key: "students", href: "/admin/students", label: "Students", icon: "users-three" },
+  { key: "payments", href: "/admin/payments", label: "Payments", icon: "credit-card" },
+  { key: "coupons", href: "/admin/coupons", label: "Coupons", icon: "ticket" },
+  { key: "settings", href: "/admin/settings", label: "Settings", icon: "gear-six", desktopOnly: true },
+];
+const owner = course.teacher;
+const ownerInitials = owner
+  .split(" ")
+  .map((p) => p[0])
+  .join("")
+  .slice(0, 2);
+---
+
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{`${title} · Course admin (demo) · ${site.name}`}</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    {/* Demo sign-in check, before anything paints. Key: SESSION_KEY in src/lib/demo-store.ts. */}
+    {
+      !bare && (
+        <script is:inline>
+          try {
+            if (sessionStorage.getItem("fbc-admin-demo-session") !== "1") {
+              document.documentElement.style.visibility = "hidden";
+              location.replace("/admin?next=" + encodeURIComponent(location.pathname + location.search));
+            }
+          } catch (e) {}
+        </script>
+      )
+    }
+  </head>
+  <body class:list={["admin", { "no-tabbar": noTabbar }]}>
+    <a class="skip-link" href="#main">Skip to content</a>
+    {
+      bare ? (
+        <slot />
+      ) : (
+        <div class="shell">
+          <div class="sidebar">
+            <a class="side-brand" href="/admin/dashboard">
+              <Logo width="8.75rem" />
+              <span>Course admin</span>
+            </a>
+            <nav class="nav" aria-label="Admin">
+              <ul>
+                {nav.map((item) => (
+                  <li class={item.desktopOnly ? "nav-desk" : undefined}>
+                    <a href={item.href} aria-current={active === item.key ? "page" : undefined}>
+                      <span class="nav-ic">
+                        <Icon name={item.icon} />
+                      </span>
+                      <span class="nav-label">{item.label}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            <div class="side-foot">
+              <a class="side-link" href="/catalog">
+                <Icon name="storefront" />
+                Course catalog
+              </a>
+              <a class="side-link" href="/">
+                <Icon name="arrow-square-out" />
+                Main course page
+              </a>
+              <button class="side-link" type="button" data-signout>
+                <Icon name="sign-out" />
+                Leave the demo
+              </button>
+            </div>
+          </div>
+          <div class="main-col">
+            <header class="topbar">
+              <a class="tb-app" href="/admin/dashboard">
+                <img src="/favicon.svg" width="32" height="32" alt="" />
+                <span>Course admin</span>
+              </a>
+              <p class="tb-crumb">
+                {site.name}
+                <span aria-hidden="true">/</span>
+                <strong>Course admin</strong>
+              </p>
+              <div class="tb-right">
+                <button class="demo-badge" type="button" data-demo-badge aria-label="Demo data: what this means">
+                  <span>Demo data</span>
+                </button>
+                <a
+                  class="icon-btn tb-settings"
+                  href="/admin/settings"
+                  aria-label="Settings"
+                  aria-current={active === "settings" ? "page" : undefined}
+                >
+                  <Icon name="gear-six" />
+                </a>
+                <span class="tb-user">
+                  <span class="avatar" aria-hidden="true">{ownerInitials}</span>
+                  <span>
+                    <strong>{owner}</strong>
+                    <span>Owner · demo login</span>
+                  </span>
+                </span>
+              </div>
+            </header>
+            <main id="main" class="main" tabindex="-1">
+              <p class="notice" data-storage-notice hidden>
+                <Icon name="info" />
+                <span>
+                  This browser is blocking storage (a private window?), so changes last only until you leave the page.
+                </span>
+              </p>
+              <slot />
+            </main>
+          </div>
+        </div>
+      )
+    }
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+    <IconSprite names={["close", "check-circle", "info", "warning-circle", ...icons]} />
+    <script>
+      import "../components/admin/client/shell";
+    </script>
+  </body>
+</html>

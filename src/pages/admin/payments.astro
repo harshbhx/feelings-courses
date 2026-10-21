@@ -1,0 +1,127 @@
+---
+// Payments (DEMO): example test transactions, totals, a status filter and a Refund button that only
+// explains itself. Built in the browser from src/lib/demo-store-students.ts (derived from the
+// dashboard's example activity). Script: src/components/admin/payments/payments.ts.
+import Admin from "../../layouts/Admin.astro";
+import Icon from "../../components/Icon.astro";
+import { TXN_ICONS } from "../../components/admin/payments/icons";
+import "../../components/admin/payments/txn.css";
+import "../../components/admin/payments/payments.css";
+
+const icons = ["receipt", "magnifying-glass", ...TXN_ICONS];
+const filters = [
+  { value: "", label: "All" },
+  { value: "captured", label: "Captured" },
+  { value: "failed", label: "Failed" },
+  { value: "refunded", label: "Refunded" },
+];
+const skeletons = Array.from({ length: 6 });
+---
+
+<Admin title="Payments" active="payments" icons={icons}>
+  <header class="page-head">
+    <div>
+      <h1 class="page-title">Payments</h1>
+      <p class="page-sub">Every payment for your courses, newest first, with its status and method.</p>
+      <p class="demo-note">
+        <Icon name="info" />
+        Test transactions (demo data). No real money moved.
+      </p>
+    </div>
+  </header>
+
+  <section class="pay-totals" aria-label="Totals, test mode">
+    <article class="card pay-total">
+      <h2 class="pay-total-label" data-t="month-label">This month</h2>
+      <p class="pay-total-value num" data-t="month">&nbsp;</p>
+      <p class="pay-total-meta" data-t="month-meta">&nbsp;</p>
+    </article>
+    <article class="card pay-total">
+      <h2 class="pay-total-label">All time</h2>
+      <p class="pay-total-value num" data-t="all">&nbsp;</p>
+      <p class="pay-total-meta" data-t="all-meta">&nbsp;</p>
+      <p class="pay-total-meta" data-t="all-extra"></p>
+    </article>
+  </section>
+
+  <div class="pay-toolbar" role="search" aria-label="Find payments">
+    <div class="search pay-search">
+      <Icon name="magnifying-glass" />
+      <label class="visually-hidden" for="pay-q">Search payments by student, payment id, method or coupon</label>
+      <input
+        id="pay-q"
+        class="input"
+        type="search"
+        placeholder="Search name, pay_ id or coupon"
+        autocomplete="off"
+        spellcheck="false"
+        enterkeyhint="search"
+        maxlength="80"
+      />
+    </div>
+    <div class="segmented pay-seg" role="group" aria-label="Filter by status">
+      {
+        filters.map((f) => (
+          <button type="button" data-status={f.value} aria-pressed={f.value === "" ? "true" : "false"}>
+            {f.label}
+          </button>
+        ))
+      }
+    </div>
+  </div>
+
+  <section class="card pay-card" aria-labelledby="pay-list-title">
+    <div class="pay-bar">
+      <h2 class="visually-hidden" id="pay-list-title">Test payments</h2>
+      <p class="pay-total-count" data-count>Loading payments…</p>
+      <button class="link-btn pay-clear" type="button" data-clear-top hidden>
+        <Icon name="close" />
+        Clear filters
+      </button>
+      <span class="pill pill-plain pay-test">Test mode</span>
+    </div>
+    <div class="pay-wrap">
+      <div class="pay-row pay-head" aria-hidden="true">
+        <span class="pay-who">Student</span>
+        <span class="pay-id">Payment</span>
+        <span class="pay-date">Date</span>
+        <span class="pay-status">Status</span>
+        <span class="pay-amt">Amount</span>
+      </div>
+      <ul class="rows pay-list" data-list aria-busy="true" aria-labelledby="pay-list-title">
+        {
+          skeletons.map(() => (
+            <li class="pay-row pay-skel" aria-hidden="true">
+              <span class="pay-ic" />
+              <span class="pay-who">
+                <span class="skel" />
+              </span>
+              <span class="pay-course">
+                <span class="skel skel-short" />
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+      <div data-states></div>
+    </div>
+    <div class="pay-more">
+      <button class="btn btn-secondary" type="button" data-more hidden>Show more</button>
+    </div>
+  </section>
+
+  <p class="pay-foot">
+    <Icon name="info" />
+    Test mode: example transactions. In the real version these come from Razorpay, and Refund sends the money back.
+  </p>
+
+  <p class="visually-hidden" aria-live="polite" data-live></p>
+
+  <noscript>
+    <p class="notice">This demo builds the payment list in the browser, so it needs JavaScript turned on.</p>
+  </noscript>
+</Admin>
+
+<script>
+  import "../../components/admin/payments/payments";
+</script>

@@ -1,0 +1,571 @@
+---
+// Dashboard (DEMO): this month's numbers, a 30-day sales chart, recent test payments, how far
+// students have got. All example data from src/lib/demo-store.ts, filled in by the browser,
+// because the numbers are relative to today.
+import Admin from "../../layouts/Admin.astro";
+import Icon from "../../components/Icon.astro";
+import CoverData from "../../components/admin/CoverData.astro";
+import { course } from "../../data/course";
+
+const firstName = course.teacher.split(" ")[0];
+---
+
+<Admin title="Dashboard" active="dashboard" icons={["trend-up", "trend-down", "arrow-right", "ticket"]}>
+  <header class="page-head">
+    <div>
+      <p class="dash-date" data-today>&nbsp;</p>
+      <h1 class="page-title" data-greeting data-name={firstName}>Welcome back, {firstName}</h1>
+      <p class="demo-note">
+        <Icon name="info" />
+        Example numbers that show how your dashboard works. Payments are in test mode.
+      </p>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-secondary" href="/catalog">
+        <Icon name="storefront" />
+        Catalog
+      </a>
+      <a class="btn btn-primary" href="/admin/courses/edit">
+        <Icon name="plus" />
+        New course
+      </a>
+    </div>
+  </header>
+
+  <section class="kpis" aria-label="This month so far">
+    <article class="card kpi">
+      <h2 class="kpi-label">Revenue this month</h2>
+      <p class="kpi-value" data-k="revenue">&nbsp;</p>
+      <p class="kpi-meta" data-k="revenue-meta">&nbsp;</p>
+    </article>
+    <article class="card kpi">
+      <h2 class="kpi-label">Enrollments</h2>
+      <p class="kpi-value" data-k="enrollments">&nbsp;</p>
+      <p class="kpi-meta" data-k="enrollments-meta">&nbsp;</p>
+    </article>
+    <article class="card kpi">
+      <h2 class="kpi-label">Visitors to enrollment</h2>
+      <p class="kpi-value" data-k="rate">&nbsp;</p>
+      <p class="kpi-meta" data-k="rate-meta">&nbsp;</p>
+    </article>
+    <article class="card kpi">
+      <h2 class="kpi-label">Top coupon</h2>
+      <p class="kpi-value kpi-code" data-k="coupon">&nbsp;</p>
+      <p class="kpi-meta" data-k="coupon-meta">&nbsp;</p>
+    </article>
+  </section>
+
+  <div class="dash-grid">
+    <div class="dash-col">
+    <section class="card chart-card" aria-labelledby="chart-title">
+      <div class="card-head no-rule">
+        <div>
+          <h2 class="card-title" id="chart-title">Sales, last 30 days</h2>
+          <p class="card-sub" data-chart-sub>&nbsp;</p>
+        </div>
+        <p class="chart-total num" data-chart-total></p>
+      </div>
+      <div
+        class="chart"
+        data-chart
+        tabindex="0"
+        role="group"
+        aria-label="Daily sales chart. Use the left and right arrow keys to read each day."
+      >
+        <div class="chart-tip" data-tip hidden></div>
+      </div>
+      <p class="visually-hidden" aria-live="polite" data-chart-live></p>
+      <details class="chart-table">
+        <summary>Show the numbers</summary>
+        <div class="table-wrap">
+          <table>
+            <caption class="visually-hidden">Daily sales, last 30 days (demo data)</caption>
+            <thead>
+              <tr>
+                <th scope="col">Day</th>
+                <th scope="col">Visitors</th>
+                <th scope="col">Enrollments</th>
+                <th scope="col">Revenue</th>
+              </tr>
+            </thead>
+            <tbody data-chart-rows></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <section class="card card-pad progress-card" aria-labelledby="progress-title">
+      <div class="progress-head">
+        <h2 class="card-title" id="progress-title">How far students have got</h2>
+        <p class="card-sub" data-progress-sub>&nbsp;</p>
+      </div>
+      <div class="split" data-split aria-hidden="true"></div>
+      <ul class="split-legend" data-split-legend></ul>
+    </section>
+    </div>
+
+    <div class="dash-col">
+    <section class="card recent-card" aria-labelledby="recent-title">
+      <div class="card-head">
+        <h2 class="card-title" id="recent-title">Recent payments</h2>
+        <a class="link-btn" href="/admin/payments">
+          View all
+          <Icon name="arrow-right" />
+        </a>
+      </div>
+      <ul class="rows recent" data-recent></ul>
+      <p class="card-foot">Test mode: no real money moves in the demo.</p>
+    </section>
+
+    <section class="card courses-card" aria-labelledby="courses-title">
+      <div class="card-head">
+        <h2 class="card-title" id="courses-title">Your courses</h2>
+        <a class="link-btn" href="/admin/courses">
+          Manage
+          <Icon name="arrow-right" />
+        </a>
+      </div>
+      <ul class="rows mini-courses" data-courses></ul>
+    </section>
+    </div>
+  </div>
+  <CoverData />
+</Admin>
+
+<script>
+  import "../../components/admin/client/dashboard";
+</script>
+
+<style is:global>
+  .dash-date {
+    color: var(--text-muted);
+    font-weight: var(--weight-ui);
+  }
+
+  /* ── KPI cards ── */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .kpi {
+    display: grid;
+    align-content: start;
+    gap: var(--space-1);
+    padding: var(--space-4);
+    min-width: 0;
+    container-type: inline-size;
+  }
+
+  .kpi-label {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    letter-spacing: 0;
+    line-height: 1.3;
+  }
+
+  .kpi-value {
+    color: var(--text);
+    font-size: 1.5rem;
+    /* Sized to the card, so "₹1,04,965" always fits on one line. */
+    font-size: clamp(1.25rem, 15cqi, 2.125rem);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+
+  .kpi-today {
+    margin-left: 0.5rem;
+    color: var(--maroon-800);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    letter-spacing: 0;
+    vertical-align: 0.35em;
+  }
+
+  .kpi-code {
+    letter-spacing: 0.01em;
+  }
+
+  .kpi-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+    line-height: 1.35;
+  }
+
+  .delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    color: var(--text);
+    font-weight: var(--weight-strong);
+  }
+
+  .delta .icon {
+    width: 0.95rem;
+    height: 0.95rem;
+    color: var(--maroon-800);
+  }
+
+  .delta.is-down .icon {
+    color: var(--accent);
+  }
+
+  @media (min-width: 48rem) {
+    .kpis {
+      gap: var(--space-4);
+      margin-bottom: var(--space-5);
+    }
+
+    .kpi {
+      padding: var(--space-5);
+      gap: var(--space-2);
+    }
+  }
+
+  @media (min-width: 80rem) {
+    .kpis {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  /* ── Grid ── */
+  .dash-grid,
+  .dash-col {
+    display: grid;
+    align-content: start;
+    gap: var(--space-4);
+  }
+
+  @media (min-width: 64rem) {
+    .dash-grid,
+    .dash-col {
+      gap: var(--space-5);
+    }
+  }
+
+  @media (min-width: 80rem) {
+    .dash-grid {
+      grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+      align-items: start;
+    }
+  }
+
+  /* ── Chart ── */
+  .chart-card {
+    min-width: 0;
+  }
+
+  .chart-total {
+    color: var(--text);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  .chart {
+    position: relative;
+    height: 13rem;
+    margin: var(--space-2) var(--space-2) 0;
+    border-radius: var(--radius-sm);
+    touch-action: pan-y;
+  }
+
+  .chart:focus-visible {
+    outline-offset: 2px;
+  }
+
+  .chart svg {
+    display: block;
+    overflow: visible;
+  }
+
+  .chart .grid line {
+    stroke: var(--border);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+
+  .chart .axis text {
+    fill: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .chart .bar {
+    fill: var(--maroon-800);
+    transition: fill var(--dur-fast) var(--ease-out);
+  }
+
+  .chart .bar.is-today {
+    fill: var(--maroon-800);
+  }
+
+  .chart .bar.is-on {
+    fill: var(--accent);
+  }
+
+  .chart .hit {
+    fill: transparent;
+    cursor: crosshair;
+  }
+
+  .chart-tip {
+    position: absolute;
+    bottom: calc(100% - var(--tip-y, 0px) + 10px);
+    left: var(--tip-x, 0px);
+    z-index: 2;
+    display: grid;
+    gap: 0.1rem;
+    min-width: 8.5rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: var(--radius-sm);
+    background: var(--text);
+    color: var(--text-on-deep-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+    line-height: 1.35;
+    white-space: nowrap;
+    box-shadow: var(--shadow-md);
+    transform: translateX(var(--tip-shift, -50%));
+    pointer-events: none;
+  }
+
+  .chart-tip[hidden] {
+    display: none;
+  }
+
+  .chart-tip strong {
+    color: var(--text-on-deep);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-strong);
+  }
+
+  .chart-table {
+    margin: var(--space-3) var(--card-pad) var(--card-pad);
+    border-top: 1px solid var(--border);
+  }
+
+  .chart-table summary {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    color: var(--text);
+    font-weight: var(--weight-strong);
+    cursor: pointer;
+  }
+
+  .table-wrap {
+    position: relative;
+    max-height: 18rem;
+    overflow: auto;
+  }
+
+  .table-wrap table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .table-wrap th,
+  .table-wrap td {
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .table-wrap th:first-child,
+  .table-wrap td:first-child {
+    text-align: left;
+  }
+
+  .table-wrap thead th {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+  }
+
+  /* ── Recent payments ── */
+  .recent-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--card-pad);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .recent-row:hover {
+    background: var(--bg-soft);
+  }
+
+  .recent-row:focus-visible {
+    outline-offset: -2px;
+  }
+
+  .recent .who {
+    display: grid;
+    min-width: 0;
+    line-height: 1.35;
+  }
+
+  .recent .who strong {
+    overflow: hidden;
+    color: var(--text);
+    font-weight: var(--weight-strong);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recent .who span,
+  .recent .amt span {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  .recent .amt {
+    display: grid;
+    justify-items: end;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .recent .amt strong {
+    color: var(--text);
+    font-weight: var(--weight-strong);
+  }
+
+  .recent .is-failed strong {
+    color: var(--text-muted);
+    text-decoration: line-through;
+  }
+
+  .recent .is-failed .amt span {
+    color: var(--accent);
+    font-weight: var(--weight-strong);
+  }
+
+  .card-foot {
+    padding: var(--space-3) var(--card-pad) var(--space-4);
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+  }
+
+  /* ── Progress split ── */
+  .progress-card {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .progress-head {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .split {
+    display: flex;
+    gap: 2px;
+    height: 0.75rem;
+  }
+
+  .split > span {
+    flex: var(--n, 1) 1 0;
+    min-width: 0.25rem;
+    background: var(--c);
+  }
+
+  .split > span:first-child {
+    border-radius: var(--radius-pill) 0 0 var(--radius-pill);
+  }
+
+  .split > span:last-child {
+    border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  }
+
+  .split-legend {
+    list-style: none;
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .split-legend li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .split-legend .key {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 3px;
+    background: var(--c);
+  }
+
+  .split-legend b {
+    color: var(--text);
+    font-weight: var(--weight-strong);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Your courses ── */
+  .mini-courses > li > a {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--card-pad);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .mini-courses > li > a:hover {
+    background: var(--bg-soft);
+  }
+
+  .mini-courses img {
+    width: 2.75rem;
+    height: 3.4rem;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    background: var(--bg-tint);
+  }
+
+  .mini-courses .t {
+    display: grid;
+    min-width: 0;
+    line-height: 1.35;
+  }
+
+  .mini-courses .t strong {
+    overflow: hidden;
+    color: var(--text);
+    font-weight: var(--weight-strong);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mini-courses .t span {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+</style>

@@ -1,0 +1,21 @@
+---
+// Icons for markup that the browser builds (lists, drawers, toasts): each Phosphor icon once, in
+// an inert <template>. client/dom.ts icon(name) clones from it. Same icons as Icon.astro.
+import Icon from "../Icon.astro";
+
+interface Props {
+  names: string[];
+}
+
+const names = [...new Set(Astro.props.names)];
+---
+
+<template id="icon-sprite">
+  {
+    names.map((name) => (
+      <span data-i={name}>
+        <Icon name={name} />
+      </span>
+    ))
+  }
+</template>

@@ -1,0 +1,10 @@
+---
+// The glimpse covers as JSON for the browser (read by client/covers.ts). A data block, not a
+// script: browsers never run it, so the CSP script hashes don't apply to it.
+import { getGlimpseCovers } from "./glimpse-covers";
+
+const covers = await getGlimpseCovers();
+const json = JSON.stringify(Object.fromEntries(covers.map((c) => [c.id, c]))).replace(/</g, "\\u003c");
+---
+
+<script type="application/json" id="cover-data" set:html={json} />
