@@ -90,6 +90,11 @@ import CouponDrawer from "../../components/admin/coupons/CouponDrawer.astro";
 </script>
 
 <style is:global>
+  /* [hidden] must win over the display of shared classes (.notice, .error-summary, .btn). */
+  .admin [hidden] {
+    display: none !important;
+  }
+
   /* ── Results ── */
   .cpn-kpis {
     display: grid;
@@ -128,7 +133,9 @@ import CouponDrawer from "../../components/admin/coupons/CouponDrawer.astro";
     overflow-wrap: anywhere;
   }
 
+  /* Codes are long words: a size that keeps LAUNCH500 on one line in a half-width phone tile. */
   .cpn-kpi-code {
+    font-size: clamp(1.125rem, 0.85rem + 1.3vw, 2rem);
     letter-spacing: 0.02em;
   }
 
@@ -248,13 +255,13 @@ import CouponDrawer from "../../components/admin/coupons/CouponDrawer.astro";
   }
 
   @media (max-width: 30rem) {
-    .cpn-filter {
+    .admin .cpn-filter {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       width: 100%;
     }
 
-    .cpn-filter button {
+    .admin .cpn-filter button {
       justify-content: center;
       padding: 0 0.5rem;
     }
@@ -377,13 +384,16 @@ import CouponDrawer from "../../components/admin/coupons/CouponDrawer.astro";
     font-weight: var(--weight-strong);
   }
 
-  .cpn-meta .cpn-sep {
-    color: var(--border-control);
-  }
-
+  /* The dot travels with the course name, so a wrap never leaves it dangling. */
   .cpn-meta .cpn-course {
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+
+  .cpn-meta .cpn-course::before {
+    content: "·";
+    margin-right: var(--space-2);
+    color: var(--border-control);
   }
 
   .cpn-state.is-expired,
@@ -491,13 +501,13 @@ import CouponDrawer from "../../components/admin/coupons/CouponDrawer.astro";
   }
 
   @media (min-width: 64rem) {
-    .cpn-cols,
+    .admin .cpn-cols,
     .cpn-row {
       grid-template-columns: minmax(0, 1.5fr) minmax(0, 2.6fr) 3.5rem 6rem;
       column-gap: var(--space-4);
     }
 
-    .cpn-cols {
+    .admin .cpn-card .cpn-cols {
       display: grid;
       align-items: center;
       padding: var(--space-3) var(--card-pad);
@@ -544,7 +554,7 @@ import CouponDrawer from "../../components/admin/coupons/CouponDrawer.astro";
     }
 
     /* Icon buttons here; their names come from aria-label. */
-    .cpn-actions .btn {
+    .admin .cpn-actions .btn {
       width: 2.75rem;
       padding: 0;
       border-radius: 50%;
