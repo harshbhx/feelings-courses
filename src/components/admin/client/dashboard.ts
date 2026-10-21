@@ -240,10 +240,8 @@ function recent(): void {
   if (!list) return;
   fill(
     list,
-    payments.slice(0, 6).map((p) =>
-      h(
-        "li",
-        { class: p.status === "failed" ? "is-failed" : undefined },
+    payments.slice(0, 6).map((p) => {
+      const parts = [
         h("span", { class: "avatar avatar-soft", "aria-hidden": "true", text: initials(p.studentName) }),
         h("span", { class: "who" }, h("strong", { text: p.studentName }), h("span", { text: `${p.method} · ${ago(new Date(p.at), now)}` })),
         h(
@@ -252,8 +250,11 @@ function recent(): void {
           h("strong", { text: inr(p.amount) }),
           h("span", { text: p.status === "failed" ? "Failed" : p.coupon ? `Paid · ${p.coupon}` : "Paid" }),
         ),
-      ),
-    ),
+      ];
+      // A paid row opens the student; a failed one opens the payments list.
+      const href = p.studentId ? `/admin/students?id=${encodeURIComponent(p.studentId)}` : `/admin/payments`;
+      return h("li", { class: p.status === "failed" ? "is-failed" : undefined }, h("a", { class: "recent-row", href }, parts));
+    }),
   );
 }
 

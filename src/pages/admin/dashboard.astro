@@ -402,12 +402,22 @@ const firstName = course.teacher.split(" ")[0];
   }
 
   /* ── Recent payments ── */
-  .recent > li {
+  .recent-row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) var(--card-pad);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .recent-row:hover {
+    background: var(--bg-soft);
+  }
+
+  .recent-row:focus-visible {
+    outline-offset: -2px;
   }
 
   .recent .who {
