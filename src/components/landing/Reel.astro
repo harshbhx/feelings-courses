@@ -1,0 +1,373 @@
+---
+/**
+ * One vertical clip, dressed like an Instagram reel (the studio's handle on the cover, a play disc).
+ * The cover is a real <button>. Nothing from YouTube loads until it is tapped: then the button
+ * steps aside and a youtube-nocookie player takes its place in the same frame. Only one clip plays
+ * on the page at a time; starting another puts the previous cover back.
+ *
+ * The parent sizes the card; it can set --reel-ratio (cover shape before playing, 9 / 16 by
+ * default), --reel-pos (cover crop) and --reel-radius. A playing clip is always 9:16.
+ */
+import { getImage } from "astro:assets";
+import Icon from "../Icon.astro";
+import { localPoster, remotePosters } from "./glimpses";
+import { instagramHandle } from "./facts";
+
+interface Props {
+  id: string;
+  label: string;
+  /** Rendered width of the card, for the poster's srcset. */
+  sizes: string;
+  widths?: number[];
+  /** The hero's clip: its cover is the page's largest paint, so it loads first. */
+  eager?: boolean;
+  /** Show the label under the card. */
+  caption?: boolean;
+  class?: string;
+}
+
+const { id, label, sizes, widths = [270, 360, 540, 720], eager = false, caption = false, class: className } = Astro.props;
+
+const poster = localPoster(id);
+const sources = poster
+  ? await (async () => {
+      const usable = widths.filter((w) => w <= poster.width);
+      if (usable.length === 0) usable.push(poster.width);
+      const [avif, webp] = await Promise.all([
+        getImage({ src: poster, widths: usable, sizes, format: "avif", quality: 50 }),
+        getImage({ src: poster, widths: usable, sizes, format: "webp", quality: 72 }),
+      ]);
+      return { avif, webp };
+    })()
+  : null;
+const [remote, ...fallbacks] = remotePosters(id);
+const alt = `Video cover: ${label}`;
+---
+
+<div class:list={["reel", className]} data-reel>
+  <div class="reel-frame">
+    <button type="button" class="reel-play" data-reel-play data-id={id} data-label={label} aria-label={`Play video: ${label}`}>
+      {
+        poster && sources ? (
+          <picture>
+            <source type="image/avif" srcset={sources.avif.srcSet.attribute} sizes={sizes} />
+            <img
+              class="reel-poster"
+              src={sources.webp.src}
+              srcset={sources.webp.srcSet.attribute}
+              sizes={sizes}
+              width={poster.width}
+              height={poster.height}
+              alt={alt}
+              loading={eager ? "eager" : "lazy"}
+              decoding={eager ? "sync" : "async"}
+              fetchpriority={eager ? "high" : undefined}
+            />
+          </picture>
+        ) : (
+          <img
+            class="reel-poster"
+            src={remote}
+            data-fallbacks={fallbacks.join(" ")}
+            width="1080"
+            height="1920"
+            alt={alt}
+            loading={eager ? "eager" : "lazy"}
+            decoding="async"
+          />
+        )
+      }
+      <span class="reel-disc" aria-hidden="true"><Icon name="play-fill" /></span>
+    </button>
+    {/* Over the cover, outside the button: decoration that taps pass through. */}
+    <span class="reel-handle" aria-hidden="true">
+      <span class="reel-avatar"></span>
+      <span class="reel-name">{instagramHandle}</span>
+    </span>
+  </div>
+  {caption && <p class="reel-caption">{label}</p>}
+</div>
+
+<script>
+  import { embedUrl } from "./player";
+
+  // ── Covers from YouTube (clips without a local copy): step down the list when one is missing.
+  // i.ytimg answers a missing size with a 120×90 grey image, so a tiny image counts as a miss.
+  const PLACEHOLDER_MAX_WIDTH = 120;
+  function bindFallbacks(img: HTMLImageElement) {
+    const next = () => {
+      const rest = (img.dataset.fallbacks ?? "").split(" ").filter(Boolean);
+      const src = rest.shift();
+      img.dataset.fallbacks = rest.join(" ");
+      if (src) img.src = src;
+      else img.classList.add("is-missing");
+    };
+    const check = () => {
+      if (img.naturalWidth > 0 && img.naturalWidth <= PLACEHOLDER_MAX_WIDTH) next();
+    };
+    img.addEventListener("error", next);
+    img.addEventListener("load", check);
+    if (img.complete) {
+      if (img.naturalWidth === 0 && img.currentSrc) next();
+      else check();
+    }
+  }
+  document.querySelectorAll<HTMLImageElement>("img.reel-poster[data-fallbacks]").forEach(bindFallbacks);
+
+  // ── Play in place, one clip at a time ──
+  type Playing = { frame: HTMLElement; button: HTMLButtonElement; iframe: HTMLIFrameElement };
+  let playing: Playing | null = null;
+
+  function stop() {
+    if (!playing) return;
+    playing.iframe.remove();
+    playing.button.hidden = false;
+    playing.frame.removeAttribute("data-playing");
+    playing = null;
+  }
+
+  function play(button: HTMLButtonElement) {
+    const frame = button.parentElement;
+    const id = button.dataset.id;
+    if (!frame || !id) return;
+    stop();
+    const iframe = document.createElement("iframe");
+    iframe.src = embedUrl(id);
+    iframe.title = button.dataset.label ?? "Video";
+    iframe.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    iframe.referrerPolicy = "strict-origin-when-cross-origin";
+    frame.setAttribute("data-playing", "");
+    frame.append(iframe);
+    button.hidden = true;
+    playing = { frame, button, iframe };
+    iframe.focus();
+  }
+
+  document.addEventListener("click", (event) => {
+    const button = (event.target as Element | null)?.closest?.<HTMLButtonElement>("[data-reel-play]");
+    if (button) play(button);
+  });
+
+  // ── Warm the player's connections when a finger or keyboard focus lands on a clip, so the
+  // handshakes run while the tap completes. Never on page load. The origins are what the
+  // youtube-nocookie player contacts first (checked on the main site, StoriesRow.astro). ──
+  const WARM: [href: string, cors: boolean][] = [
+    ["https://www.youtube-nocookie.com", false],
+    ["https://i.ytimg.com", false],
+    ["https://fonts.gstatic.com", true],
+    ["https://www.google.com", false],
+  ];
+  let warmed = false;
+  const warm = (event: Event) => {
+    if (warmed || !(event.target as Element | null)?.closest?.("[data-reel-play]")) return;
+    warmed = true;
+    for (const [href, cors] of WARM) {
+      const link = document.createElement("link");
+      link.rel = "preconnect";
+      link.href = href;
+      if (cors) link.crossOrigin = "anonymous";
+      document.head.append(link);
+    }
+  };
+  document.addEventListener("pointerdown", warm, { passive: true });
+  document.addEventListener("focusin", warm);
+</script>
+
+<style>
+  .reel {
+    position: relative;
+    min-width: 0;
+  }
+
+  /* No overflow clip here, so the focus ring can sit outside the card. The button and the player
+     round their own corners. */
+  .reel-frame {
+    position: relative;
+    aspect-ratio: var(--reel-ratio, 9 / 16);
+    border-radius: var(--reel-radius, var(--radius-md));
+    background: var(--bg-tint);
+  }
+
+  .reel-frame[data-playing] {
+    aspect-ratio: 9 / 16;
+    background: var(--text);
+  }
+
+  .reel-play {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: inherit;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .reel-play[hidden] {
+    display: none;
+  }
+
+  .reel-play:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+  }
+
+  .reel-poster {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: var(--reel-pos, 50% 30%);
+    transition: transform 600ms var(--ease-out);
+  }
+
+  .reel-poster.is-missing {
+    visibility: hidden;
+  }
+
+  .reel-frame :global(iframe) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: inherit;
+  }
+
+  /* The studio's handle, as on a reel. A solid scrim pill (no gradient) keeps it legible on any
+     cover. Taps go through it to the button; it steps aside while the clip plays. */
+  .reel-handle {
+    position: absolute;
+    pointer-events: none;
+    top: var(--space-3);
+    left: var(--space-3);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: calc(100% - var(--space-5));
+    padding: 0.2rem 0.65rem 0.2rem 0.2rem;
+    border-radius: var(--radius-pill);
+    background: var(--scrim-control);
+    color: var(--white);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+    line-height: 1.2;
+  }
+
+  .reel-frame[data-playing] .reel-handle {
+    display: none;
+  }
+
+  .reel-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The site icon in miniature: a white f with the bindi as its full stop, on maroon. */
+  .reel-avatar {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding-right: 0.15rem;
+    border-radius: 50%;
+    background: var(--bg-deep);
+    box-shadow: 0 0 0 1.5px var(--white);
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    font-weight: var(--weight-display);
+    line-height: 1;
+  }
+
+  .reel-avatar::before {
+    content: "f";
+  }
+
+  .reel-avatar::after {
+    content: "";
+    position: absolute;
+    left: 62%;
+    bottom: 29%;
+    width: 0.2rem;
+    height: 0.2rem;
+    border-radius: 50%;
+    background: var(--accent-on-deep);
+  }
+
+  /* Maroon, not sindoor: the page keeps red for the enroll button. */
+  .reel-disc {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    display: grid;
+    place-items: center;
+    width: 3.75rem;
+    height: 3.75rem;
+    margin: -1.875rem 0 0 -1.875rem;
+    border-radius: 50%;
+    background: var(--bg-glass);
+    color: var(--bg-deep);
+    box-shadow: var(--shadow-md);
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      transform var(--dur-base) var(--ease-out);
+  }
+
+  .reel-disc :global(.icon) {
+    width: 1.4rem;
+    height: 1.4rem;
+    margin-left: 0.2rem; /* optical centre of the triangle */
+  }
+
+  .reel-play:hover .reel-disc,
+  .reel-play:focus-visible .reel-disc {
+    background: var(--bg-deep);
+    color: var(--text-on-deep);
+  }
+
+  @media (prefers-reduced-motion: no-preference) and (hover: hover) {
+    .reel-play:hover .reel-poster {
+      transform: scale(1.03);
+    }
+
+    .reel-play:hover .reel-disc {
+      transform: scale(1.06);
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .reel-play:active .reel-disc {
+      transform: scale(0.94);
+    }
+  }
+
+  .reel-caption {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    margin-top: var(--space-3);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reel-poster,
+    .reel-disc {
+      transition: none;
+    }
+  }
+</style>
