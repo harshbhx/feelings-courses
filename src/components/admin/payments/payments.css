@@ -118,6 +118,11 @@
   color: var(--text-muted);
 }
 
+.pay-clear[hidden],
+.pay-more [hidden] {
+  display: none;
+}
+
 .pay-clear .icon {
   width: 0.95rem;
   height: 0.95rem;
@@ -140,8 +145,8 @@
   grid-template-areas:
     "ic who    amt"
     "ic course status"
-    "ic id     date"
-    "ic method method"
+    "ic id     id"
+    "ic method date"
     "ic note   act";
   align-items: center;
   column-gap: var(--space-3);
@@ -218,6 +223,7 @@ a.pay-name:hover {
 
 .pay-method {
   grid-area: method;
+  min-width: 0;
   color: var(--text-muted);
   font-size: var(--text-xs);
   font-weight: var(--weight-ui);
@@ -226,7 +232,6 @@ a.pay-name:hover {
 .pay-date {
   grid-area: date;
   justify-self: end;
-  margin-top: var(--space-2);
   color: var(--text-muted);
   font-size: var(--text-xs);
   font-weight: var(--weight-ui);
