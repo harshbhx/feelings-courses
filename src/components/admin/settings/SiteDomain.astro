@@ -4,6 +4,8 @@ import Icon from "../../Icon.astro";
 import { site } from "../../../data/site";
 
 const host = new URL(site.url).host;
+// On phones the address breaks after the first part ("courses." / "feelingsbeautycare.in").
+const [sub, ...rest] = host.split(".");
 const mainHost = new URL(site.mainUrl).host;
 ---
 
@@ -18,7 +20,7 @@ const mainHost = new URL(site.mainUrl).host;
     <div class="set-domain">
       <span class="set-ic"><Icon name="link-simple" /></span>
       <a class="set-domain-link" href={site.url} target="_blank" rel="noopener">
-        <span>{host}</span>
+        <span>{sub}.<wbr />{rest.join(".")}</span>
         <Icon name="arrow-square-out" />
         <span class="visually-hidden">(opens in a new tab)</span>
       </a>

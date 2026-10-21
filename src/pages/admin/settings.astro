@@ -42,6 +42,11 @@ import ResetDemo from "../../components/admin/settings/ResetDemo.astro";
 </script>
 
 <style is:global>
+  /* [hidden] must win over the display of shared classes (.notice and the like). */
+  .admin [hidden] {
+    display: none !important;
+  }
+
   .set-grid,
   .set-col {
     display: grid;
@@ -250,7 +255,8 @@ import ResetDemo from "../../components/admin/settings/ResetDemo.astro";
   }
 
   .set-domain-link > span:first-child {
-    overflow-wrap: anywhere;
+    min-width: 0;
+    overflow-wrap: break-word;
   }
 
   .set-domain-link .icon {

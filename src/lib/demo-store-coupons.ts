@@ -108,7 +108,7 @@ function extraSeeds(now = new Date()): ExtraSeed[] {
         active: true,
         createdAt: at(-100),
       },
-      uses: 26,
+      uses: 14,
       lastUsed: at(-76, 19),
     },
     {

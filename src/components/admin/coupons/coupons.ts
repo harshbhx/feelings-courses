@@ -164,7 +164,6 @@ function row(c: CouponPlus, topId: string | null): HTMLLIElement {
         "p",
         { class: "cpn-meta" },
         h("span", { class: "cpn-off", text: discountLabel(c) }),
-        h("span", { class: "cpn-sep", "aria-hidden": "true", text: "·" }),
         h("span", { class: "cpn-course", text: courseTitle(c.courseId) }),
         pill,
       ),
