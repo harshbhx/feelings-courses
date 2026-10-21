@@ -13,10 +13,8 @@
 //   - an enrolled request gets the page, marked Cache-Control: private, no-store;
 //   - /learn/logout clears the cookie without needing an enrollment.
 //
-// Tests that need real cookies use issueEnrollment() and verifyEnrollment() from
-// functions/_lib/enrollment.ts, which the checkout work implements. While those are still the stub
-// they are skipped with a message saying so, and they run by themselves once the implementation is
-// merged. Every other test runs now.
+// Real cookies come from issueEnrollment() and verifyEnrollment() in functions/_lib/enrollment.ts
+// (the checkout part), so the whole path is tested: issue, then the gate's verify.
 
 import { register, createRequire } from "node:module";
 import { test } from "node:test";
@@ -181,19 +179,6 @@ async function withClockAhead(seconds, fn) {
   }
 }
 
-// The real cookie functions are written by the checkout work. Until then issueEnrollment() throws
-// "not implemented" and verifyEnrollment() returns null, and the tests that need them are skipped.
-let implemented = false;
-try {
-  await issueEnrollment({ ENROLL_SECRET: SECRET }, { courseSlug: course.slug, expires: now() + HOUR, paymentRef: "probe" });
-  implemented = true;
-} catch (error) {
-  if (!/not implemented/i.test(String(error?.message))) implemented = true; // a real error: let the tests show it
-}
-const NEEDS_REAL =
-  "skipped: needs the real issueEnrollment()/verifyEnrollment() from functions/_lib/enrollment.ts " +
-  "(checkout part; still the stub on this branch). Runs automatically once it is merged.";
-const real = implemented ? {} : { skip: NEEDS_REAL };
 
 /** Every URL the gate must cover. */
 const lessonUrls = lessons.flatMap((l) => [l.href, `${l.href}.html`, `${l.href}/`]);
@@ -391,9 +376,9 @@ test("/learn/logout clears the cookie and goes home, without needing an enrollme
   assert.equal(verified, 0, "logout must not depend on the enrollment check");
 });
 
-// ---------- with the real enrollment functions (skipped until checkout is merged) ----------
+// ---------- with the real enrollment functions ----------
 
-test("valid cookie: every course URL serves the page as private, no-store", real, async () => {
+test("valid cookie: every course URL serves the page as private, no-store", async () => {
   const value = await issue({ ENROLL_SECRET: SECRET });
   for (const url of [...middlewareUrls.filter((u) => u !== "/learn/logout.html"), "/learn.html", ...oddSpellings]) {
     const { response, ctx } = await viaRoute(url, { cookie: `${ENROLL_COOKIE}=${value}` });
@@ -401,13 +386,13 @@ test("valid cookie: every course URL serves the page as private, no-store", real
   }
 });
 
-test("valid cookie among other cookies is found", real, async () => {
+test("valid cookie among other cookies is found", async () => {
   const value = await issue({ ENROLL_SECRET: SECRET });
   const { response, ctx } = await viaRoute(lessons[0].href, { cookie: `theme=light; ${ENROLL_COOKIE}=${value}; _ga=GA1.1.1` });
   await assertServed(response, ctx, "valid cookie between others");
 });
 
-test("issued cookie follows the documented format", real, async () => {
+test("issued cookie follows the documented format", async () => {
   const value = await issue({ ENROLL_SECRET: SECRET });
   const parts = value.split(".");
   assert.equal(parts.length, 4, `expected <slug>.<expires>.<ref>.<hmacHex>, got "${value}"`);
@@ -419,7 +404,7 @@ test("issued cookie follows the documented format", real, async () => {
   assert.equal(parsed?.paymentRef, "pay_test123");
 });
 
-test("expired cookie: a valid cookie redirects once its time is up", real, async () => {
+test("expired cookie: a valid cookie redirects once its time is up", async () => {
   const value = await issue({ ENROLL_SECRET: SECRET }, { expires: now() + HOUR });
   await withClockAhead(2 * HOUR, async () => {
     for (const url of ["/learn", "/learn.html", lessons[0].href]) {
@@ -429,7 +414,7 @@ test("expired cookie: a valid cookie redirects once its time is up", real, async
   });
 });
 
-test("forged cookies: any edit to a valid cookie redirects", real, async () => {
+test("forged cookies: any edit to a valid cookie redirects", async () => {
   const value = await issue({ ENROLL_SECRET: SECRET });
   const [slug, expires, ref, mac] = value.split(".");
   const flip = (s) => s.slice(0, -1) + (s.at(-1) === "0" ? "1" : "0");
@@ -447,7 +432,7 @@ test("forged cookies: any edit to a valid cookie redirects", real, async () => {
   }
 });
 
-test("demo key: works while no ENROLL_SECRET is set, never once one is", real, async () => {
+test("demo key: works while no ENROLL_SECRET is set, never once one is", async () => {
   const demoValue = await issue({});
   const demo = await viaRoute("/learn", { env: {}, cookie: `${ENROLL_COOKIE}=${demoValue}` });
   await assertServed(demo.response, demo.ctx, "demo cookie on a site without a secret");
