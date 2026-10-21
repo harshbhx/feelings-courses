@@ -21,15 +21,18 @@ const trim = (n: number) => (Math.round(n * 10) / 10).toString().replace(/\.0$/,
 /** "1 lesson", "9 lessons" */
 export const plural = (n: number, one: string, many = `${one}s`) => `${num(n)} ${n === 1 ? one : many}`;
 
-/** "1 h 28 min", "45 min" */
+/** A non-breaking space. */
+const NB = "\xa0";
+
+/** "1 h 28 min", "45 min", with non-breaking spaces so a length never splits across lines. */
 export function duration(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (!h) return `${m} min`;
-  return m ? `${h} h ${m} min` : `${h} h`;
+  if (!h) return `${m}${NB}min`;
+  return m ? `${h}${NB}h${NB}${m}${NB}min` : `${h}${NB}h`;
 }
 
-/** 98xxxx1234 */
+/** 98xxxx1234 (masked) */
 export function maskPhone(phone: string): string {
   const digits = phone.replace(/\D/g, "").slice(-10);
   if (digits.length < 10) return "xxxxxxxxxx";

@@ -174,6 +174,7 @@ function syncCover(): void {
   }
   if (remove) remove.hidden = !hasUpload;
   if (addLabel) addLabel.textContent = hasUpload ? "Upload another" : "Upload a photo";
+  el.file()?.setAttribute("aria-label", hasUpload ? "Upload another photo" : "Upload a photo");
   const value = course.cover.kind === "upload" ? "upload" : `glimpse:${course.cover.id}`;
   for (const r of $$<HTMLInputElement>('input[name="cover"]')) r.checked = r.value === value;
   cardPreview();

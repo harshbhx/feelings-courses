@@ -28,7 +28,7 @@ import { site } from "../data/site";
   </p>
   <main id="main" class="cp" data-course-page>
     <div class="container cp-state" data-state="loading">
-      <p class="muted">Loading the course…</p>
+      <p class="muted" role="status">Loading the course…</p>
       <noscript><p>This page needs JavaScript to show the course. <a href="/catalog">See all courses</a>.</p></noscript>
     </div>
 
@@ -111,6 +111,7 @@ import { site } from "../data/site";
               <a class="btn btn-secondary" href="#" data-c="whatsapp" target="_blank" rel="noopener">
                 <Icon name="whatsapp" />
                 Ask {mainCourse.teacher.split(" ")[0]} a question
+                <span class="visually-hidden">(opens WhatsApp)</span>
               </a>
             </div>
           </div>
@@ -119,11 +120,11 @@ import { site } from "../data/site";
     </article>
   </main>
 
-  <dialog class="cp-dlg" data-enroll-dialog aria-labelledby="enroll-dlg-title">
+  <dialog class="cp-dlg" data-enroll-dialog aria-labelledby="enroll-dlg-title" aria-describedby="enroll-dlg-text">
     <form method="dialog" class="cp-dlg-body">
       <span class="cp-dlg-badge">Demo</span>
       <h2 id="enroll-dlg-title" data-dlg-title>Payments for this course come next</h2>
-      <p data-dlg-text>Demo: in the real version, students pay for this course here and get its lessons.</p>
+      <p id="enroll-dlg-text" data-dlg-text>Demo: in the real version, students pay for this course here and get its lessons.</p>
       <p class="muted small">You can try the full test checkout on the main course. No money is charged.</p>
       <div class="cp-dlg-actions">
         <a class="btn btn-primary" href="/#pricing">

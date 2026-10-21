@@ -45,8 +45,8 @@ const glimpses = await getGlimpseCovers(320);
       </span>
     </p>
 
-    <div class="error-summary" data-summary tabindex="-1" hidden>
-      <h2><Icon name="warning-circle" /><span data-summary-title>Fix these first</span></h2>
+    <div class="error-summary" data-summary tabindex="-1" role="group" aria-labelledby="summary-title" hidden>
+      <h2 id="summary-title"><Icon name="warning-circle" /><span data-summary-title>Fix these first</span></h2>
       <ul data-summary-list></ul>
     </div>
 
@@ -125,7 +125,7 @@ const glimpses = await getGlimpseCovers(320);
                   type="file"
                   id="f-cover"
                   accept="image/jpeg,image/png,image/webp"
-                  aria-label="Upload a cover photo"
+                  aria-label="Upload a photo"
                   aria-describedby="f-cover-hint f-cover-err"
                 />
                 <span class="cover-add-inner" aria-hidden="true">
@@ -537,9 +537,6 @@ const glimpses = await getGlimpseCovers(320);
       grid-column: 1 / -1;
     }
 
-    .oc .tools .icon-btn {
-      width: 2.5rem;
-    }
   }
 
   .mods {

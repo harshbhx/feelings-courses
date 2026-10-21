@@ -769,7 +769,7 @@
 .input::placeholder,
 .textarea::placeholder {
   color: var(--text-muted);
-  opacity: 0.85;
+  opacity: 1;
 }
 
 .input:hover,
@@ -781,9 +781,10 @@
 .input:focus,
 .select:focus,
 .textarea:focus {
-  outline: none;
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--tap);
+  box-shadow: 0 0 0 4px var(--tap);
 }
 
 .input[aria-invalid="true"],
@@ -1086,6 +1087,7 @@
 .segmented button[aria-pressed="true"] {
   background: var(--bg-tint);
   color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-control);
 }
 
 .toolbar {

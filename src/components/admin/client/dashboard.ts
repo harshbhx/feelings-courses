@@ -266,7 +266,7 @@ function progress(): void {
   const parts = [
     { label: "Finished the course", n: done, c: "var(--accent)" },
     { label: "Watching", n: started, c: "var(--maroon-800)" },
-    { label: "Not started yet", n: notYet, c: "var(--rose-200)" },
+    { label: "Not started yet", n: notYet, c: "var(--border-control)" },
   ];
   const sub = $("[data-progress-sub]");
   if (sub) sub.textContent = `${plural(students.length, "student")} so far · demo data`;

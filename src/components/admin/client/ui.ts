@@ -20,7 +20,17 @@ export function toast(message: string, tone: Tone = "success", ms = 4200): void 
   region.appendChild(el);
   // Keep at most three on screen.
   while (region.children.length > 3) region.firstElementChild?.remove();
-  window.setTimeout(remove, ms);
+  // It waits while the pointer or focus is on it, so there's time to read it.
+  let timer = window.setTimeout(remove, ms);
+  const pause = () => window.clearTimeout(timer);
+  const resume = () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(remove, 2500);
+  };
+  el.addEventListener("pointerenter", pause);
+  el.addEventListener("pointerleave", resume);
+  el.addEventListener("focusin", pause);
+  el.addEventListener("focusout", resume);
 }
 
 /** The note for anything the demo doesn't do yet (refunds, messages, uploads to a server). */
@@ -54,15 +64,16 @@ interface ConfirmOptions {
 export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
   return new Promise((resolve) => {
     const titleId = `dlg-${Math.random().toString(36).slice(2, 8)}`;
+    const textId = `${titleId}-text`;
     const ok = h("button", { type: "submit", value: "ok", class: `btn ${opts.danger ? "btn-danger" : "btn-primary"}` }, opts.confirm);
     const dialog = h(
       "dialog",
-      { class: "dlg dlg-confirm", "aria-labelledby": titleId },
+      { class: "dlg dlg-confirm", "aria-labelledby": titleId, "aria-describedby": textId },
       h(
         "form",
         { method: "dialog", class: "dlg-body" },
         h("h2", { id: titleId, class: "dlg-title", text: opts.title }),
-        h("p", { class: "dlg-text", text: opts.body }),
+        h("p", { class: "dlg-text", id: textId, text: opts.body }),
         h(
           "div",
           { class: "dlg-actions" },

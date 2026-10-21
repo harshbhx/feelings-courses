@@ -40,9 +40,9 @@ function row(c: Course, students: number): HTMLElement {
         h("div", { class: "crs-line" }, statusPill(c), h("span", { class: "crs-students" }, icon("users-three"), plural(students, "student"))),
       ),
     ),
-    h("span", { class: "crs-cell-price", text: inr(c.price) }),
-    h("span", { class: "crs-cell-status" }, statusPill(c)),
-    h("span", { class: "crs-cell-students", text: num(students) }),
+    h("span", { class: "crs-cell-price" }, h("span", { class: "visually-hidden", text: "Price: " }), inr(c.price)),
+    h("span", { class: "crs-cell-status" }, h("span", { class: "visually-hidden", text: "Status: " }), statusPill(c)),
+    h("span", { class: "crs-cell-students" }, h("span", { class: "visually-hidden", text: "Students: " }), num(students)),
     h(
       "div",
       { class: "crs-actions" },
@@ -87,10 +87,14 @@ ready(() => {
     fill(list, shown.map((c) => row(c, counts.get(c.id) ?? 0)));
   };
 
+  const live = $("[data-list-live]");
   for (const button of buttons) {
     button.addEventListener("click", () => {
       for (const b of buttons) b.setAttribute("aria-pressed", String(b === button));
-      render(button.dataset.filter as Filter);
+      const filter = button.dataset.filter as Filter;
+      render(filter);
+      const n = countOf(filter);
+      if (live) live.textContent = `Showing ${plural(n, filter === "draft" ? "draft" : filter === "published" ? "published course" : "course")}.`;
     });
   }
   render("all");

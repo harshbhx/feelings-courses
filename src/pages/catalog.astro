@@ -17,7 +17,8 @@ const covers = await getGlimpseCovers();
 const mainCover = covers.find((c) => c.id === course.glimpses[3]?.id) ?? covers[0];
 const hours = Math.floor(totalMinutes / 60);
 const mins = totalMinutes % 60;
-const mainDuration = hours ? `${hours} h${mins ? ` ${mins} min` : ""}` : `${mins} min`;
+const NB = "\xa0";
+const mainDuration = hours ? `${hours}${NB}h${mins ? `${NB}${mins}${NB}min` : ""}` : `${mins}${NB}min`;
 ---
 
 <Base title={`All courses | ${site.name}`} description={`Online makeup courses by ${course.teacher}, ${site.name}, ${site.address.city}.`}>
