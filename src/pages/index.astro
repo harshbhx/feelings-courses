@@ -1,25 +1,49 @@
 ---
-// Landing page skeleton. The landing-page work fills these sections; see CLAUDE.md "Contracts".
-// Every "Enroll" button is a plain link with data-enroll: the checkout script opens the payment
-// sheet on click, and without JavaScript the link still scrolls to the price card.
+// The course's landing page, for visitors arriving from Instagram on their phones.
+// Every word and number comes from src/data/course.ts and src/data/site.ts (see CLAUDE.md).
+// Every "Enroll" button is a plain link to #pricing with data-enroll: the checkout component
+// opens the payment sheet on click, and without JavaScript the link still scrolls to the price.
 import Base from "../layouts/Base.astro";
+import Reveal from "../components/landing/Reveal.astro";
+import Header from "../components/landing/Header.astro";
+import Hero from "../components/landing/Hero.astro";
+import Glimpses from "../components/landing/Glimpses.astro";
+import Curriculum from "../components/landing/Curriculum.astro";
+import Teacher from "../components/landing/Teacher.astro";
+import ForWho from "../components/landing/ForWho.astro";
+import Pricing from "../components/landing/Pricing.astro";
+import Faq from "../components/landing/Faq.astro";
+import FinalCta from "../components/landing/FinalCta.astro";
+import EnrollBar from "../components/landing/EnrollBar.astro";
+import Footer from "../components/landing/Footer.astro";
 import { course } from "../data/course";
 import { site } from "../data/site";
 ---
 
 <Base title={`${course.title} by ${course.teacher} | ${site.name}`} description={course.subtitle}>
-  <main>
-    <section id="hero">
-      <h1>{course.title}</h1>
-      <p>{course.subtitle}</p>
-      <a href="#pricing" data-enroll>Enroll for {course.price.display}</a>
-    </section>
-    <section id="glimpses" aria-label="Glimpses from the course"></section>
-    <section id="learn" aria-label="What you will learn"></section>
-    <section id="curriculum" aria-label="Lessons"></section>
-    <section id="teacher" aria-label="Your teacher"></section>
-    <section id="for-who" aria-label="Who it is for"></section>
-    <section id="pricing" aria-label="Price"></section>
-    <section id="faq" aria-label="Questions"></section>
+  <Reveal />
+  <a class="skip-link" href="#main">Skip to content</a>
+  <Header />
+  <main id="main">
+    <Hero />
+    <Glimpses />
+    <Curriculum />
+    <Teacher />
+    <ForWho />
+    <Pricing />
+    <Faq />
+    <FinalCta />
+    {/* <Checkout /> mounts here */}
   </main>
+  <EnrollBar />
+  <Footer />
 </Base>
+
+<style is:global>
+  /* In-page links (See all lessons, Enroll without JS) glide instead of jumping. */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+</style>
