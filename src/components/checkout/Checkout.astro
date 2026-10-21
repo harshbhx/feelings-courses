@@ -1,0 +1,1038 @@
+---
+// Checkout: include once per page. Every [data-enroll] element opens it. Those are plain links
+// (to #pricing on the landing page), so without JavaScript they still work.
+//
+// Flow: buyer details → POST /api/order → either Razorpay Checkout (loaded only now, after the click)
+// or, when the server has no Razorpay keys, the built-in demo payment sheet → POST /api/verify →
+// /thank-you. The server decides the mode and the amount; this script never sends a price.
+import Icon from "../Icon.astro";
+import { course } from "../../data/course";
+import { whatsappLink } from "../../lib/whatsapp";
+
+const price = course.price.display;
+// For a payment that went through but couldn't be confirmed: the script adds the payment id.
+const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my access didn't open.`);
+---
+
+<dialog class="co" aria-labelledby="co-title" data-checkout data-co-whatsapp={paidHelp}>
+  <div class="co-body">
+    <div class="co-grab" aria-hidden="true"></div>
+    <div class="co-head">
+      <div class="co-heading">
+        <p class="co-count" data-co-count>Step 1 of 2</p>
+        <h2 id="co-title" tabindex="-1" data-co-title>Your details</h2>
+      </div>
+      <button class="co-close" type="button" aria-label="Close checkout" data-co-close><Icon name="close" /></button>
+    </div>
+
+    <div class="co-summary" data-co-summary>
+      <div>
+        <p class="co-summary-title">{course.title}</p>
+        <p class="co-summary-meta">{course.access} access, video lessons</p>
+      </div>
+      <p class="co-summary-price">{price}</p>
+    </div>
+
+    <!-- Step 1: buyer details (name and phone required; that's what Razorpay's prefill wants). -->
+    <form class="co-step" data-step="details" data-co-form novalidate>
+      <div class="co-field">
+        <label for="co-name">Your name</label>
+        <input
+          id="co-name"
+          name="name"
+          type="text"
+          autocomplete="name"
+          autocapitalize="words"
+          enterkeyhint="next"
+          maxlength="80"
+          required
+          aria-describedby="co-name-error"
+        />
+        <p class="co-error" id="co-name-error" data-error-for="name" hidden></p>
+      </div>
+      <div class="co-field">
+        <label for="co-phone">Mobile number</label>
+        <input
+          id="co-phone"
+          name="phone"
+          type="tel"
+          inputmode="tel"
+          autocomplete="tel"
+          enterkeyhint="next"
+          maxlength="20"
+          required
+          aria-describedby="co-phone-hint co-phone-error"
+        />
+        <p class="co-hint" id="co-phone-hint">10 digits, so the payment screen can fill it in for you.</p>
+        <p class="co-error" id="co-phone-error" data-error-for="phone" hidden></p>
+      </div>
+      <div class="co-field">
+        <label for="co-email">Email <span class="co-optional">(optional)</span></label>
+        <input
+          id="co-email"
+          name="email"
+          type="email"
+          inputmode="email"
+          autocomplete="email"
+          enterkeyhint="go"
+          maxlength="254"
+          aria-describedby="co-email-hint co-email-error"
+        />
+        <p class="co-hint" id="co-email-hint">For your payment receipt.</p>
+        <p class="co-error" id="co-email-error" data-error-for="email" hidden></p>
+      </div>
+      <button class="btn btn-primary co-wide" type="submit" data-co-submit>
+        <span data-co-submit-label>Continue to payment</span>
+        <Icon name="arrow-right" />
+      </button>
+      <p class="co-note">Next you choose UPI, card or netbanking. This site doesn't save your details.</p>
+    </form>
+
+    <!-- Step 2 (demo only, when the server has no Razorpay keys): a pretend payment. -->
+    <div class="co-step" data-step="demo" hidden>
+      <p class="co-test"><span class="co-test-dot" aria-hidden="true"></span>Test payment: no money is charged</p>
+      <fieldset class="co-methods">
+        <legend class="co-legend">Choose how to pay</legend>
+        <div class="co-method-grid">
+          <label class="co-method" data-press>
+            <input class="visually-hidden" type="radio" name="co-method" value="upi" checked />
+            <span class="co-method-mark" aria-hidden="true"></span>
+            <span>UPI</span>
+          </label>
+          <label class="co-method" data-press>
+            <input class="visually-hidden" type="radio" name="co-method" value="card" />
+            <span class="co-method-mark" aria-hidden="true"></span>
+            <span>Card</span>
+          </label>
+          <label class="co-method" data-press>
+            <input class="visually-hidden" type="radio" name="co-method" value="netbanking" />
+            <span class="co-method-mark" aria-hidden="true"></span>
+            <span>Netbanking</span>
+          </label>
+        </div>
+      </fieldset>
+      <p class="co-hint" data-co-method-note>Any UPI app. In this test, nothing opens on your phone.</p>
+      <button class="btn btn-primary co-wide" type="button" data-co-pay>Pay {price} (test)</button>
+      <p class="co-alt">
+        <a class="co-quiet-link" href="/payment-failed">Simulate failure</a>
+      </p>
+    </div>
+
+    <!-- Waiting: creating the order, opening Razorpay, processing or confirming. -->
+    <div class="co-step co-working" data-step="working" hidden>
+      <div class="co-progress" aria-hidden="true"><span data-co-progress></span></div>
+      <p class="co-working-text" data-co-working-text></p>
+    </div>
+
+    <!-- Something didn't work: a calm message, a retry and a way to get help. -->
+    <div class="co-step" data-step="problem" hidden>
+      <p class="co-problem" data-co-problem-text></p>
+      <div class="co-actions">
+        <button class="btn btn-primary" type="button" data-co-retry>Try again</button>
+        <a class="btn btn-secondary" href="/payment-failed" data-co-help>Get help</a>
+      </div>
+    </div>
+
+    <p class="visually-hidden" role="status" data-co-status></p>
+  </div>
+</dialog>
+
+<style>
+  /* A native modal <dialog>: a bottom sheet on phones, a centred card from 40rem. */
+  .co {
+    inset: auto 0 0 0;
+    width: 100%;
+    max-width: 30rem;
+    max-height: min(92dvh, 46rem);
+    margin: auto auto 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: var(--bg);
+    color: var(--text-body);
+    box-shadow: var(--shadow-md);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .co::backdrop {
+    background: var(--scrim-soft);
+  }
+
+  @media (min-width: 40rem) {
+    .co {
+      inset: 0;
+      margin: auto;
+      border-radius: var(--radius-lg);
+    }
+  }
+
+  /* The page behind stays put on touch screens while the sheet is open. */
+  @media (hover: none) {
+    :global(html:has(.co[open])) {
+      overflow: hidden;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .co[open] {
+      animation: co-up 380ms var(--ease-soft);
+    }
+
+    .co[open]::backdrop {
+      animation: co-fade 380ms var(--ease-out);
+    }
+
+    @media (min-width: 40rem) {
+      .co[open] {
+        animation: co-rise 320ms var(--ease-soft);
+      }
+    }
+  }
+
+  /* Reduced motion: no movement, a short fade only. */
+  @media (prefers-reduced-motion: reduce) {
+    .co[open],
+    .co[open]::backdrop {
+      animation: co-fade 160ms linear;
+    }
+  }
+
+  @keyframes co-up {
+    from {
+      transform: translateY(100%);
+    }
+  }
+
+  @keyframes co-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+
+  @keyframes co-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* All content sits in .co-body, so a click on the <dialog> itself is a click on the backdrop. */
+  .co-body {
+    display: grid;
+    gap: var(--space-5);
+    padding: 0 var(--gutter) calc(var(--space-5) + env(safe-area-inset-bottom));
+  }
+
+  .co-grab {
+    display: grid;
+    place-items: center;
+    height: 1.25rem;
+    margin-bottom: calc(var(--space-5) * -1 + var(--space-2));
+  }
+
+  .co-grab::before {
+    content: "";
+    width: 2.5rem;
+    height: 4px;
+    border-radius: var(--radius-pill);
+    background: var(--border-strong);
+  }
+
+  @media (min-width: 40rem) {
+    .co-body {
+      padding-top: var(--space-5);
+    }
+
+    .co-grab {
+      display: none;
+    }
+  }
+
+  .co-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  .co-heading {
+    display: grid;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+
+  .co-count {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .co-count[hidden] {
+    display: none;
+  }
+
+  .co-head h2 {
+    font-size: var(--text-xl);
+    letter-spacing: -0.015em;
+  }
+
+  .co-head h2:focus {
+    outline: none;
+  }
+
+  .co-head h2:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+  }
+
+  .co-close {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease-out);
+  }
+
+  .co-close:hover {
+    border-color: var(--text);
+  }
+
+  .co-close[hidden] {
+    display: none;
+  }
+
+  .co-summary {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+  }
+
+  .co-summary[hidden] {
+    display: none;
+  }
+
+  .co-summary-title {
+    color: var(--text);
+    font-weight: var(--weight-strong);
+    line-height: 1.3;
+  }
+
+  .co-summary-meta {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  .co-summary-price {
+    color: var(--text);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-display);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .co-step {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .co-step[hidden] {
+    display: none;
+  }
+
+  /* ── Fields ── */
+  .co-field {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .co-field label {
+    color: var(--text);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+  }
+
+  .co-optional {
+    color: var(--text-muted);
+    font-weight: var(--weight-body);
+  }
+
+  .co-field input {
+    width: 100%;
+    min-height: 3rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text);
+    /* 16px or more, or iOS zooms in on focus. */
+    font: inherit;
+    font-size: max(1rem, var(--text-base));
+    transition: border-color var(--dur-fast) var(--ease-out);
+  }
+
+  .co-field input:hover {
+    border-color: var(--text-muted);
+  }
+
+  /* One clean 2px ring that sits over the border, not a second ring beside it. */
+  .co-field input:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -1px;
+  }
+
+  .co-field input[aria-invalid="true"] {
+    border-color: var(--accent);
+  }
+
+  .co-hint,
+  .co-note {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+  }
+
+  .co-error {
+    color: var(--accent);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    line-height: 1.45;
+  }
+
+  .co-error[hidden] {
+    display: none;
+  }
+
+  .co-wide {
+    width: 100%;
+    margin-top: var(--space-2);
+  }
+
+  .co-wide[aria-disabled="true"] {
+    opacity: 0.72;
+    cursor: progress;
+  }
+
+  /* ── Demo payment ── */
+  .co-test {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    justify-self: start;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-pill);
+    background: var(--bg-tint);
+    color: var(--text);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-strong);
+    line-height: 1.3;
+  }
+
+  .co-test-dot {
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .co-methods {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+
+  .co-legend {
+    margin-bottom: var(--space-2);
+    padding: 0;
+    color: var(--text);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+  }
+
+  .co-method-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  /* Even tiles; the dot turns into a filled ring when chosen. */
+  .co-method {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: var(--space-2);
+    min-height: 4.5rem;
+    padding: var(--space-3) var(--space-2);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--bg);
+    color: var(--text);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-strong);
+    text-align: center;
+    cursor: pointer;
+    transition:
+      border-color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .co-method:hover {
+    border-color: var(--text-muted);
+  }
+
+  .co-method:has(:checked) {
+    border-color: var(--accent);
+    background: var(--bg-soft);
+  }
+
+  .co-method:has(:focus-visible) {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .co-method-mark {
+    width: 1.125rem;
+    height: 1.125rem;
+    border: 2px solid var(--border-control);
+    border-radius: 50%;
+    transition:
+      border-color var(--dur-fast) var(--ease-out),
+      border-width var(--dur-fast) var(--ease-out);
+  }
+
+  .co-method:has(:checked) .co-method-mark {
+    border-color: var(--accent);
+    border-width: 0.35rem;
+  }
+
+  .co-alt {
+    text-align: center;
+  }
+
+  .co-quiet-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding-inline: var(--space-2);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+  }
+
+  .co-quiet-link:hover {
+    color: var(--text);
+  }
+
+  /* ── Waiting ── */
+  .co-working {
+    justify-items: center;
+    align-content: center;
+    gap: var(--space-4);
+    padding-block: var(--space-5) var(--space-4);
+    text-align: center;
+  }
+
+  .co-working-text {
+    max-width: 22rem;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  /* A bar that fills toward the end while we wait, then completes: never a loop. */
+  .co-progress {
+    width: min(100%, 16rem);
+    height: 4px;
+    overflow: hidden;
+    border-radius: var(--radius-pill);
+    background: var(--bg-tint);
+  }
+
+  .co-progress span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    transform: scaleX(var(--p, 0));
+    transform-origin: left;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .co-progress span {
+      transition: transform var(--co-dur, 1200ms) var(--ease-soft);
+    }
+  }
+
+  /* ── Problem ── */
+  .co-problem {
+    color: var(--text-body);
+  }
+
+  .co-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .co-actions .btn {
+    flex: 1 1 10rem;
+  }
+
+  .co-actions .btn[hidden] {
+    display: none;
+  }
+</style>
+
+<script>
+  type Buyer = { name: string; phone: string; email: string };
+  type DemoOrder = { mode: "demo"; orderId: string; amount: number; currency: string };
+  type RazorpayOrder = {
+    mode: "razorpay";
+    keyId: string;
+    orderId: string;
+    amount: number;
+    currency: string;
+    name: string;
+    description: string;
+    prefill: Record<string, string>;
+  };
+  type Order = DemoOrder | RazorpayOrder;
+  type VerifyBody =
+    | { demo_order_id: string }
+    | { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
+  type RazorpayInstance = { open(): void; on(event: string, handler: (response: any) => void): void };
+  type RazorpayConstructor = new (options: Record<string, unknown>) => RazorpayInstance;
+  type Step = "details" | "demo" | "working" | "problem";
+
+  const RAZORPAY_SCRIPT = "https://checkout.razorpay.com/v1/checkout.js";
+  // Instagram's and Facebook's in-app browsers (and Android web views) can't show Checkout in a
+  // frame, so there Razorpay posts the result to /api/verify and the buyer follows a redirect.
+  const IN_APP_BROWSER = /Instagram|FBAN|FBAV|FB_IAB|; wv\)/i;
+
+  const TITLES: Record<Step, string> = {
+    details: "Your details",
+    demo: "Test payment",
+    working: "Just a moment",
+    problem: "Payment not completed",
+  };
+
+  // Step 2 is the demo sheet, or Razorpay's own window.
+  const STEP_COUNT: Record<Step, string> = {
+    details: "Step 1 of 2",
+    demo: "Step 2 of 2",
+    working: "",
+    problem: "",
+  };
+
+  const METHOD_NOTES: Record<string, string> = {
+    upi: "Any UPI app. In this test, nothing opens on your phone.",
+    card: "Debit or credit card. This test asks for no card details.",
+    netbanking: "All major banks. This test opens no bank page.",
+  };
+
+  const dialog = document.querySelector<HTMLDialogElement>("[data-checkout]");
+  if (dialog && typeof dialog.showModal === "function") setUp(dialog);
+
+  function setUp(dialog: HTMLDialogElement) {
+    const find = <T extends Element>(selector: string) => dialog.querySelector<T>(selector)!;
+    const title = find<HTMLElement>("[data-co-title]");
+    const counter = find<HTMLElement>("[data-co-count]");
+    const closeButton = find<HTMLButtonElement>("[data-co-close]");
+    const summary = find<HTMLElement>("[data-co-summary]");
+    const form = find<HTMLFormElement>("[data-co-form]");
+    const submit = find<HTMLButtonElement>("[data-co-submit]");
+    const submitLabel = find<HTMLElement>("[data-co-submit-label]");
+    const methodNote = find<HTMLElement>("[data-co-method-note]");
+    const payButton = find<HTMLButtonElement>("[data-co-pay]");
+    const progress = find<HTMLElement>("[data-co-progress]");
+    const workingText = find<HTMLElement>("[data-co-working-text]");
+    const problemText = find<HTMLElement>("[data-co-problem-text]");
+    const retryButton = find<HTMLButtonElement>("[data-co-retry]");
+    const helpLink = find<HTMLAnchorElement>("[data-co-help]");
+    const status = find<HTMLElement>("[data-co-status]");
+    const steps = [...dialog.querySelectorAll<HTMLElement>("[data-step]")];
+
+    let opener: HTMLElement | null = null;
+    let order: Order | null = null;
+    let busy = false; // a request is running: the sheet can't be closed
+    let handingOff = false; // closing only so Razorpay's window can take over
+    let retry: () => void = () => show("details");
+
+    // ── Opening ──
+    document.addEventListener("click", (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      const trigger = (event.target as Element | null)?.closest<HTMLElement>("[data-enroll]");
+      if (!trigger || dialog.contains(trigger)) return;
+      event.preventDefault();
+      open(trigger);
+    });
+
+    function open(trigger: HTMLElement) {
+      opener = trigger;
+      if (dialog.open) return;
+      order = null;
+      busy = false;
+      clearErrors();
+      show("details", false);
+      dialog.showModal();
+      const firstEmpty = [...form.querySelectorAll<HTMLInputElement>("input[required]")].find((input) => !input.value.trim());
+      (firstEmpty ?? submit).focus();
+    }
+
+    // ── Closing: the button, Escape and a tap on the dimmed page, but never mid-request ──
+    closeButton.addEventListener("click", () => dialog.close());
+    dialog.addEventListener("cancel", (event) => {
+      if (busy) event.preventDefault();
+    });
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog && !busy) dialog.close();
+    });
+    dialog.addEventListener("close", () => {
+      if (handingOff) {
+        handingOff = false;
+        return;
+      }
+      busy = false;
+      if (opener?.isConnected) opener.focus();
+    });
+
+    // ── Steps ──
+    function show(step: Step, moveFocus = true) {
+      for (const el of steps) el.hidden = el.dataset.step !== step;
+      title.textContent = TITLES[step];
+      const count = STEP_COUNT[step];
+      counter.hidden = !count;
+      counter.textContent = count;
+      // The order summary stays while we wait, so the sheet keeps its size and the buyer sees what
+      // they're paying for; a problem gets the space to itself.
+      summary.hidden = step === "problem";
+      closeButton.hidden = step === "working";
+      if (moveFocus && dialog.open) title.focus();
+    }
+
+    function announce(message: string) {
+      status.textContent = message;
+    }
+
+    /** The waiting state: the action as the title, a calm line under the bar. */
+    function working(message: string, note: string, durationMs = 1200, to = 0.9) {
+      show("working");
+      title.textContent = message;
+      workingText.textContent = note;
+      announce(message);
+      progress.style.setProperty("--p", "0");
+      progress.style.setProperty("--co-dur", `${durationMs}ms`);
+      // Two frames: the bar starts empty, then fills (a transition needs a starting frame).
+      requestAnimationFrame(() => requestAnimationFrame(() => progress.style.setProperty("--p", String(to))));
+    }
+
+    /** Opens the sheet again after Razorpay's window, or after a forced close mid-request. */
+    function reopen() {
+      if (!dialog.open) dialog.showModal();
+    }
+
+    function problem(message: string, options: { title?: string; retry: () => void; help?: { href: string; label: string } }) {
+      busy = false;
+      reopen();
+      show("problem");
+      if (options.title) title.textContent = options.title;
+      problemText.textContent = message;
+      announce(message);
+      retry = options.retry;
+      helpLink.href = options.help?.href ?? "/payment-failed";
+      helpLink.textContent = options.help?.label ?? "Get help";
+    }
+
+    retryButton.addEventListener("click", () => retry());
+
+    // ── Step 1: details ──
+    function readBuyer(): Buyer {
+      const data = new FormData(form);
+      const text = (key: string) => String(data.get(key) ?? "").replace(/\s+/g, " ").trim();
+      return { name: text("name"), phone: text("phone"), email: text("email") };
+    }
+
+    function validate(b: Buyer): Partial<Record<keyof Buyer, string>> {
+      const errors: Partial<Record<keyof Buyer, string>> = {};
+      if (!b.name) errors.name = "Enter your name.";
+      else if (b.name.length < 2 || !/^[\p{L}\p{M}][\p{L}\p{M} .'’-]*$/u.test(b.name)) errors.name = "Enter your name using letters only.";
+      const phone = b.phone.replace(/[\s().-]/g, "");
+      if (!phone) errors.phone = "Enter your mobile number.";
+      else if (!/^(?:\+91|91|0)?[6-9]\d{9}$/.test(phone) && !/^\+(?!91)[1-9]\d{7,14}$/.test(phone)) {
+        errors.phone = "Enter a 10-digit mobile number.";
+      }
+      if (b.email && !/^[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[A-Za-z]{2,}$/.test(b.email)) {
+        errors.email = "Enter an email like name@example.com, or leave it empty.";
+      }
+      return errors;
+    }
+
+    function clearErrors() {
+      for (const input of form.querySelectorAll("input")) input.removeAttribute("aria-invalid");
+      for (const error of form.querySelectorAll<HTMLElement>("[data-error-for]")) {
+        error.textContent = "";
+        error.hidden = true;
+      }
+    }
+
+    function showErrors(errors: Partial<Record<string, string>>): boolean {
+      clearErrors();
+      let first: HTMLInputElement | null = null;
+      for (const [field, message] of Object.entries(errors)) {
+        const input = form.querySelector<HTMLInputElement>(`input[name="${field}"]`);
+        const error = form.querySelector<HTMLElement>(`[data-error-for="${field}"]`);
+        if (!input || !error || !message) continue;
+        input.setAttribute("aria-invalid", "true");
+        error.textContent = message;
+        error.hidden = false;
+        first ??= input;
+      }
+      first?.focus();
+      return first !== null;
+    }
+
+    // Fix an error as you type: it clears once the field is valid.
+    form.addEventListener("input", (event) => {
+      const input = event.target as HTMLInputElement;
+      if (input.getAttribute("aria-invalid") !== "true") return;
+      if (!validate(readBuyer())[input.name as keyof Buyer]) {
+        input.removeAttribute("aria-invalid");
+        const error = form.querySelector<HTMLElement>(`[data-error-for="${input.name}"]`);
+        if (error) {
+          error.textContent = "";
+          error.hidden = true;
+        }
+      }
+    });
+
+    function setSubmitting(on: boolean) {
+      busy = on;
+      submit.setAttribute("aria-disabled", String(on));
+      submitLabel.textContent = on ? "Starting payment…" : "Continue to payment";
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (busy) return;
+      const details = readBuyer();
+      if (showErrors(validate(details))) return;
+      void startPayment(details);
+    });
+
+    async function startPayment(details: Buyer) {
+      setSubmitting(true);
+      announce("Starting payment…");
+      try {
+        const response = await fetch("/api/order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: details.name, phone: details.phone, ...(details.email && { email: details.email }) }),
+          signal: AbortSignal.timeout(20_000),
+        });
+        const data = await response.json().catch(() => null);
+        setSubmitting(false);
+        if (response.status === 400 && data?.fields) {
+          showErrors(data.fields);
+          return;
+        }
+        if (!response.ok || !data?.mode) {
+          problem(data?.message ?? "We couldn't start the payment. Please try again.", {
+            title: "Payment didn't start",
+            retry: () => show("details"),
+          });
+          return;
+        }
+        order = data as Order;
+        if (order.mode === "demo") {
+          show("demo");
+          announce("Test payment. No money is charged.");
+        } else {
+          await openRazorpay(order);
+        }
+      } catch {
+        setSubmitting(false);
+        problem("We couldn't reach the server. Check your connection and try again.", {
+          title: "Payment didn't start",
+          retry: () => show("details"),
+        });
+      }
+    }
+
+    // ── Step 2a: the demo payment sheet ──
+    dialog.querySelectorAll<HTMLInputElement>('input[name="co-method"]').forEach((radio) =>
+      radio.addEventListener("change", () => {
+        methodNote.textContent = METHOD_NOTES[radio.value] ?? "";
+      }),
+    );
+
+    payButton.addEventListener("click", async () => {
+      if (busy || order?.mode !== "demo") return;
+      const demoOrder = order;
+      busy = true;
+      working("Processing test payment…", "No money is charged. This only takes a moment.", 1400);
+      await new Promise((done) => setTimeout(done, 1400));
+      await confirm({ demo_order_id: demoOrder.orderId });
+    });
+
+    // ── Step 2b: Razorpay Checkout, loaded only after the buyer asks to pay ──
+    let razorpayScript: Promise<RazorpayConstructor> | null = null;
+    function loadRazorpay(): Promise<RazorpayConstructor> {
+      const existing = (window as unknown as { Razorpay?: RazorpayConstructor }).Razorpay;
+      if (existing) return Promise.resolve(existing);
+      razorpayScript ??= new Promise<RazorpayConstructor>((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = RAZORPAY_SCRIPT;
+        script.async = true;
+        script.onload = () => {
+          const loaded = (window as unknown as { Razorpay?: RazorpayConstructor }).Razorpay;
+          if (loaded) resolve(loaded);
+          else reject(new Error("Razorpay missing"));
+        };
+        script.onerror = () => {
+          script.remove();
+          razorpayScript = null;
+          reject(new Error("Razorpay didn't load"));
+        };
+        document.head.append(script);
+      });
+      return razorpayScript;
+    }
+
+    /** The brand's sindoor red, read from the tokens now, as the hex Razorpay wants. */
+    function accentHex(): string | undefined {
+      const value = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+      return /^#[0-9a-f]{6}$/i.test(value) ? value : undefined;
+    }
+
+    async function openRazorpay(rzpOrder: RazorpayOrder) {
+      busy = true;
+      working("Opening secure payment…", "Razorpay's payment window opens in a moment.", 2400);
+      let Razorpay: RazorpayConstructor;
+      try {
+        Razorpay = await loadRazorpay();
+      } catch {
+        problem("The payment window didn't load. Check your connection and try again.", {
+          title: "Payment didn't start",
+          retry: () => void openRazorpay(rzpOrder),
+        });
+        return;
+      }
+
+      let paid = false;
+      let lastError = "";
+      const color = accentHex();
+      const inApp = IN_APP_BROWSER.test(navigator.userAgent);
+      const checkout = new Razorpay({
+        key: rzpOrder.keyId,
+        order_id: rzpOrder.orderId,
+        amount: rzpOrder.amount,
+        currency: rzpOrder.currency,
+        name: rzpOrder.name,
+        description: rzpOrder.description,
+        image: new URL("/apple-touch-icon.png", location.href).href,
+        prefill: rzpOrder.prefill,
+        ...(color && { theme: { color } }),
+        ...(inApp && { callback_url: new URL("/api/verify", location.href).href, redirect: true }),
+        retry: { enabled: true },
+        handler: (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+          paid = true;
+          reopen();
+          working("Confirming your payment…", "Please keep this page open.", 1600);
+          void confirm({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          });
+        },
+        modal: {
+          ondismiss: () => {
+            if (paid) return;
+            reopen();
+            const testNote = rzpOrder.keyId.startsWith("rzp_test_") ? " This is test mode, so no real money moves." : "";
+            problem(
+              lastError
+                ? `The last try didn't go through: ${lastError}. If any amount left your account for it, your bank returns it automatically.${testNote}`
+                : `You closed the payment window before paying, so nothing was charged.${testNote}`,
+              { retry: () => void openRazorpay(rzpOrder) },
+            );
+          },
+        },
+      });
+      checkout.on("payment.failed", (response) => {
+        lastError = String(response?.error?.description ?? "").replace(/\.$/, "");
+      });
+
+      // Our modal sits in the top layer, above any page content, so it steps aside for Razorpay's window.
+      handingOff = true;
+      dialog.close();
+      busy = false;
+      checkout.open();
+    }
+
+    // ── Step 3: the server checks the payment and sets the enrollment cookie ──
+    async function confirm(body: VerifyBody) {
+      busy = true;
+      reopen();
+      try {
+        const response = await fetch("/api/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(25_000),
+        });
+        const data = await response.json().catch(() => null);
+        if (response.ok && data?.ok) {
+          progress.style.setProperty("--co-dur", "240ms");
+          progress.style.setProperty("--p", "1");
+          title.textContent = "Payment confirmed";
+          workingText.textContent = "Opening your course…";
+          announce("Payment confirmed. Opening your course…");
+          location.assign(typeof data.redirect === "string" && data.redirect.startsWith("/") ? data.redirect : "/thank-you");
+          return;
+        }
+        failedToConfirm(body, data?.message, response.status >= 500);
+      } catch {
+        failedToConfirm(body, undefined, true);
+      }
+    }
+
+    function failedToConfirm(body: VerifyBody, message: string | undefined, canRetry: boolean) {
+      if ("demo_order_id" in body) {
+        problem(message ?? "The test payment didn't finish. Please try again.", { retry: () => show("demo") });
+        return;
+      }
+      // Money may have moved: keep the payment id handy and offer WhatsApp.
+      const paymentId = body.razorpay_payment_id;
+      const help = dialog.dataset.coWhatsapp;
+      problem(`${message ?? "Your payment went through, but we couldn't confirm it yet."} Payment id: ${paymentId}.`, {
+        title: "Confirming your payment",
+        retry: canRetry
+          ? () => {
+              working("Confirming your payment…", "Please keep this page open.", 1600);
+              void confirm(body);
+            }
+          : () => show("details"),
+        help: help
+          ? { href: `${help}${encodeURIComponent(` My payment id is ${paymentId}.`)}`, label: "WhatsApp us" }
+          : undefined,
+      });
+    }
+  }
+</script>
