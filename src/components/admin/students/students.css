@@ -1,0 +1,769 @@
+/*
+  /admin/students (DEMO). Global (the list and drawer are built in the browser), every selector
+  prefixed .stu-. Tokens only.
+
+  The list is one set of markup with three layouts, chosen by the width of the list itself
+  (a container query), not the window, because the sidebar takes room from 1024px:
+    under 34rem  a card per student (phones)
+    34-54rem     two lines per student: name and phone | course and progress | enrolled
+    54rem up     a table: student | phone | course | progress | enrolled
+*/
+
+/* ── At a glance ── */
+.stu-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.stu-stat {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  min-width: 0;
+}
+
+.stu-stat-label {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+  letter-spacing: 0;
+  line-height: 1.3;
+}
+
+.stu-stat-value {
+  color: var(--text);
+  font-size: clamp(1.375rem, 1.1rem + 1.2vw, 2rem);
+  font-weight: var(--weight-display);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.stu-stat-meta {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+  line-height: 1.35;
+}
+
+@media (min-width: 64rem) {
+  .stu-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+  }
+
+  .stu-stat {
+    padding: var(--space-5);
+    gap: var(--space-2);
+  }
+}
+
+/* ── Search and filters ── */
+.stu-toolbar {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.stu-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.stu-filter {
+  min-width: 0;
+}
+
+.stu-filter .select {
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 48rem) {
+  .stu-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .stu-filters {
+    grid-template-columns: repeat(2, minmax(11rem, 15rem));
+  }
+}
+
+/* ── The list card ── */
+.stu-card {
+  overflow: hidden;
+}
+
+.stu-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--card-pad);
+  border-bottom: 1px solid var(--border);
+}
+
+.stu-total {
+  margin-right: auto;
+  color: var(--text);
+  font-weight: var(--weight-strong);
+}
+
+.stu-clear {
+  color: var(--text-muted);
+}
+
+.stu-clear .icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.stu-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stu-sort-label {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+}
+
+.stu-sort .select {
+  width: auto;
+  min-width: 9.5rem;
+  border-color: var(--border-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-ui);
+}
+
+@media (max-width: 29.99rem) {
+  /* The select says what it sorts by; the label stays for screen readers. */
+  .stu-sort-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .stu-clear {
+    order: 3;
+  }
+}
+
+.stu-wrap {
+  container: stu / inline-size;
+}
+
+/* ── Rows: phones (a card per student) ── */
+.stu-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.5rem auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "av name name chev"
+    "av city phone phone"
+    "av meter meter pct"
+    "av course course date";
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: 0.2rem;
+  padding: var(--space-4) var(--card-pad);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.stu-av {
+  grid-area: av;
+  align-self: start;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.stu-name {
+  grid-area: name;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.stu-open {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-base);
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* The whole row opens the drawer: the name's button stretches over it. */
+.stu-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.stu-open:focus-visible {
+  outline: none;
+}
+
+.stu-open:focus-visible::after {
+  outline: 2px solid var(--focus);
+  outline-offset: -3px;
+  border-radius: var(--radius-md);
+}
+
+.stu-tag {
+  flex: none;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--bg-soft);
+  color: var(--text-body);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+  line-height: 1.5;
+}
+
+.stu-city {
+  grid-area: city;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+  white-space: nowrap;
+}
+
+.stu-phone {
+  grid-area: phone;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.stu-row:not(.stu-head) .stu-phone::before {
+  content: "·" / "";
+  margin-right: 0.4em;
+}
+
+.stu-course {
+  grid-area: course;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-body);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stu-meter {
+  grid-area: meter;
+  margin-block: 0.35rem;
+}
+
+.stu-pct {
+  grid-area: pct;
+  justify-self: end;
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+  white-space: nowrap;
+}
+
+.stu-count {
+  color: var(--text-muted);
+  font-weight: var(--weight-ui);
+}
+
+.stu-date {
+  grid-area: date;
+  justify-self: end;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+  white-space: nowrap;
+}
+
+.stu-chev {
+  grid-area: chev;
+  justify-self: end;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--border-control);
+  transition: color var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-out);
+}
+
+.stu-head {
+  display: none;
+}
+
+@media (hover: hover) {
+  .stu-list .stu-row:not(.stu-skel):hover {
+    background: var(--bg-soft);
+  }
+
+  .stu-list .stu-row:hover .stu-chev {
+    color: var(--text);
+  }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .stu-list .stu-row:hover .stu-chev {
+    transform: translateX(2px);
+  }
+}
+
+/* Press feedback on touch screens (colour only, so it is kept under reduced motion). */
+@media (hover: none) {
+  .stu-list .stu-row:active {
+    background: var(--bg-soft);
+  }
+}
+
+/* ── Rows: two lines (34rem to 54rem of list) ── */
+@container stu (min-width: 34rem) {
+  .stu-row {
+    grid-template-columns: 2.5rem minmax(0, 1.15fr) minmax(0, 1.25fr) 4.75rem 7rem 1.25rem;
+    grid-template-areas:
+      "av name  course course date chev"
+      "av phone meter  pct    date chev";
+    column-gap: var(--space-4);
+    padding-block: var(--space-3);
+  }
+
+  .stu-city {
+    display: none;
+  }
+
+  .stu-row:not(.stu-head) .stu-phone::before {
+    content: none;
+  }
+
+  .stu-meter {
+    margin-block: 0;
+  }
+
+  .stu-date {
+    justify-self: start;
+  }
+
+  .stu-head {
+    display: grid;
+    grid-template-areas: "av name course course date chev";
+    padding-block: var(--space-2);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-soft);
+  }
+
+  .stu-head > span {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    letter-spacing: 0;
+  }
+
+  .stu-head .stu-phone,
+  .stu-head .stu-meter {
+    display: none;
+  }
+
+  .stu-head .stu-course {
+    color: var(--text-muted);
+  }
+}
+
+/* ── Rows: a table (54rem of list and up) ── */
+@container stu (min-width: 54rem) {
+  .stu-row {
+    grid-template-columns: 2.5rem minmax(0, 1.5fr) 7.5rem minmax(0, 1.35fr) minmax(5rem, 1fr) 5.25rem 7rem 1.25rem;
+    grid-template-areas:
+      "av name phone course meter pct date chev"
+      "av city phone course meter pct date chev";
+    row-gap: 0;
+  }
+
+  .stu-city {
+    display: block;
+  }
+
+  .stu-av {
+    align-self: center;
+  }
+
+  .stu-course {
+    font-size: var(--text-sm);
+  }
+
+  .stu-pct {
+    justify-self: start;
+  }
+
+  .stu-date {
+    font-size: var(--text-sm);
+    color: var(--text-body);
+  }
+
+  .stu-phone {
+    font-size: var(--text-sm);
+    color: var(--text-body);
+  }
+
+  .stu-head {
+    grid-template-areas: "av name phone course meter meter date chev";
+  }
+
+  .stu-head .stu-phone,
+  .stu-head .stu-meter {
+    display: block;
+  }
+
+  .stu-head .stu-phone {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  .stu-head .stu-meter {
+    margin: 0;
+  }
+}
+
+/* The header's Progress label sits where the meter goes, without the meter's track. */
+.stu-head .stu-meter {
+  height: auto;
+  background: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+/* ── Loading rows (server-rendered until the script fills the list) ── */
+.stu-skel .skel {
+  display: block;
+  width: 9rem;
+  max-width: 100%;
+  height: 0.8rem;
+  border-radius: var(--radius-pill);
+  background: var(--bg-tint);
+}
+
+.stu-skel .skel-short {
+  width: 5rem;
+}
+
+.stu-skel .stu-av {
+  background: var(--bg-tint);
+}
+
+/* ── Empty and no-results states ── */
+.stu-empty {
+  padding-block: var(--space-8);
+}
+
+.stu-empty p {
+  max-width: 26rem;
+}
+
+.stu-empty .btn {
+  margin-top: var(--space-3);
+}
+
+.stu-is-empty .stu-stats,
+.stu-is-empty .stu-toolbar,
+.stu-is-empty .stu-bar,
+.stu-is-empty .stu-head {
+  display: none;
+}
+
+/* ── Show more ── */
+.stu-more {
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--card-pad);
+}
+
+.stu-more:has(> [data-more]:not([hidden])) {
+  padding-block: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+/* ── Drawer ── */
+.stu-drawer {
+  overscroll-behavior: contain;
+}
+
+.stu-d-head {
+  padding-left: var(--card-pad);
+}
+
+.stu-d-av {
+  width: 2.75rem;
+  height: 2.75rem;
+  font-size: var(--text-sm);
+}
+
+.stu-d-who {
+  flex: 1;
+  min-width: 0;
+}
+
+.stu-d-name {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-display);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.stu-d-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+}
+
+.stu-d-close {
+  align-self: flex-start;
+}
+
+.stu-d-body {
+  padding-inline: var(--card-pad);
+}
+
+.stu-d-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.stu-d-h {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stu-d-course {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-soft);
+}
+
+.stu-d-course-title {
+  color: var(--text);
+  font-weight: var(--weight-strong);
+}
+
+.stu-d-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+}
+
+.stu-d-progress strong {
+  color: var(--text);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-display);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.stu-d-meter {
+  height: 0.5rem;
+  background: var(--bg);
+}
+
+.stu-d-meter > span {
+  transform-origin: left center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stu-drawer[open] .stu-d-meter > span {
+    animation: stu-grow 700ms var(--ease-soft) 120ms both;
+  }
+
+  @keyframes stu-grow {
+    from {
+      transform: scaleX(0);
+    }
+  }
+}
+
+.stu-d-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.stu-d-fact {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.stu-d-fact dt {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+}
+
+.stu-d-fact dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: var(--weight-strong);
+  overflow-wrap: anywhere;
+}
+
+.stu-d-modules {
+  list-style: none;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.stu-d-module-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
+  color: var(--text);
+  font-weight: var(--weight-strong);
+}
+
+.stu-d-module-count {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.stu-d-lessons {
+  list-style: none;
+}
+
+.stu-d-lessons > li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  color: var(--text-muted);
+}
+
+.stu-d-lessons > li + li {
+  border-top: 1px solid var(--border);
+}
+
+.stu-d-lessons > li.is-done {
+  color: var(--text);
+}
+
+.stu-d-tick {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.12rem;
+  color: var(--border-control);
+}
+
+.is-done > .stu-d-tick {
+  color: var(--maroon-800);
+}
+
+.stu-d-lesson {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--weight-ui);
+}
+
+.stu-d-min {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+  line-height: 1.9;
+}
+
+.stu-d-pays {
+  list-style: none;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.stu-d-pay {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.stu-d-pay-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.stu-d-amt {
+  color: var(--text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-display);
+  letter-spacing: -0.02em;
+}
+
+.stu-d-pay-meta {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+}
+
+.stu-d-pay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.stu-d-pay-actions .link-btn {
+  margin-left: auto;
+}
+
+.stu-d-note {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+@media (forced-colors: active) {
+  .stu-open:focus-visible::after {
+    outline-color: Highlight;
+  }
+}
