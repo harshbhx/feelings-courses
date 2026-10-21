@@ -1,0 +1,269 @@
+---
+/**
+ * Price card (#pricing): every "Enroll" link on the page points here, so without JS a tap lands
+ * on the price. With JS, the checkout component (src/components/checkout) binds to [data-enroll]
+ * and opens the payment sheet instead.
+ *
+ * The card reads like a ticket: a maroon head with the price in white, then what's included, the
+ * one red button, the Razorpay line and a WhatsApp question link.
+ * A struck-through "was" price shows only if course.price.compareAt is set; it is null today.
+ */
+import Icon from "../Icon.astro";
+import Avatar from "./Avatar.astro";
+import { course } from "../../data/course";
+import { site } from "../../data/site";
+import { whatsappLink } from "../../lib/whatsapp";
+import { accessLabel, lessonsLabel, minutesLabel, teacherFirstName } from "./facts";
+
+const { price } = course;
+const money = (paise: number) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: price.currency, maximumFractionDigits: 0 }).format(paise / 100);
+const included = [
+  `${lessonsLabel}, ${minutesLabel} of video`,
+  `${accessLabel}, on phone or laptop`,
+  course.certificate,
+  `Taught in ${course.language}`,
+  `Ask ${teacherFirstName} your questions on WhatsApp`,
+];
+---
+
+<section class="section band-soft pricing" id="pricing" aria-labelledby="pricing-title">
+  <div class="container pricing-grid">
+    <div class="pricing-head" data-reveal>
+      <h2 id="pricing-title">Join the course<span class="bindi" aria-hidden="true"></span></h2>
+      <p class="lead">
+        One payment of {price.display}. {lessonsLabel}, a certificate, and {course.access} to watch them.
+      </p>
+      <p class="taught">
+        <Avatar size="3.5rem" />
+        <span>
+          <strong>Taught by {course.teacher}</strong>
+          <span>{site.name}, {site.address.city}, since {site.foundedYear}</span>
+        </span>
+      </p>
+    </div>
+
+    <div class="price-card" data-cta-zone data-reveal>
+      <div class="price-top">
+        <p class="price-name">{course.title}</p>
+        <p class="price">
+          <span class="amount">{price.display}</span>
+          {
+            price.compareAt && (
+              <s class="was">
+                <span class="visually-hidden">Was </span>
+                {money(price.compareAt)}
+              </s>
+            )
+          }
+        </p>
+        <p class="price-note">One-time payment</p>
+      </div>
+
+      <div class="price-body">
+        <ul class="included" aria-label="What’s included">
+          {
+            included.map((item) => (
+              <li>
+                <Icon name="check-circle" />
+                <span>{item}</span>
+              </li>
+            ))
+          }
+        </ul>
+
+        <a class="btn btn-primary price-enroll" href="#pricing" data-enroll>
+          Enroll for {price.display}
+          <Icon name="arrow-right" />
+        </a>
+        <p class="secure">
+          <Icon name="lock-simple" />
+          Secure payment by Razorpay: UPI, cards, netbanking
+        </p>
+
+        <a class="btn btn-secondary ask-btn" href={whatsappLink()} target="_blank" rel="noopener">
+          <Icon name="whatsapp" />
+          Ask {teacherFirstName} a question
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .pricing-grid {
+    display: grid;
+    gap: var(--space-6);
+  }
+
+  .pricing-head {
+    display: grid;
+    gap: var(--space-4);
+    align-content: start;
+    max-width: 30rem;
+  }
+
+  .taught {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    color: var(--text-muted);
+  }
+
+  .taught > span {
+    display: grid;
+  }
+
+  .taught strong {
+    font-size: var(--text-base);
+    font-weight: var(--weight-strong);
+    color: var(--text);
+  }
+
+  .taught :global(.avatar) {
+    box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--border-strong);
+  }
+
+  /* ── The card ── */
+  .price-card {
+    width: 100%;
+    max-width: 30rem;
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--bg);
+    box-shadow: var(--shadow-md);
+  }
+
+  .price-top {
+    position: relative;
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-6) var(--space-5) var(--space-5);
+    background: var(--bg-deep);
+    color: var(--text-on-deep-muted);
+  }
+
+  .price-name {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-strong);
+    color: var(--text-on-deep-muted);
+  }
+
+  .price {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .amount {
+    font-family: var(--font-display);
+    font-size: clamp(3rem, 2.4rem + 2.6vw, 4rem);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--text-on-deep);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .was {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-ui);
+    color: var(--text-on-deep-muted);
+  }
+
+  .price-note {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    color: var(--text-on-deep);
+  }
+
+  .price-body {
+    display: grid;
+    gap: var(--space-5);
+    padding: var(--space-5);
+  }
+
+  .included {
+    list-style: none;
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .included li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-3);
+    align-items: start;
+    color: var(--text);
+    line-height: 1.45;
+  }
+
+  .included :global(.icon) {
+    width: 1.3rem;
+    height: 1.3rem;
+    margin-top: 0.05rem;
+    color: var(--bg-deep);
+  }
+
+  .price-enroll {
+    width: 100%;
+    min-height: 3.375rem;
+    margin-top: var(--space-1);
+    font-size: var(--text-lg);
+    box-shadow: var(--shadow-accent);
+  }
+
+  /* The lock sits inline before the first word, so the line stays centred when it wraps. */
+  .secure {
+    margin-top: calc(var(--space-2) * -1);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--text-muted);
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  .secure :global(.icon) {
+    display: inline-block;
+    width: 1.05rem;
+    height: 1.05rem;
+    margin-right: 0.3em;
+    vertical-align: -0.17em;
+  }
+
+  .ask-btn {
+    width: 100%;
+    white-space: normal;
+  }
+
+  .ask-btn :global(.icon) {
+    color: var(--bg-deep);
+  }
+
+  @media (min-width: 48rem) {
+    .price-top {
+      padding: var(--space-7) var(--space-6) var(--space-6);
+    }
+
+    .price-body {
+      padding: var(--space-6);
+    }
+  }
+
+  @media (min-width: 56rem) {
+    .pricing-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 30rem);
+      column-gap: var(--space-8);
+      align-items: center;
+    }
+
+    .price-card {
+      justify-self: end;
+    }
+  }
+</style>

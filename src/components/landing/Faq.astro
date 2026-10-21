@@ -1,0 +1,124 @@
+---
+// Questions from course.faqs. Native <details>: keyboard and screen-reader support for free, and
+// it works without JS. Answers open smoothly where the browser supports it (motion.css).
+import { course } from "../../data/course";
+---
+
+<section class="section faq" id="faq" aria-labelledby="faq-title">
+  <div class="container faq-grid">
+    <div class="faq-head" data-reveal>
+      <h2 id="faq-title">Questions<span class="bindi" aria-hidden="true"></span></h2>
+    </div>
+    <div class="faq-list" data-reveal="stagger">
+      {
+        course.faqs.map((f, i) => (
+          <details style={`--i: ${i}`}>
+            <summary>
+              <span>{f.q}</span>
+              <span class="toggle" aria-hidden="true" />
+            </summary>
+            <p>{f.a}</p>
+          </details>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .faq-grid {
+    display: grid;
+    gap: var(--space-6) var(--space-8);
+  }
+
+  .faq-list {
+    border-top: 1px solid var(--border-strong);
+  }
+
+  details {
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-5);
+    min-height: 3.5rem;
+    padding-block: var(--space-5);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-ui);
+    line-height: 1.35;
+    color: var(--text);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  summary:hover {
+    color: var(--accent);
+  }
+
+  .toggle {
+    position: relative;
+    flex: none;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    color: var(--text);
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+  }
+
+  .toggle::before,
+  .toggle::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 11px;
+    height: 1.5px;
+    margin: -0.75px 0 0 -5.5px;
+    background: currentColor;
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+
+  .toggle::after {
+    transform: rotate(90deg);
+  }
+
+  details[open] .toggle {
+    background: var(--bg-deep);
+    border-color: var(--bg-deep);
+    color: var(--text-on-deep);
+  }
+
+  details[open] .toggle::after {
+    transform: rotate(0deg);
+  }
+
+  details p {
+    max-width: 38em;
+    padding-bottom: var(--space-5);
+  }
+
+  @media (min-width: 56rem) {
+    .faq-grid {
+      grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+      align-items: start;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toggle::before,
+    .toggle::after {
+      transition: none;
+    }
+  }
+</style>

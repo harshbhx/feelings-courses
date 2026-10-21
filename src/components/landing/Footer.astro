@@ -1,0 +1,143 @@
+---
+// A minimal footer: the studio, its address, and three ways to reach it. Every link is 44px tall.
+import Icon from "../Icon.astro";
+import Logo from "./Logo.astro";
+import { site } from "../../data/site";
+import { whatsappLink } from "../../lib/whatsapp";
+import { addressLine, mainHost } from "./facts";
+
+const year = new Date().getFullYear();
+---
+
+<footer class="lp-footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <a class="footer-logo" href={site.mainUrl} target="_blank" rel="noopener">
+        <Logo tone="white" width="9.5rem" />
+      </a>
+      <p>{site.name}, {site.address.city}. Since {site.foundedYear}.</p>
+      <address>
+        <Icon name="map-pin" />
+        <span>{addressLine}</span>
+      </address>
+    </div>
+
+    <ul class="footer-links" aria-label="Contact and links">
+      <li>
+        <a href={site.mainUrl} target="_blank" rel="noopener">
+          <Icon name="arrow-up-right" />
+          {mainHost}
+        </a>
+      </li>
+      <li>
+        <a href={site.social.instagram} target="_blank" rel="noopener">
+          <Icon name="instagram" />
+          Instagram
+        </a>
+      </li>
+      <li>
+        <a href={whatsappLink()} target="_blank" rel="noopener">
+          <Icon name="whatsapp" />
+          WhatsApp
+        </a>
+      </li>
+    </ul>
+  </div>
+  <div class="container footer-legal">
+    <p>© {year} {site.name}</p>
+  </div>
+</footer>
+
+<style>
+  .lp-footer {
+    padding-block: var(--space-8) var(--space-5);
+    background: var(--bg-deepest);
+    color: var(--text-on-deep-muted);
+    font-size: var(--text-sm);
+  }
+
+  .lp-footer :focus-visible {
+    outline-color: var(--white);
+  }
+
+  .footer-inner {
+    display: grid;
+    gap: var(--space-6);
+  }
+
+  .footer-brand {
+    display: grid;
+    gap: var(--space-3);
+    justify-items: start;
+  }
+
+  .footer-logo {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    margin-bottom: var(--space-2);
+  }
+
+  address {
+    display: flex;
+    gap: var(--space-2);
+    max-width: 26rem;
+    font-style: normal;
+    line-height: 1.5;
+  }
+
+  address :global(.icon) {
+    width: 1.1rem;
+    height: 1.1rem;
+    margin-top: 0.15rem;
+  }
+
+  .footer-links {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-5);
+  }
+
+  .footer-links a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.75rem;
+    color: var(--text-on-deep);
+    font-weight: var(--weight-ui);
+    text-decoration: none;
+  }
+
+  .footer-links a:hover {
+    text-decoration: underline;
+    text-decoration-color: var(--border-on-deep);
+  }
+
+  .footer-links :global(.icon) {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  .footer-legal {
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-on-deep);
+  }
+
+  /* Phones: global.css pads the body for the enroll bar. The footer reaches down under that
+     padding, so the page ends in maroon rather than a white strip. */
+  @media (max-width: 47.99rem) {
+    .lp-footer {
+      margin-bottom: calc((var(--mobile-bar-h) + env(safe-area-inset-bottom)) * -1);
+      padding-bottom: calc(var(--space-5) + var(--mobile-bar-h) + env(safe-area-inset-bottom));
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .footer-inner {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+    }
+  }
+</style>
