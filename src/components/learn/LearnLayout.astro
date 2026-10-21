@@ -1,0 +1,39 @@
+---
+// Shell for every page of the course area: header, main, footer, a polite live region for
+// "marked as done" messages, and the progress script (learn-ui.ts).
+import Base from "../../layouts/Base.astro";
+import LearnHeader from "./LearnHeader.astro";
+import LearnFooter from "./LearnFooter.astro";
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<Base title={title} description={description}>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <LearnHeader />
+  <main id="main" class="learn-main" tabindex="-1">
+    <slot />
+  </main>
+  <LearnFooter />
+  <p class="visually-hidden" aria-live="polite" data-live></p>
+</Base>
+
+<script>
+  import "./learn-ui";
+</script>
+
+<style>
+  /* The course area has no booking bar, so the room global.css keeps for it on phones goes. */
+  :global(html body) {
+    padding-bottom: 0;
+  }
+
+  .learn-main:focus {
+    outline: none;
+  }
+</style>
