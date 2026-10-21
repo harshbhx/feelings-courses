@@ -11,13 +11,13 @@ The makeup course of Feelings Beauty Care, on courses.feelingsbeautycare.in. It 
 npm install
 npm run dev     # http://localhost:4321
 npm run build   # astro check + build + CSP hashes (what Cloudflare runs)
-node scripts/test-learn.mjs   # course-area gate tests (Node 22, no packages)
+npm run test:learn   # course-area gate tests (Node 22, no packages)
 ```
 
 ## Course area
 
 - `/learn` is the dashboard and `/learn/<slug>` one page per lesson. Titles and minutes come from `src/data/course.ts`; slugs and lesson video ids are in `src/data/lessons.ts`.
-- **Gate:** every request for `/learn`, `/learn/*`, `/learn.html` and `/learn/*.html` must pass `verifyEnrollment()` (`functions/_lib/enrollment.ts`). Otherwise it gets a 302 to `/?locked=1#pricing`. Gated pages are sent with `Cache-Control: private, no-store`. The files are `functions/learn/_middleware.ts`, `functions/learn.ts`, `functions/learn.html.ts` and the shared `functions/learn/_gate.ts`. `/learn/logout` clears the enrollment cookie and goes home.
+- **Gate:** every request for `/learn`, `/learn/*`, `/learn.html` and `/learn/*.html` must pass `verifyEnrollment()` (`functions/_lib/enrollment.ts`). Otherwise it gets a 302 to `/?locked=1#pricing`. Gated pages are sent with `Cache-Control: private, no-store`. The files are `functions/learn/_middleware.ts`, `functions/learn.ts`, `functions/learn.html.ts` and the shared `functions/learn/_gate.ts`. The root `functions/_middleware.ts` gates percent-encoded spellings such as `/%6cearn`: Pages routes Functions by the raw path but serves files by the decoded one. It makes every request run through Functions. `/learn/logout` clears the enrollment cookie and goes home.
 - **Progress** is saved in the buyer's browser only (localStorage `fbc-progress`).
 - **Lesson videos:** none exist yet. Each lesson plays a clearly labelled studio clip from `course.glimpses` instead. To add a real video, set its `videoId` in `src/data/lessons.ts`.
 
