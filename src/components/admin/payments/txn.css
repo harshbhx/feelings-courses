@@ -1,0 +1,58 @@
+/*
+  Test-payment pieces shared by /admin/payments and the student drawer on /admin/students:
+  status pills, the payment id, the method label and the Refund button. Tokens only.
+  Status is never told by colour alone: each pill has its own icon and word.
+*/
+
+.txn-pill {
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem 0.2rem 0.45rem;
+}
+
+.txn-pill .icon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.txn-captured {
+  background: var(--bg-tint);
+  border-color: var(--bg-tint);
+  color: var(--text);
+}
+
+.txn-captured .icon {
+  color: var(--maroon-800);
+}
+
+.txn-failed {
+  background: var(--bg);
+  border-color: var(--border-strong);
+  color: var(--accent);
+}
+
+.txn-refunded {
+  background: var(--bg-soft);
+  border-color: var(--border-strong);
+  color: var(--text-body);
+}
+
+.txn-refunded .icon {
+  color: var(--text-muted);
+}
+
+/* Payment ids: same family, tabular figures, a touch of tracking so ids read character by character. */
+.txn-id {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+
+.txn-refund .icon {
+  color: var(--text-muted);
+}
+
+@media (forced-colors: active) {
+  .txn-pill {
+    border-color: CanvasText;
+  }
+}
