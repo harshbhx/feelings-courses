@@ -1,0 +1,233 @@
+---
+/**
+ * Who it's for (course.forWho), then how it works in three steps: enroll, watch on your phone,
+ * get the certificate. Every step's detail is built from course.ts.
+ */
+import Icon from "../Icon.astro";
+import { course } from "../../data/course";
+import { lessonLengthLabel, lessonsLabel } from "./facts";
+
+const steps = [
+  { icon: "lock-simple", title: "Enroll", text: `Pay ${course.price.display} once, by UPI, card or netbanking.` },
+  {
+    icon: "device-mobile",
+    title: "Watch on your phone",
+    text: `${lessonsLabel}, ${lessonLengthLabel}, on phone or laptop. ${course.access} of access.`,
+  },
+  { icon: "certificate", title: "Get your certificate", text: `${course.certificate}, when you finish the lessons.` },
+];
+---
+
+<section class="section for-who" id="for-who" aria-labelledby="for-who-title">
+  <div class="container">
+    <div class="who-grid">
+      <h2 id="for-who-title" data-reveal>Who it’s for<span class="bindi" aria-hidden="true"></span></h2>
+      <ul class="who" data-reveal="stagger">
+        {
+          course.forWho.map((who, i) => (
+            <li style={`--i: ${i}`}>
+              <span class="who-dot" aria-hidden="true" />
+              <p>{who}</p>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <div class="how" aria-labelledby="how-title">
+      <h3 id="how-title" class="how-title" data-reveal>How it works</h3>
+      <ol class="steps" data-reveal="stagger">
+        {
+          steps.map((step, i) => (
+            <li class="step" style={`--i: ${i}`}>
+              <span class="step-mark" aria-hidden="true">
+                <Icon name={step.icon} />
+              </span>
+              <span class="step-num">Step {i + 1}</span>
+              <span class="step-title">{step.title}</span>
+              <p class="step-text">{step.text}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </div>
+</section>
+
+<style>
+  .who-grid {
+    display: grid;
+    gap: var(--space-6);
+  }
+
+  .who {
+    list-style: none;
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .who li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-4);
+    align-items: start;
+    padding: var(--space-5);
+    border-radius: var(--radius-md);
+    background: var(--bg-soft);
+  }
+
+  .who-dot {
+    width: 0.75rem;
+    height: 0.75rem;
+    margin-top: 0.5rem;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .who p {
+    font-size: var(--text-lg);
+    line-height: 1.45;
+    color: var(--text);
+  }
+
+  /* ── How it works ── */
+  .how {
+    margin-top: var(--section-y-tight);
+  }
+
+  .how-title {
+    margin-bottom: var(--space-5);
+    font-size: var(--text-xl);
+    letter-spacing: -0.015em;
+  }
+
+  .steps {
+    list-style: none;
+    display: grid;
+    gap: 0;
+    counter-reset: step;
+  }
+
+  /* Phones: a vertical line joins the steps. */
+  .step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 1fr);
+    grid-template-areas:
+      "mark num"
+      "mark title"
+      "mark text";
+    column-gap: var(--space-4);
+    align-content: start;
+    padding-bottom: var(--space-6);
+  }
+
+  .step:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    left: 1.5rem;
+    top: 3.25rem;
+    bottom: var(--space-2);
+    width: 1px;
+    background: var(--border-strong);
+  }
+
+  .step:last-child {
+    padding-bottom: 0;
+  }
+
+  .step-mark {
+    grid-area: mark;
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: var(--bg-tint);
+    color: var(--bg-deep);
+  }
+
+  .step-mark :global(.icon) {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
+
+  .step-num {
+    grid-area: num;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+  }
+
+  .step-title {
+    grid-area: title;
+    font-size: var(--text-lg);
+    font-weight: var(--weight-strong);
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    color: var(--text);
+  }
+
+  .step-text {
+    grid-area: text;
+    margin-top: var(--space-1);
+    max-width: 26em;
+  }
+
+  @media (min-width: 48rem) {
+    .who {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-4);
+    }
+
+    .who li {
+      grid-template-columns: 1fr;
+      align-content: start;
+      gap: var(--space-4);
+      padding: var(--space-5) var(--space-5) var(--space-6);
+    }
+
+    .who-dot {
+      margin-top: 0;
+    }
+
+    /* Tablets and up: three steps side by side, joined by a line through the marks. */
+    .steps {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-6);
+    }
+
+    .step {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "mark"
+        "num"
+        "title"
+        "text";
+      row-gap: var(--space-1);
+      padding-bottom: 0;
+    }
+
+    .step-mark {
+      margin-bottom: var(--space-4);
+    }
+
+    .step:not(:last-child)::before {
+      left: 3.75rem;
+      right: calc(var(--space-6) * -1 + var(--space-3));
+      top: 1.5rem;
+      bottom: auto;
+      width: auto;
+      height: 1px;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .who-grid {
+      grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+      column-gap: var(--space-8);
+      align-items: start;
+    }
+  }
+</style>

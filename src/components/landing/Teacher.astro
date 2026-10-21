@@ -1,0 +1,198 @@
+---
+/**
+ * Your teacher: the page's one deep (maroon) band. Three facts in big type, each from site.ts:
+ * the year the studio opened, the Google rating the owner confirmed (labelled as reviews of the
+ * studio, with its month), and the 2019 award in its exact wording (still marked CONFIRM there).
+ *
+ * The photo is the cut-out portrait the main site uses as Urmi on its About page (founder.webp).
+ * It stands on the band's bottom edge: after the text on phones, beside it from 56rem.
+ */
+import { getImage } from "astro:assets";
+import Icon from "../Icon.astro";
+import urmi from "../../assets/photos/urmi-mengar.webp";
+import { site } from "../../data/site";
+import { course } from "../../data/course";
+import { ratingCount, ratingMonth, teacherFirstName as firstName } from "./facts";
+
+const sizes = "(min-width: 56rem) min(36vw, 28rem), min(80vw, 20rem)";
+const widths = [320, 480, 640, 960];
+const [avif, webp] = await Promise.all([
+  getImage({ src: urmi, widths, sizes, format: "avif", quality: 45 }),
+  getImage({ src: urmi, widths, sizes, format: "webp", quality: 72 }),
+]);
+---
+
+<section class="section band-deep teacher" id="teacher" aria-labelledby="teacher-title">
+  <div class="container teacher-grid">
+    <div class="teacher-body" data-reveal>
+      <h2 id="teacher-title">Your teacher, {firstName}<span class="bindi" aria-hidden="true"></span></h2>
+      <p class="lead">
+        {course.teacher} runs {site.name} in {site.address.city}: a ladies’ parlour, bridal studio and makeup academy. She teaches
+        this course herself.
+      </p>
+
+      <ul class="creds">
+        <li>
+          <span class="cred-big">{site.foundedYear}</span>
+          <span class="cred-text">The year {firstName} opened the studio</span>
+        </li>
+        <li>
+          <span class="cred-big">
+            {site.googleRating.rating}
+            <Icon name="star-fill" />
+            <span class="visually-hidden">out of 5</span>
+          </span>
+          <span class="cred-text">
+            from <a href={site.reviewsUrl} target="_blank" rel="noopener">{ratingCount} Google reviews</a> of the studio <span class="nowrap">({ratingMonth})</span>
+          </span>
+        </li>
+        <li>
+          <span class="cred-big">{site.award.year}</span>
+          <span class="cred-text">{site.award.text}</span>
+        </li>
+      </ul>
+
+      <a class="link-arrow" href={site.academyUrl} target="_blank" rel="noopener">
+        About the academy
+        <Icon name="arrow-up-right" />
+      </a>
+    </div>
+
+    <div class="teacher-portrait" data-reveal="image">
+      <picture>
+        <source type="image/avif" srcset={avif.srcSet.attribute} sizes={sizes} />
+        <img
+          src={webp.src}
+          srcset={webp.srcSet.attribute}
+          sizes={sizes}
+          width={urmi.width}
+          height={urmi.height}
+          alt={`${course.teacher}, founder of ${site.name}`}
+          loading="lazy"
+          decoding="async"
+        />
+      </picture>
+    </div>
+  </div>
+</section>
+
+<style>
+  /* No bottom padding: the cut-out stands on the band's bottom edge. */
+  .teacher {
+    padding-bottom: 0;
+    overflow: hidden;
+    /* The bindi on maroon: sindoor would disappear, so it takes the lifted red. */
+    --tone: var(--accent-on-deep);
+  }
+
+  .teacher-grid {
+    display: grid;
+  }
+
+  .teacher-body {
+    display: grid;
+    gap: var(--space-6);
+    justify-items: start;
+    min-width: 0;
+  }
+
+  .teacher-body .lead {
+    max-width: 30em;
+  }
+
+  .creds {
+    list-style: none;
+    display: grid;
+    width: 100%;
+    max-width: 34rem;
+    border-top: 1px solid var(--border-on-deep);
+  }
+
+  .creds li {
+    display: grid;
+    grid-template-columns: calc(var(--text-2xl) * 2.9) minmax(0, 1fr);
+    gap: var(--space-4);
+    align-items: baseline;
+    padding-block: var(--space-4);
+    border-bottom: 1px solid var(--border-on-deep);
+  }
+
+  .cred-big {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.12em;
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--text-on-deep);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cred-big :global(.icon) {
+    width: 0.5em;
+    height: 0.5em;
+    align-self: flex-start;
+    margin-top: 0.08em;
+  }
+
+  .cred-text {
+    color: var(--text-on-deep-muted);
+    line-height: 1.5;
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  .cred-text a {
+    color: var(--text-on-deep);
+    font-weight: var(--weight-ui);
+    text-decoration-color: var(--border-on-deep);
+  }
+
+  .cred-text a:hover {
+    text-decoration-color: currentColor;
+  }
+
+  /* Phones: the portrait follows the text and closes the band. */
+  .teacher-portrait {
+    justify-self: center;
+    width: min(80%, 20rem);
+    margin-top: var(--space-7);
+  }
+
+  /* Grows from the bottom edge as it reveals, so it never lifts off the band. */
+  .teacher-portrait img {
+    width: 100%;
+    transform-origin: 50% 100%;
+  }
+
+  @media (min-width: 56rem) {
+    .teacher-grid {
+      grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+      grid-template-areas: "portrait body";
+      align-items: end;
+      column-gap: var(--space-8);
+    }
+
+    .teacher-body {
+      grid-area: body;
+      align-self: center;
+      padding-bottom: var(--section-y);
+    }
+
+    .creds {
+      max-width: 38rem;
+    }
+
+    .teacher-portrait {
+      grid-area: portrait;
+      justify-self: start;
+      width: 100%;
+      max-width: 28rem;
+      margin-top: 0;
+    }
+  }
+</style>
