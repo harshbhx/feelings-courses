@@ -268,14 +268,19 @@ function isSaved(x: unknown): x is Saved {
 function load(): Saved {
   if (memory) return memory;
   let saved: Saved | null = null;
+  let raw: string | null = null;
   try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) {
-      const parsed: unknown = JSON.parse(raw);
-      if (isSaved(parsed)) saved = parsed;
-    }
+    raw = localStorage.getItem(STORE_KEY);
   } catch {
     storageBlocked = true;
+  }
+  if (raw) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (isSaved(parsed)) saved = parsed;
+    } catch {
+      /* unreadable: start again from the seed */
+    }
   }
   if (!saved) {
     saved = seed();
@@ -289,13 +294,16 @@ function load(): Saved {
 }
 
 function write(next: Saved): SaveResult {
-  memory = next;
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(next));
+    memory = next;
     return { ok: true };
   } catch (e) {
     const name = e instanceof DOMException ? e.name : "";
+    // Full: nothing changes, so the screen never shows what wasn't kept.
     if (name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED") return { ok: false, reason: "quota" };
+    // Blocked: keep it in memory, so the demo still works on this page.
+    memory = next;
     storageBlocked = true;
     return { ok: false, reason: "blocked" };
   }
@@ -304,6 +312,15 @@ function write(next: Saved): SaveResult {
 /** True when the browser blocks storage: changes then last only until the page is left. */
 export function storageIsBlocked(): boolean {
   load();
+  if (!storageBlocked) return false;
+  // Check again with a real write before saying so.
+  try {
+    localStorage.setItem(`${STORE_KEY}-probe`, "1");
+    localStorage.removeItem(`${STORE_KEY}-probe`);
+    storageBlocked = false;
+  } catch {
+    /* really blocked */
+  }
   return storageBlocked;
 }
 
