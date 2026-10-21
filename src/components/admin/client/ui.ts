@@ -10,7 +10,8 @@ export function toast(message: string, tone: Tone = "success", ms = 4200): void 
   if (!region) return;
   const name = tone === "error" ? "warning-circle" : tone === "info" ? "info" : "check-circle";
   const close = h("button", { type: "button", class: "toast-close", "aria-label": "Dismiss" }, icon("close"));
-  const el = h("div", { class: `toast toast-${tone}`, role: tone === "error" ? "alert" : "status" }, icon(name, "icon toast-icon"), h("p", { text: message }), close);
+  // The region is aria-live="polite"; only errors interrupt (role="alert").
+  const el = h("div", { class: `toast toast-${tone}`, role: tone === "error" ? "alert" : null }, icon(name, "icon toast-icon"), h("p", { text: message }), close);
   const remove = () => {
     el.classList.add("is-leaving");
     window.setTimeout(() => el.remove(), 200);
