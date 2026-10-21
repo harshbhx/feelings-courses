@@ -7,8 +7,9 @@
 // type stripping. Requests, responses and Web Crypto are Node's own, the same APIs as Workers.
 //
 // What is tested:
-//   - every course URL (/learn, /learn/, each lesson, the .html files) redirects to the price card
-//     with no cookie, a broken one, an expired one or a forged one, and the redirect is no-store;
+//   - every course URL (/learn, /learn/, each lesson, the .html files, and percent-encoded or other
+//     odd spellings of them) redirects to the price card with no cookie, a broken one, an expired
+//     one or a forged one, and the redirect is no-store;
 //   - an enrolled request gets the page, marked Cache-Control: private, no-store;
 //   - /learn/logout clears the cookie without needing an enrollment.
 //
@@ -77,6 +78,7 @@ register(`data:text/javascript,${encodeURIComponent(hooks)}`, { data: { typescri
 
 const gateMod = await import(fileUrl("functions/learn/_gate.ts"));
 const enrollment = await import(fileUrl("functions/_lib/enrollment.ts"));
+const rootRoute = await import(fileUrl("functions/_middleware.ts"));
 const middlewareRoute = await import(fileUrl("functions/learn/_middleware.ts"));
 const bareRoute = await import(fileUrl("functions/learn.ts"));
 const htmlRoute = await import(fileUrl("functions/learn.html.ts"));
@@ -100,7 +102,8 @@ function context(pathname, { cookie, env = { ENROLL_SECRET: SECRET }, method = "
   const headers = new Headers();
   if (cookie !== undefined) headers.set("Cookie", cookie);
   const ctx = {
-    request: new Request(new URL(pathname, ORIGIN), { method, headers }),
+    // Built from the full string: new URL("//learn", origin) would read "learn" as a host.
+    request: new Request(`${ORIGIN}${pathname}`, { method, headers }),
     env,
     data,
     params: {},
@@ -196,20 +199,45 @@ const real = implemented ? {} : { skip: NEEDS_REAL };
 const lessonUrls = lessons.flatMap((l) => [l.href, `${l.href}.html`, `${l.href}/`]);
 const middlewareUrls = ["/learn", "/learn/", ...lessonUrls, "/learn/does-not-exist", "/learn/logout.html"];
 
-/** Runs a request through the route that Pages would pick for it, with the real verifyEnrollment(). */
+/**
+ * Runs a request through the chain Pages would build for it, with the real verifyEnrollment():
+ * the root middleware first, then the course middleware and route for that path.
+ */
 async function viaRoute(pathname, options = {}) {
   const ctx = context(pathname, options);
-  let response;
+  let inner;
   if (pathname === "/learn.html") {
-    response = await htmlRoute.onRequest(ctx);
+    inner = () => htmlRoute.onRequest(ctx);
   } else if (pathname === "/learn") {
-    // Pages runs the middleware first, then the bare route's handler.
-    response = await middlewareRoute.onRequest({ ...ctx, next: () => bareRoute.onRequestGet(ctx) });
+    // The course middleware, then the bare route's handler.
+    inner = () => middlewareRoute.onRequest({ ...ctx, next: () => bareRoute.onRequestGet(ctx) });
+  } else if (pathname.startsWith("/learn/")) {
+    inner = () => middlewareRoute.onRequest(ctx);
   } else {
-    response = await middlewareRoute.onRequest(ctx);
+    inner = () => ctx.next(); // no course route matches the raw path: straight to the static files
   }
+  const response = await rootRoute.onRequest({ ...ctx, next: inner });
   return { response, ctx };
 }
+
+/** Spellings of course paths that Pages' router doesn't match but its file server may resolve. */
+const oddSpellings = [
+  "/%6cearn",
+  "/%6Cearn",
+  "/%4C%45%41%52%4E",
+  "/l%65arn.html",
+  "/learn%2Ehtml",
+  "/learn%2Fknow-your-skin-type",
+  "/learn%2fknow-your-skin-type.html",
+  "/%6cearn/soft-glam",
+  "/l%2565arn",
+  "/%2Flearn",
+  "//learn",
+  "/x/../learn",
+  "/%2e%2e/learn/touch-ups",
+  "/LEARN",
+  "/%5clearn",
+];
 
 // ---------- the gate's own logic (runs now) ----------
 
@@ -233,6 +261,28 @@ test("no cookie: every course URL redirects to the price card", async () => {
     const ctx = context("/learn", { method: method.toUpperCase() });
     assertLocked(await bareRoute[`onRequest${method}`](ctx), ctx, `${method.toUpperCase()} /learn (functions/learn.ts)`);
   }
+});
+
+test("no cookie: percent-encoded and other odd spellings of course paths redirect too", async () => {
+  for (const url of oddSpellings) {
+    const { response, ctx } = await viaRoute(url);
+    assertLocked(response, ctx, url);
+  }
+});
+
+test("the root middleware leaves the rest of the site alone", async () => {
+  let verified = 0;
+  const verify = async () => {
+    verified++;
+    return null;
+  };
+  for (const url of ["/", "/?locked=1", "/api/order", "/api/verify", "/thank-you", "/learning", "/ig", "/_astro/x.js", "/favicon.svg", "/%7Eabout"]) {
+    const ctx = context(url);
+    const response = await gateMod.siteMiddleware(ctx, verify);
+    assert.equal(ctx.nextCalls, 1, `${url} should pass straight on`);
+    assert.equal(response.status, 200, url);
+  }
+  assert.equal(verified, 0, "no enrollment check outside the course area");
 });
 
 test("no ENROLL_SECRET (demo) and no cookie: still redirects", async () => {
@@ -345,7 +395,7 @@ test("/learn/logout clears the cookie and goes home, without needing an enrollme
 
 test("valid cookie: every course URL serves the page as private, no-store", real, async () => {
   const value = await issue({ ENROLL_SECRET: SECRET });
-  for (const url of [...middlewareUrls.filter((u) => u !== "/learn/logout.html"), "/learn.html"]) {
+  for (const url of [...middlewareUrls.filter((u) => u !== "/learn/logout.html"), "/learn.html", ...oddSpellings]) {
     const { response, ctx } = await viaRoute(url, { cookie: `${ENROLL_COOKIE}=${value}` });
     await assertServed(response, ctx, `${url} with a valid cookie`);
   }

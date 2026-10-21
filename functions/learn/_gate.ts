@@ -2,6 +2,8 @@
  * The course area's gate. Every request for /learn, /learn/* and their .html twins passes through
  * gate() before Pages serves the static page:
  *
+ *   functions/_middleware.ts         every request; gates percent-encoded and other odd spellings
+ *                                    of a course path (/%6cearn, /learn%2Fsoft-glam, //learn)
  *   functions/learn/_middleware.ts   /learn/* (and /learn itself)
  *   functions/learn.ts               /learn, so the bare path is a Functions route of its own
  *   functions/learn.html.ts          /learn.html
@@ -67,6 +69,38 @@ export async function gate(context: GateContext, verify: Verify = verifyEnrollme
   }
 
   return privateResponse(await next());
+}
+
+/**
+ * True when a raw request path lands in the course area once the static file server has made
+ * sense of it. Pages matches _routes.json and Functions routes against the raw path, but serves
+ * files by the decoded one: without this, /%6cearn or /learn%2Fsoft-glam would reach the course
+ * pages and skip every gate above. Errs on the side of gating: it decodes up to three times,
+ * turns backslashes into slashes, collapses repeated slashes, resolves dot segments and ignores
+ * case.
+ */
+export function isCoursePath(rawPath: string): boolean {
+  let path = rawPath;
+  for (let i = 0; i < 3 && path.includes("%"); i++) {
+    // Byte by byte, so a malformed or multi-byte sequence never throws; the prefix is ASCII.
+    path = path.replace(/%([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+  }
+  const segments: string[] = [];
+  for (const segment of path.replace(/\\/g, "/").split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") segments.pop();
+    else segments.push(segment);
+  }
+  return /^\/learn(?:[/.]|$)/i.test(`/${segments.join("/")}`);
+}
+
+/**
+ * functions/_middleware.ts (every request): sends anything that resolves to the course area
+ * through the gate, whatever its spelling. Everything else passes straight on.
+ */
+export function siteMiddleware(context: GateContext, verify: Verify = verifyEnrollment): Promise<Response> {
+  const { pathname } = new URL(context.request.url);
+  return isCoursePath(pathname) ? learnMiddleware(context, verify) : context.next();
 }
 
 /** functions/learn/_middleware.ts: gates everything under /learn except the logout link. */
