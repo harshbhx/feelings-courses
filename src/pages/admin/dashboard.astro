@@ -4,6 +4,7 @@
 // because the numbers are relative to today.
 import Admin from "../../layouts/Admin.astro";
 import Icon from "../../components/Icon.astro";
+import CoverData from "../../components/admin/CoverData.astro";
 import { course } from "../../data/course";
 
 const firstName = course.teacher.split(" ")[0];
@@ -55,6 +56,7 @@ const firstName = course.teacher.split(" ")[0];
   </section>
 
   <div class="dash-grid">
+    <div class="dash-col">
     <section class="card chart-card" aria-labelledby="chart-title">
       <div class="card-head no-rule">
         <div>
@@ -92,6 +94,17 @@ const firstName = course.teacher.split(" ")[0];
       </details>
     </section>
 
+    <section class="card card-pad progress-card" aria-labelledby="progress-title">
+      <div class="progress-head">
+        <h2 class="card-title" id="progress-title">How far students have got</h2>
+        <p class="card-sub" data-progress-sub>&nbsp;</p>
+      </div>
+      <div class="split" data-split aria-hidden="true"></div>
+      <ul class="split-legend" data-split-legend></ul>
+    </section>
+    </div>
+
+    <div class="dash-col">
     <section class="card recent-card" aria-labelledby="recent-title">
       <div class="card-head">
         <h2 class="card-title" id="recent-title">Recent payments</h2>
@@ -104,15 +117,6 @@ const firstName = course.teacher.split(" ")[0];
       <p class="card-foot">Test mode: no real money moves in the demo.</p>
     </section>
 
-    <section class="card card-pad progress-card" aria-labelledby="progress-title">
-      <div class="progress-head">
-        <h2 class="card-title" id="progress-title">How far students have got</h2>
-        <p class="card-sub" data-progress-sub>&nbsp;</p>
-      </div>
-      <div class="split" data-split aria-hidden="true"></div>
-      <ul class="split-legend" data-split-legend></ul>
-    </section>
-
     <section class="card courses-card" aria-labelledby="courses-title">
       <div class="card-head">
         <h2 class="card-title" id="courses-title">Your courses</h2>
@@ -123,7 +127,9 @@ const firstName = course.teacher.split(" ")[0];
       </div>
       <ul class="rows mini-courses" data-courses></ul>
     </section>
+    </div>
   </div>
+  <CoverData />
 </Admin>
 
 <script>
@@ -169,6 +175,15 @@ const firstName = course.teacher.split(" ")[0];
     overflow-wrap: anywhere;
   }
 
+  .kpi-today {
+    margin-left: 0.5rem;
+    color: var(--maroon-800);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    letter-spacing: 0;
+    vertical-align: 0.35em;
+  }
+
   .kpi-code {
     letter-spacing: 0.01em;
   }
@@ -195,6 +210,10 @@ const firstName = course.teacher.split(" ")[0];
   .delta .icon {
     width: 0.95rem;
     height: 0.95rem;
+    color: var(--maroon-800);
+  }
+
+  .delta.is-down .icon {
     color: var(--accent);
   }
 
@@ -212,16 +231,22 @@ const firstName = course.teacher.split(" ")[0];
   }
 
   /* ── Grid ── */
-  .dash-grid {
+  .dash-grid,
+  .dash-col {
     display: grid;
+    align-content: start;
     gap: var(--space-4);
   }
 
   @media (min-width: 64rem) {
     .dash-grid {
       grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
-      gap: var(--space-5);
       align-items: start;
+    }
+
+    .dash-grid,
+    .dash-col {
+      gap: var(--space-5);
     }
   }
 
@@ -306,6 +331,10 @@ const firstName = course.teacher.split(" ")[0];
     box-shadow: var(--shadow-md);
     transform: translateX(var(--tip-shift, -50%));
     pointer-events: none;
+  }
+
+  .chart-tip[hidden] {
+    display: none;
   }
 
   .chart-tip strong {
