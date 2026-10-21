@@ -1,0 +1,221 @@
+---
+// /learn: the course dashboard buyers land on after paying. Gated by functions/learn/_middleware.ts
+// (and functions/learn.ts for the bare path). Progress lives in this browser (localStorage
+// `fbc-progress`, see src/components/learn/progress.ts).
+import LearnLayout from "../../components/learn/LearnLayout.astro";
+import ProgressCard from "../../components/learn/ProgressCard.astro";
+import LessonList from "../../components/learn/LessonList.astro";
+import HelpCard from "../../components/learn/HelpCard.astro";
+import { course } from "../../data/course";
+import { modules, lessons, formatMinutes } from "../../data/lessons";
+
+const totalMinutes = lessons.reduce((sum, lesson) => sum + lesson.minutes, 0);
+---
+
+<LearnLayout
+  title={`Your course | ${course.title}`}
+  description={`${course.title} with ${course.teacher}: your lessons and your progress.`}
+>
+  <div class="container dash">
+    <header class="hero">
+      <p class="greet">Namaste! Welcome to your course</p>
+      <h1 class="course-title">{course.title}<span class="bindi"></span></h1>
+      <p class="facts">
+        With {course.teacher}
+        <span aria-hidden="true">·</span>
+        {lessons.length} lessons
+        <span aria-hidden="true">·</span>
+        {formatMinutes(totalMinutes)}
+      </p>
+    </header>
+
+    <div class="side">
+      <div class="side-card"><ProgressCard /></div>
+      <div class="side-help"><HelpCard /></div>
+      <section class="about" aria-labelledby="about-title">
+        <h2 id="about-title" class="about-title">About this course</h2>
+        <dl>
+          <div>
+            <dt>Language</dt>
+            <dd>{course.language}</dd>
+          </div>
+          <div>
+            <dt>Access</dt>
+            <dd>{course.access}</dd>
+          </div>
+          <div>
+            <dt>Certificate</dt>
+            <dd>{course.certificate}</dd>
+          </div>
+        </dl>
+      </section>
+    </div>
+
+    <section class="lessons" aria-labelledby="lessons-title">
+      <div class="lessons-head">
+        <h2 id="lessons-title" class="lessons-title">Lessons</h2>
+        <p class="lessons-meta">{modules.length} modules · {lessons.length} lessons</p>
+      </div>
+      <LessonList modules={modules} />
+    </section>
+  </div>
+</LearnLayout>
+
+<style>
+  .dash {
+    display: grid;
+    gap: var(--space-6);
+    padding-top: var(--space-6);
+  }
+
+  /* Phones and tablets: hero, progress, lessons, help, about. */
+  .side {
+    display: contents;
+  }
+
+  .hero {
+    order: 1;
+  }
+
+  .side-card {
+    order: 2;
+  }
+
+  .lessons {
+    order: 3;
+  }
+
+  .side-help {
+    order: 4;
+  }
+
+  .about {
+    order: 5;
+  }
+
+  .hero {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .greet {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    color: var(--text-muted);
+  }
+
+  .course-title {
+    font-size: min(var(--text-3xl), 3.5rem);
+  }
+
+  .facts {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    color: var(--text-body);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .lessons {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .lessons-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+  }
+
+  .lessons-title {
+    font-size: var(--text-xl);
+    letter-spacing: -0.015em;
+  }
+
+  .lessons-meta {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    color: var(--text-muted);
+  }
+
+  .about {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .about-title {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-strong);
+    letter-spacing: -0.01em;
+  }
+
+  .about dl {
+    margin: 0;
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .about dl > div {
+    display: grid;
+    gap: 0.125rem;
+  }
+
+  .about dt {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .about dd {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text-body);
+  }
+
+  @media (min-width: 48rem) {
+    .dash {
+      padding-top: var(--space-7);
+      gap: var(--space-7);
+    }
+  }
+
+  /* Desktop: lessons on the left; progress, help and facts in a column beside them. */
+  @media (min-width: 64rem) {
+    .dash {
+      grid-template-columns: minmax(0, 1fr) 23rem;
+      grid-template-areas:
+        "hero side"
+        "lessons side";
+      align-items: start;
+      column-gap: var(--space-7);
+      row-gap: var(--space-6);
+    }
+
+    .hero {
+      grid-area: hero;
+    }
+
+    .lessons {
+      grid-area: lessons;
+    }
+
+    .side {
+      grid-area: side;
+      display: grid;
+      gap: var(--space-5);
+    }
+  }
+
+  @media (min-width: 90rem) {
+    .dash {
+      grid-template-columns: minmax(0, 1fr) 25rem;
+      column-gap: var(--space-8);
+    }
+  }
+</style>

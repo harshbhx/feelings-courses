@@ -1,0 +1,184 @@
+---
+// The dashboard's maroon card: overall progress (a ring and "n of m lessons done") and the
+// lesson to continue with. The markup shows a first visit (lesson 1); learn-ui.ts fills in the
+// saved progress, and swaps in the "finished" block once every lesson is done.
+import Icon from "../Icon.astro";
+import { course } from "../../data/course";
+import { lessons } from "../../data/lessons";
+import { whatsappLink } from "../../lib/whatsapp";
+
+const first = lessons[0]!;
+const total = lessons.length;
+---
+
+<section class="pcard band-deep" aria-labelledby="pcard-title" data-continue>
+  <div class="top">
+    <div class="ring" data-progress-meter aria-hidden="true">
+      <svg viewBox="0 0 120 120" focusable="false">
+        <circle class="ring-track" cx="60" cy="60" r="52" pathLength="100"></circle>
+        <circle class="ring-fill" cx="60" cy="60" r="52" pathLength="100"></circle>
+      </svg>
+      <span class="ring-pct" data-progress-percent>0%</span>
+    </div>
+    <div class="count">
+      <h2 id="pcard-title" class="title">Your progress</h2>
+      <p class="done"><strong data-progress-done>0</strong> of {total} lessons done</p>
+    </div>
+  </div>
+
+  <div class="next" data-continue-next>
+    <p class="label" data-continue-label>Start the course</p>
+    <p class="lesson" data-continue-title>{first.title}</p>
+    <p class="meta" data-continue-meta>Module {first.moduleNumber} · Lesson {first.number} · {first.minutes} min</p>
+    <a class="btn btn-primary go" href={first.href} data-continue-link>
+      <Icon name="play-fill" />
+      <span data-continue-cta>Start lesson 1</span>
+    </a>
+  </div>
+
+  <div class="next" data-continue-finished hidden>
+    <p class="label">Course complete</p>
+    <p class="lesson">You finished all {total} lessons.</p>
+    <p class="meta">{course.certificate}: ask Urmi on WhatsApp for yours.</p>
+    <a
+      class="btn btn-primary go"
+      href={whatsappLink(`Hi Urmi, I finished all the lessons of the ${course.title}. How do I get my certificate?`)}
+      target="_blank"
+      rel="noopener"
+    >
+      <Icon name="whatsapp" />
+      Ask about your certificate
+    </a>
+  </div>
+</section>
+
+<style>
+  .pcard {
+    display: grid;
+    gap: var(--space-5);
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+  }
+
+  .top {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  /* --progress (0 to 1) is set by learn-ui.ts. Paint only, no animation: it is state, not motion. */
+  .ring {
+    position: relative;
+    flex: none;
+    width: 5.5rem;
+    height: 5.5rem;
+  }
+
+  .ring svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .ring circle {
+    fill: none;
+    stroke-width: 10;
+  }
+
+  .ring-track {
+    stroke: var(--border-on-deep);
+  }
+
+  .ring-fill {
+    stroke: var(--accent-on-deep);
+    stroke-dasharray: 100 100;
+    stroke-dashoffset: calc(100 - var(--progress, 0) * 100);
+  }
+
+  .ring-pct {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: var(--text-lg);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.02em;
+    color: var(--text-on-deep);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .count {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .title {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-strong);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  .done {
+    color: var(--text-on-deep-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .done strong {
+    color: var(--text-on-deep);
+    font-weight: var(--weight-strong);
+  }
+
+  .next {
+    display: grid;
+    gap: var(--space-1);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--border-on-deep);
+  }
+
+  .next[hidden] {
+    display: none;
+  }
+
+  .label {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    color: var(--text-on-deep-muted);
+  }
+
+  .lesson {
+    font-size: var(--text-xl);
+    font-weight: var(--weight-strong);
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+    color: var(--text-on-deep);
+    text-wrap: balance;
+  }
+
+  .meta {
+    font-size: var(--text-sm);
+    color: var(--text-on-deep-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .go {
+    justify-self: stretch;
+    margin-top: var(--space-4);
+  }
+
+  @media (min-width: 30rem) {
+    .go {
+      justify-self: start;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .pcard {
+      padding: var(--space-6);
+    }
+
+    .go {
+      justify-self: stretch;
+    }
+  }
+</style>
