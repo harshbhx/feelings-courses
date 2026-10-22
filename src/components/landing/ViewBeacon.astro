@@ -1,0 +1,28 @@
+---
+// Counts one page view for the owner's dashboard (POST /api/t, W7): no cookies, nothing about the
+// visitor, one same-origin request after the page has loaded. Course 0 = hub pages.
+interface Props {
+  courseId: number;
+}
+
+const { courseId } = Astro.props;
+---
+
+<span hidden data-view-beacon={String(courseId)}></span>
+
+<script>
+  const el = document.querySelector<HTMLElement>("[data-view-beacon]");
+  const c = Number(el?.dataset.viewBeacon);
+  if (el && Number.isInteger(c) && c >= 0) {
+    const send = () =>
+      fetch("/api/t", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ c, e: "view" }),
+        keepalive: true,
+        credentials: "omit",
+      }).catch(() => {});
+    if (document.readyState === "complete") send();
+    else window.addEventListener("load", send, { once: true });
+  }
+</script>

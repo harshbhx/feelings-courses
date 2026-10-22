@@ -26,6 +26,7 @@ import Faq from "./Faq.astro";
 import FinalCta from "./FinalCta.astro";
 import EnrollBar from "./EnrollBar.astro";
 import Footer from "./Footer.astro";
+import ViewBeacon from "./ViewBeacon.astro";
 import Checkout from "../checkout/Checkout.astro";
 import { site } from "../../data/site";
 import { buildEnv } from "../../lib/build-env";
@@ -85,6 +86,7 @@ const showTeacher = course.teacher === site.founder;
   </main>
   <EnrollBar view={view} />
   <Footer />
+  <ViewBeacon courseId={course.id} />
 </Base>
 
 <style is:global>
