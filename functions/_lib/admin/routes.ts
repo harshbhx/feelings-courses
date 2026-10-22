@@ -5,9 +5,11 @@
  *
  * All of them run behind functions/api/admin/_middleware.ts (session, Origin, JSON, headers).
  */
+import type { AdminBackupRunResponse } from "../../../src/shared/api.ts";
 import { createAccessLink } from "../access-link.ts";
+import { BACKUP_PREFIX, runBackup } from "../backup.ts";
 import { issueCertificate } from "../certificates.ts";
-import { config } from "../config.ts";
+import { ConfigError, config } from "../config.ts";
 import { auditStatement } from "../db/audit.ts";
 import { unixNow } from "../db/d1.ts";
 import { ValidationError } from "../db/errors.ts";
@@ -392,5 +394,43 @@ export const auditRoute = adminRoute({
         page: q.int("page", 1, 100_000) ?? 1,
       }),
     );
+  },
+});
+
+// ---------------------------------------------------------------- backups (W7's backup.ts, wired at integration)
+
+/** POST /api/admin/backup/run: a fresh gzipped SQL dump into R2 now → AdminBackupRunResponse. */
+export const backupRunRoute = adminRoute({
+  POST: async (ctx) => {
+    if (!ctx.env.MEDIA) throw new ConfigError("MEDIA (the R2 binding)");
+    const now = unixNow();
+    const result = await runBackup(ctx.env, now);
+    await auditStatement(dbOf(ctx), { actor: ADMIN_ACTOR, action: "backup.run", entity: "settings", entityId: "last_backup_at", data: { key: result.key, bytes: result.bytes }, now }).run();
+    return json({ ok: true, key: result.key, at: result.at } satisfies AdminBackupRunResponse);
+  },
+});
+
+/** GET /api/admin/backup: the newest dump as a .sql.gz download, or 404 when there is none yet. */
+export const backupDownloadRoute = adminRoute({
+  GET: async (ctx) => {
+    const bucket = ctx.env.MEDIA;
+    if (!bucket) throw new ConfigError("MEDIA (the R2 binding)");
+    let newest: string | null = null;
+    let cursor: string | undefined;
+    do {
+      const page = await bucket.list({ prefix: BACKUP_PREFIX, cursor, limit: 1000 });
+      for (const o of page.objects) if (newest === null || o.key > newest) newest = o.key;
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+    const object = newest ? await bucket.get(newest) : null;
+    if (!object || !newest) return error(404, "not_found", "There is no backup yet. Run one first.");
+    await auditStatement(dbOf(ctx), { actor: ADMIN_ACTOR, action: "backup.download", entity: "settings", entityId: "last_backup_at", data: { key: newest }, now: unixNow() }).run();
+    return new Response(object.body, {
+      headers: {
+        "Content-Type": "application/gzip",
+        "Content-Disposition": `attachment; filename="${newest.slice(BACKUP_PREFIX.length)}"`,
+        "Cache-Control": "no-store",
+      },
+    });
   },
 });
