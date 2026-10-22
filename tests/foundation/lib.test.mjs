@@ -13,9 +13,7 @@ import { auditStatement, auditStatementWhen, listAuditLog } from "../../function
 import { ConflictError, ValidationError, isUniqueViolation } from "../../functions/_lib/db/errors.ts";
 import * as v from "../../functions/_lib/db/validate.ts";
 import { NotImplementedError } from "../../functions/_lib/stub.ts";
-import { createSession, issueLoginToken, readSession, requireEnrollment } from "../../functions/_lib/session.ts";
 import { signMediaUrl } from "../../functions/_lib/media.ts";
-import { issueCertificate } from "../../functions/_lib/certificates.ts";
 import { statDay } from "../../functions/_lib/analytics.ts";
 import { requestRebuild } from "../../functions/_lib/rebuild.ts";
 import { playLesson } from "../../functions/_lib/play.ts";
@@ -182,12 +180,8 @@ test("stubs: frozen signatures that throw NotImplementedError until their workst
   const env = {};
   const pending = [
     // fulfilOrder and quote: implemented by W2 (tests/w2/).
-    () => createSession({}, 1, req("/")),
-    () => readSession(env, req("/")),
-    () => issueLoginToken({}, 1, "handoff", "/learn"),
-    () => requireEnrollment(env, req("/"), "x"),
+    // createSession, readSession, issueLoginToken, requireEnrollment, issueCertificate: implemented by W3 (tests/w3/).
     () => signMediaUrl(env, { kind: "v", lessonId: 1, sessionTag: "public" }),
-    () => issueCertificate(env, { studentId: 1, courseId: 1, name: "A" }),
     () => requestRebuild(env, { waitUntil() {} }),
     () => playLesson(env, { studentId: 1, enrollmentId: 1, courseId: 1, sessionTag: "x" }, 1),
   ];
