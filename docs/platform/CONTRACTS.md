@@ -144,6 +144,19 @@ Tables, and the workstream that writes them (others only read):
 | `daily.ts` | `maybeRunDaily(env, ctx)` | W7 | W5 middleware, W2 webhook |
 | `rebuild.ts` | `requestRebuild(env, ctx) → { queued, nextAllowedAt }` | W5 | W5 |
 
+### W4 additions (media)
+
+| Module | Exports | U |
+|---|---|---|
+| `media.ts` | `signMediaUrl()` (filled; optional `now`), `verifyMediaLink()`, `sessionTokenHash()`, `mediaUrlExpiry()` | W3 (via `playLesson`) |
+| `play.ts` | `playLesson()` (filled; optional `now`), `previewLesson()` | W3 play route, `/api/public/preview/:lessonId` |
+| `media-serve.ts` | `serveLessonMedia()`, `serveImage()` for `/media/v`, `/media/c`, `/media/i` | route files |
+| `media-rules.ts` | `MEDIA_RULES`, `planUpload()`, `sniffMismatch()`, `MEDIA_KEY_RE` | uploads |
+| `uploads.ts` | `startUpload`, `uploadPart`, `completeUpload`, `deleteMedia`, `listMedia`, `mediaImagePath`, `toMediaItem` | admin routes, W5/W6 |
+| `src/lib/media-upload.ts` | `uploadMedia(file, options)`, `cancelUpload()` (resumable, browser) | W6 |
+
+**Contract for W5:** the admin media endpoints answer 401 unless `context.data.admin` is an object. W5's `functions/api/admin/_middleware.ts` sets it after checking the admin cookie. Details: `docs/platform/MEDIA.md`.
+
 ## Middleware: `functions/_middleware.ts`
 
 The order is `migrate (only if DB bound) → hostRouting (W1) → siteMiddleware (learn gate, W3) → next`. W0 wrote the composition; W1 owns the file from now on. A failed migration is logged and the site keeps serving.
