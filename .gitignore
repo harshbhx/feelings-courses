@@ -22,3 +22,13 @@ Thumbs.db
 
 # local tooling
 .wrangler/
+
+# platform (W0)
+# owner setup: real keys and the generated admin password, never committed
+setup.local.json
+setup.local.*.json
+setup.local.out.txt
+.dev.vars
+# generated at build time
+src/generated/
+functions/_generated/

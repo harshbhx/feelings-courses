@@ -27,17 +27,34 @@ When the client confirms a value, change it in `course.ts`, never in a page. Onl
 
 ## Contracts between the parts
 
-Three parts were built in parallel. Keep these boundaries:
+The site is becoming the production course platform (8 workstreams, W0 to W7). **The full list of shared types, tables, helpers and stubs, and which workstream owns each, is in `docs/platform/CONTRACTS.md`.** Read it before touching a shared file.
 
-| Part | Owns |
-|---|---|
-| Landing page | `src/pages/index.astro`, `src/components/landing/*` |
-| Checkout and enrollment | `functions/api/*`, `functions/_lib/*` (including `enrollment.ts`), `src/components/checkout/*`, `src/pages/thank-you.astro`, `src/pages/payment-failed.astro`, Razorpay origins in `scripts/csp.mjs` |
-| Course area and deploy | `src/pages/learn/*`, `functions/learn/*`, `src/components/learn/*`, README deploy notes |
-
-- **Enroll buttons:** any element with `data-enroll` opens checkout. On the landing page they are plain links to `#pricing`, so they still work without JS. The checkout component (`src/components/checkout/Checkout.astro`) is included once on the landing page and binds to every `[data-enroll]`.
-- **Enrollment cookie:** see `functions/_lib/enrollment.ts`. Checkout issues it after a verified payment. The course area's middleware only calls `verifyEnrollment()`.
-- **Course data:** every part reads `src/data/course.ts`; nobody retypes course facts. Business facts are in `src/data/site.ts`, copied from the main site; keep them in sync.
+- **Owner decisions (plan section 10), already in the contracts:**
+  - the admin picks every course's subdomain (no hard-coded slugs);
+  - academy courses are `hybrid` (batches and recorded lessons);
+  - fees come from the admin;
+  - refunds within 24 hours of purchase;
+  - **no GSTIN and no tax lines anywhere** (invoice numbers stay);
+  - 365 days of access;
+  - 2 devices per student.
+- **Shared contracts:** `src/shared/types.ts` (data), `src/shared/api.ts` (one request and one response type per endpoint, plus the `Endpoints` map) and `src/shared/constants.ts`. Change them only through a coordinator-approved PR.
+- **Database:** Cloudflare D1. The schema is in `migrations/*.sql` (wrangler's format), and the runtime migrates itself on the first request (`functions/_lib/migrate.ts`, statements embedded by `scripts/embed-migrations.mjs`). Migrations are additive only. Only the coordinator adds new ones.
+- **Data access:** code takes the `Db` interface (`functions/_lib/db/d1.ts`). Writes that belong together go in one `batch()` (`db/tx.ts`). Every admin write is logged with `db/audit.ts`. Settings go through `db/settings.ts`.
+- **Functions helpers:**
+  - `functions/_lib/http.ts` for responses and bodies;
+  - `config.ts` for env, cookies, TTLs and rate-limit rules;
+  - `crypto.ts`, `ratelimit.ts`;
+  - `env.ts` (`Env`): read secrets with `requireSecret()`, because they are missing until the owner runs setup.
+- **Stubs:** modules with frozen signatures that throw `NotImplementedError` until their workstream fills them: `session.ts`, `orders.ts`, `pricing.ts`, `media.ts`, `play.ts`, `certificates.ts`, `analytics.ts`, `daily.ts`, `rebuild.ts`, `snapshot.ts`. `hosts.ts` passes requests through until W1 fills it.
+- **Content at build time:**
+  - `scripts/snapshot.mjs` fetches the live snapshot on `main`, falling back to the seed on a 404 and failing the build on a 5xx.
+  - `src/data/snapshot.ts` serves it to pages.
+  - Until W1 moves the pages over, the pages still read `src/data/course.ts`.
+- **Demo parts still live until their workstream replaces them:**
+  - Enroll buttons: `data-enroll` opens `src/components/checkout/Checkout.astro`.
+  - The `fbc_enroll` cookie (`functions/_lib/enrollment.ts`), which W3 replaces with D1 sessions.
+  - Course facts in `src/data/course.ts`. Business facts in `src/data/site.ts`, kept in sync with the main site.
+- **Tests:** `npm test` runs `tests/**/*.test.mjs` (Node 22.13+ `node:test`, D1 shim on `node:sqlite`, fakes for R2 and Razorpay in `tests/helpers/`) plus the two suites in `scripts/`. CI (`.github/workflows/ci.yml`) runs check, the Functions type check, tests and the build on every PR.
 
 ## Payments (Razorpay)
 
