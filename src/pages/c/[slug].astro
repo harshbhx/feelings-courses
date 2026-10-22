@@ -1,0 +1,20 @@
+---
+// /c/<slug>: every published course's landing page, from the build's snapshot (src/data/snapshot.ts).
+// On the course's own host (<slug>.feelingsbeautycare.in) functions/_lib/hosts.ts serves this page
+// at /, and the hub's /c/<slug> redirects there once the domain is active.
+import CourseLanding from "../../components/landing/CourseLanding.astro";
+import { courses, snapshot } from "../../data/snapshot";
+import type { PublicCourse } from "../../shared/types";
+
+export function getStaticPaths() {
+  return courses.map((course) => ({ params: { slug: course.slug }, props: { course } }));
+}
+
+interface Props {
+  course: PublicCourse;
+}
+
+const { course } = Astro.props;
+---
+
+<CourseLanding course={course} settings={snapshot.settings} />
