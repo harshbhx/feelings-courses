@@ -1,9 +1,8 @@
-// POST /api/order: starts a payment for the course. Amount and currency come from src/data/course.ts
-// only. With both Razorpay keys it creates a Razorpay order. On the demo course without a Key Secret
-// it returns what Razorpay's test Checkout needs, without an order ("razorpay-test"), or a demo order
-// for the built-in demo sheet.
-// The logic lives in functions/_lib/checkout.ts, where scripts/test-checkout.mjs tests it.
-import { handleOrder } from "../_lib/checkout.ts";
-import type { CheckoutEnv } from "../_lib/checkout.ts";
+// POST /api/order: starts a payment. With D1 bound and an OrderRequest (it names a `course`), the
+// live flow in functions/_lib/payments.ts: the price comes from D1 (pricing.ts quote()), never from
+// the browser, and a Razorpay order is created on the server. Otherwise the demo checkout in
+// functions/_lib/checkout.ts answers as before (amount from src/data/course.ts).
+import { routeOrder } from "../_lib/payments.ts";
+import type { Env } from "../_lib/env.ts";
 
-export const onRequest: PagesFunction<CheckoutEnv> = ({ request, env }) => handleOrder(request, env);
+export const onRequest: PagesFunction<Env> = ({ request, env }) => routeOrder(request, env);
