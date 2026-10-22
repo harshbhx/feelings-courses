@@ -169,8 +169,16 @@ test("students: sign-out everywhere, access link (W3 stub), and erase", async ()
   assert.equal((await t.call(signoutAllRoute, "POST", "/", { params: { id } })).status, 204);
   assert.ok(t.db.get("SELECT revoked_at FROM sessions WHERE student_id = ?", s).revoked_at > 0);
 
+  // Integration: W3's access-link.ts makes the link; one audit row with the admin as actor.
   const link = await t.call(accessLinkRoute, "POST", "/", { params: { id } });
-  assert.equal(link.status, 501, "issueLoginToken is W3's: a stub on this base");
+  assert.equal(link.status, 200);
+  assert.match(link.body.url, /^https:\/\/courses\.feelingsbeautycare\.in\/auth\/continue\?t=[A-Za-z0-9_-]{43}$/);
+  assert.match(link.body.whatsappUrl, /^https:\/\/wa\.me\/919876543210\?text=/);
+  assert.deepEqual(
+    t.db.rows("SELECT actor FROM audit_log WHERE action = 'student.access_link'").map((r) => r.actor),
+    ["admin"],
+  );
+  assert.equal((await t.call(accessLinkRoute, "POST", "/", { params: { id: "999" } })).status, 404);
 
   const noConfirm = await t.call(eraseRoute, "POST", "/", { params: { id }, body: {} });
   assert.equal(noConfirm.status, 400);
@@ -257,8 +265,9 @@ test("payments: filters, paging, detail with refunds, and refund input checks", 
   assert.equal(noReason.status, 400);
   const noRevoke = await t.call(refundRoute, "POST", "/", { params: { id: String(o1) }, body: { reason: "asked" } });
   assert.equal(noRevoke.status, 400);
-  const stub = await t.call(refundRoute, "POST", "/", { params: { id: String(o1) }, body: { reason: "asked", revoke: true } });
-  assert.equal(stub.status, 501, "refundOrder is W2's: a stub on this base");
+  // Integration: W2's refundOrder. Without Razorpay keys it can't refund (tests/integration covers a real one).
+  const noKeys = await t.call(refundRoute, "POST", "/", { params: { id: String(o1) }, body: { reason: "asked", revoke: true } });
+  assert.equal(noKeys.status, 503);
   assert.equal((await t.call(refundRoute, "POST", "/", { params: { id: "999" }, body: { reason: "x", revoke: true } })).status, 404);
 
   t.db.sqlite.exec(

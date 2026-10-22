@@ -245,8 +245,19 @@ test("API: play needs an enrollment, then defers to W4", async () => {
   assert.equal(notEnrolled.status, 404);
   const anon = await handlePlay("evening-class", "2001")(req("/api/learn/evening-class/lessons/2001/play"), env(db), NOW);
   assert.equal(anon.status, 401);
-  const enrolled = await handlePlay("evening-class", "2001")(req("/api/learn/evening-class/lessons/2001/play", { cookie }), env(db), NOW);
-  assert.equal(enrolled.status, 501, "W4's playLesson is still a stub on this branch");
+  // W4's playLesson (integration): links signed for this session, 2 hours at most.
+  const secret = { APP_SECRET: "integration-test-app-secret-0123456789" };
+  const enrolled = await handlePlay("evening-class", "2001")(req("/api/learn/evening-class/lessons/2001/play", { cookie }), env(db, secret), NOW);
+  assert.equal(enrolled.status, 200);
+  const info = await enrolled.json();
+  const tokenHash = db.get("SELECT token_hash FROM sessions WHERE student_id = ? ORDER BY id DESC", ASHA.id).token_hash;
+  const src = new URL(info.src, "https://courses.feelingsbeautycare.in");
+  assert.equal(src.pathname, "/media/v/2001");
+  assert.equal(src.searchParams.get("s"), tokenHash.slice(0, 16));
+  assert.ok(info.expiresAt > NOW && info.expiresAt <= NOW + 2 * 3600);
+  // Without APP_SECRET there are no signed links: a clear 503, not a broken player.
+  const noSecret = await handlePlay("evening-class", "2001")(req("/api/learn/evening-class/lessons/2001/play", { cookie }), env(db), NOW);
+  assert.equal(noSecret.status, 503);
 });
 
 test("API: sessions list and sign-out of one device or all", async () => {

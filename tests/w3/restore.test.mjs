@@ -105,8 +105,10 @@ test("restore fallback: a captured payment D1 hasn't recorded is checked against
   const result = await restoreAccess(env(db, TEST_KEYS), from(), { contact: BINA.phone, paymentId: "pay_LateWebhook00001" }, NOW);
   assert.equal(calls.length, 1, "Razorpay was asked");
   assert.equal(calls[0].auth.keyId, TEST_KEYS.RAZORPAY_KEY_ID);
-  // fulfilOrder belongs to W2; until it is merged it throws NotImplementedError, which is a quiet no_match.
-  assert.deepEqual(result, { ok: false, reason: "no_match" });
+  // W2's fulfilOrder (integration): the payment is recorded and the student is signed in.
+  assert.deepEqual(result, { ok: true, studentId: BINA.id, orderId: 4, via: "razorpay" });
+  assert.equal(db.get("SELECT status FROM orders WHERE id = 4").status, "paid");
+  assert.equal(db.get("SELECT COUNT(*) AS n FROM enrollments WHERE order_id = 4 AND revoked_at IS NULL").n, 1);
 });
 
 test("restore fallback refuses: not captured, wrong amount, wrong contact, other mode, unknown order", async (t) => {

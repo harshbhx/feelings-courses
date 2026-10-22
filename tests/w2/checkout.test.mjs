@@ -123,8 +123,10 @@ test("verify: signature + Razorpay's record → paid, enrolled for 365 days, rec
   assert.equal(res.status, 200);
   const data = await readJson(res);
   assert.match(data.receipt, new RegExp(`^https://courses\\.feelingsbeautycare\\.in/receipt/${order.ref}\\?k=[0-9a-f]{32}$`));
-  // W3's handoff isn't there yet, so the buyer goes straight to the receipt.
-  assert.equal(data.redirect, data.receipt);
+  // W3's handoff (integration): a one-time sign-in on the hub that lands on the receipt.
+  assert.match(data.redirect, /^https:\/\/courses\.feelingsbeautycare\.in\/auth\/continue\?t=[A-Za-z0-9_-]{43}$/);
+  const handoff = db.get("SELECT purpose, student_id, redirect_path FROM login_tokens");
+  assert.deepEqual([handoff.purpose, handoff.redirect_path], ["handoff", new URL(data.receipt).pathname + new URL(data.receipt).search]);
   const row = db.get("SELECT * FROM orders WHERE id = ?", order.ref);
   assert.deepEqual([row.status, row.razorpay_payment_id, row.paid_at, row.method, row.payer_contact], ["paid", "pay_Paid00000001", NOW + 60, "upi", "+919876543210"]);
   assert.equal(row.invoice_no, null); // test mode: no number from the real series
@@ -217,7 +219,9 @@ test("verify: Razorpay's callback form (in-app browsers) redirects", async (t) =
   const order = await readJson(await handleLiveOrder(orderRequest(), env, NOW));
   const good = await handleLiveVerify(postForm("/api/verify", verifyBody(order.orderId, "pay_Paid00000001"), { origin: "https://api.razorpay.com" }), env, NOW);
   assert.equal(good.status, 303);
-  assert.match(good.headers.get("Location"), /\/receipt\/\d+\?k=[0-9a-f]{32}$/);
+  // W3's handoff signs the buyer in on the hub, then lands on the receipt.
+  assert.match(good.headers.get("Location"), /^https:\/\/courses\.feelingsbeautycare\.in\/auth\/continue\?t=[A-Za-z0-9_-]{43}$/);
+  assert.match(db.get("SELECT redirect_path FROM login_tokens").redirect_path, /^\/receipt\/\d+\?k=[0-9a-f]{32}$/);
   const bad = await handleLiveVerify(postForm("/api/verify", { ...verifyBody(order.orderId, "pay_Paid00000001"), razorpay_signature: "0".repeat(64) }), env, NOW);
   assert.equal(bad.status, 303);
   assert.equal(new URL(bad.headers.get("Location")).pathname, "/payment-failed");
@@ -290,7 +294,11 @@ test("free: a 100% allow_free coupon enrolls without Razorpay, once", async (t) 
   const fake = razorpay(t);
   const res = await handleLiveOrder(orderRequest(orderBody({ coupon: "FREEPASS" })), env, NOW);
   assert.equal(res.status, 200);
-  assert.deepEqual(await readJson(res), { mode: "free", redirect: "/thank-you" });
+  const free = await readJson(res);
+  assert.equal(free.mode, "free");
+  // W3's handoff (integration): signed in on the hub, straight into the course.
+  assert.match(free.redirect, /^https:\/\/courses\.feelingsbeautycare\.in\/auth\/continue\?t=[A-Za-z0-9_-]{43}$/);
+  assert.match(db.get("SELECT redirect_path FROM login_tokens").redirect_path, /^\/learn\/[a-z0-9-]+$/);
   assert.equal(fake.calls.length, 0);
   const e = db.get("SELECT * FROM enrollments WHERE course_id = 10");
   assert.deepEqual([e.source, e.mode, e.order_id, e.expires_at], ["coupon_free", "live", null, NOW + 365 * DAY]);

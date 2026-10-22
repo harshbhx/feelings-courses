@@ -171,7 +171,7 @@ export function handlePlay(slug: string, lessonId: string) {
     const enrollment = await requireEnrollment(env, request, slug, now);
     if (!enrollment) return (await signedIn(request, env, now)) ? notEnrolled() : notSignedIn();
     const id = /^\d{1,12}$/.test(lessonId) ? Number(lessonId) : 0;
-    const info = id ? await playLesson(env, enrollment, id) : null;
+    const info = id ? await playLesson(env, enrollment, id, now) : null;
     return info ? json(info) : error(404, "not_found", "This lesson has no video.");
   });
 }
