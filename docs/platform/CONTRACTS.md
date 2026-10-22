@@ -159,7 +159,11 @@ Tables, and the workstream that writes them (others only read):
 
 Docs: `docs/ops/RUNBOOK.md`, `docs/ops/BACKUPS.md`, `docs/owner/SETUP.md`. Scripts: `scripts/setup.mjs`, `scripts/check-dist.mjs`, `scripts/backup-d1.mjs`.
 
+### W2 additions (payments)
+
 W2's flow, owner setup and integration notes: `docs/platform/PAYMENTS.md`. W2 also exports `loadAdminOrder`, `toOrderSummary` and `refundableUntil` from `orders.ts` for W5.
+
+### W3 additions (students)
 
 W3's sessions, restore, course area and certificates: `docs/platform/STUDENTS.md`. W3 also exports `readCookie`, `sessionToken`, `consumeLoginToken`, `revokeSession`, `revokeAllSessions`, `safeRedirectPath` and `enrollmentActive` from `session.ts`, `checkCertificate` and `normalizeCertificateCode` from `certificates.ts`, and optional trailing `now` parameters on the session functions (tests pass a fixed clock).
 
@@ -175,6 +179,22 @@ W3's sessions, restore, course area and certificates: `docs/platform/STUDENTS.md
 | `src/lib/media-upload.ts` | `uploadMedia(file, options)`, `cancelUpload()` (resumable, browser) | W6 |
 
 **Contract for W5:** the admin media endpoints answer 401 unless `context.data.admin` is an object. W5's `functions/api/admin/_middleware.ts` sets it after checking the admin cookie. Details: `docs/platform/MEDIA.md`.
+
+### W8 integration (one definition each)
+
+The integration branch (`docs/INTEGRATION.md`) settled the overlaps between workstreams:
+
+| Concern | The one definition | Used by |
+|---|---|---|
+| Session cookie parsing and token shape | W3 `session.ts` `readCookie()`, `sessionToken()` | W3, W4 `media.ts` `sessionTokenHash()` |
+| "Enrollment gives access" | W3 `session.ts` `enrollmentActive()` (not revoked, started, not expired, no test enrollment on live keys) | W3, W5 student views and grants |
+| Refund window end | W2 `orders.ts` `refundableUntil()` (paid_at + `REFUND_WINDOW_SECONDS`) | W2, W3 account, W5 admin orders |
+| Admin access link | W3 `access-link.ts` `createAccessLink()` | W5 `POST /api/admin/students/:id/access-link` |
+| Certificate audit row | W3 `issueCertificate(…, { actor })` writes it once | W3 claim, W5 admin issue (actor `admin`) |
+| Student receipt | W2 `buildReceipt()` / `receiptPath()` | `GET /api/me/orders/:id`, `/account` links |
+| Backups | W7 `backup.ts` `runBackup()` | W5 `POST /api/admin/backup/run`, `GET /api/admin/backup`, W7 daily job |
+
+`<Checkout course settings platform>` (`src/components/checkout/Checkout.astro`) sends an `OrderRequest` and follows `VerifyResponse.redirect` only to the same site or the hub. `tests/integration/routes.test.mjs` lists what a course host does with every Functions route (serve, hub or 404); a new route file fails it until it is added.
 
 ## Middleware: `functions/_middleware.ts`
 

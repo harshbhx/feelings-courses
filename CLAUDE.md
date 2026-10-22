@@ -45,13 +45,13 @@ The site is becoming the production course platform (8 workstreams, W0 to W7). *
   - `config.ts` for env, cookies, TTLs and rate-limit rules;
   - `crypto.ts`, `ratelimit.ts`;
   - `env.ts` (`Env`): read secrets with `requireSecret()`, because they are missing until the owner runs setup.
-- **Stubs:** modules with frozen signatures that throw `NotImplementedError` until their workstream fills them: `session.ts`, `orders.ts`, `pricing.ts`, `media.ts`, `play.ts`, `certificates.ts`, `analytics.ts`, `daily.ts`, `rebuild.ts`, `snapshot.ts`. W1 filled `hosts.ts` (routing by host, security headers) and `snapshot.ts`; see `docs/platform/HOSTS.md`.
+- **Stubs:** W0 froze the signatures of `session.ts`, `orders.ts`, `pricing.ts`, `media.ts`, `play.ts`, `certificates.ts`, `analytics.ts`, `daily.ts`, `rebuild.ts`, `snapshot.ts` and `hosts.ts`. On the integration branch every one is filled (W1 to W7); `docs/INTEGRATION.md` lists the merge order, what was settled between workstreams and the go-live checklist.
 - **Content at build time:**
   - `scripts/snapshot.mjs` fetches the live snapshot on `main`, falling back to the seed on a 404 and failing the build on a 5xx.
   - `src/data/snapshot.ts` serves it to pages.
-  - The landing pages (`/` and `/c/<slug>`, `src/components/landing/CourseLanding.astro`) read the snapshot. The demo checkout, the result pages and the course area still read `src/data/course.ts` until W2 and W3 replace them.
-- **Demo parts still live until their workstream replaces them:**
-  - Enroll buttons: `data-enroll` opens `src/components/checkout/Checkout.astro`.
+  - The landing pages (`/` and `/c/<slug>`, `src/components/landing/CourseLanding.astro`) read the snapshot and mount `<Checkout course settings platform>`, which sends W2's `OrderRequest`. Without D1 the server answers with the demo flow, so the demo keeps working.
+- **Demo parts still live until the owner runs setup (no D1 bound):**
+  - Enroll buttons: `data-enroll` opens `src/components/checkout/Checkout.astro`; the result pages read `src/data/course.ts`.
   - The `fbc_enroll` cookie (`functions/_lib/enrollment.ts`), which W3 replaces with D1 sessions.
   - Course facts in `src/data/course.ts`. Business facts in `src/data/site.ts`, kept in sync with the main site.
 - **Tests:** `npm test` runs `tests/**/*.test.mjs` (Node 22.13+ `node:test`, D1 shim on `node:sqlite`, fakes for R2 and Razorpay in `tests/helpers/`) plus the two suites in `scripts/`. CI (`.github/workflows/ci.yml`) runs check, the Functions type check, tests and the build on every PR.

@@ -327,12 +327,21 @@ Actions written by W5:
 - `settings.update`
 - `site.rebuild`
 - `webhook.replay`
+- `backup.run|download`
 
 ## Not in W5
 
 - Uploads and the media library (`/api/admin/uploads`, `/api/admin/media`): W4.
-- Backups (`GET /api/admin/backup`, `POST /api/admin/backup/run`): W7's `backup.ts`; the routes are wired at integration.
+- Backups: wired at integration (W8) over W7's `backup.ts`, see below.
 - `POST /api/admin/dev/seed` (preview-only fake data): not built.
+
+## Backups (W8 integration, over W7's `backup.ts`)
+
+### `POST /api/admin/backup/run` → `AdminBackupRunResponse`
+Body `{}`. Makes a gzipped SQL dump of every business table in R2 now (`backups/d1/<ISO time>.sql.gz`, the last 35 kept) and sets `last_backup_at`. Sessions, login tokens and rate limits are never in a dump. `503` without the R2 binding. Audited as `backup.run`.
+
+### `GET /api/admin/backup`
+The newest dump as a download (`application/gzip`, `Content-Disposition: attachment`). `404` when there is none yet. Audited as `backup.download`. The daily job (W7) also makes one dump a day.
 
 ## Security notes
 
