@@ -13,10 +13,8 @@ import { auditStatement, auditStatementWhen, listAuditLog } from "../../function
 import { ConflictError, ValidationError, isUniqueViolation } from "../../functions/_lib/db/errors.ts";
 import * as v from "../../functions/_lib/db/validate.ts";
 import { NotImplementedError } from "../../functions/_lib/stub.ts";
-import { signMediaUrl } from "../../functions/_lib/media.ts";
 import { statDay } from "../../functions/_lib/analytics.ts";
 import { requestRebuild } from "../../functions/_lib/rebuild.ts";
-import { playLesson } from "../../functions/_lib/play.ts";
 import { hostRouting } from "../../functions/_lib/hosts.ts";
 import { COURSE_SLUG_RE, DEFAULT_ACCESS_DAYS, MAX_DEVICES_PER_STUDENT, REFUND_WINDOW_SECONDS, isValidCourseSlug } from "../../src/shared/constants.ts";
 import { MAX_SESSIONS_PER_STUDENT } from "../../functions/_lib/config.ts";
@@ -181,9 +179,8 @@ test("stubs: frozen signatures that throw NotImplementedError until their workst
   const pending = [
     // fulfilOrder and quote: implemented by W2 (tests/w2/).
     // createSession, readSession, issueLoginToken, requireEnrollment, issueCertificate: implemented by W3 (tests/w3/).
-    () => signMediaUrl(env, { kind: "v", lessonId: 1, sessionTag: "public" }),
+    // signMediaUrl and playLesson: implemented by W4 (tests/w4/).
     () => requestRebuild(env, { waitUntil() {} }),
-    () => playLesson(env, { studentId: 1, enrollmentId: 1, courseId: 1, sessionTag: "x" }, 1),
   ];
   for (const fn of pending) await assert.rejects(fn(), NotImplementedError);
   // bump (W7) and maybeRunDaily (W7) are real now: tests/w7/ops.test.mjs.
