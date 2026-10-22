@@ -138,6 +138,7 @@ Tables, and the workstream that writes them (others only read):
 | `certificates.ts` | `issueCertificate(env, { studentId, courseId, name }) → Certificate` | W3 | W3, W5 |
 | `orders.ts` | `fulfilOrder(env, { orderId, payment }) → FulfilResult`; `refundOrder(env, orderId, { amountPaise?, reason, revoke }) → Refund`; `syncOrder(env, orderId) → AdminOrder`; `processWebhookEvent(env, eventId)` | W2 | W2, W3 (restore), W5 |
 | `pricing.ts` | `quote(db, { courseSlug, batchId?, couponCode?, studentId?, now }) → Quote` | W2 | W2 |
+| `receipts.ts` (W2, new) | `buildReceipt(db, orderId) → Receipt`; `receiptPath(env, orderId)` (HMAC link) | W2 | W3 (`/api/me/orders/:id`) |
 | `media.ts` | `signMediaUrl(env, { kind: "v" \| "c", lessonId, sessionTag, ttl? }) → string` | W4 | W4, W3 |
 | `play.ts` | `playLesson(env, enrollment, lessonId) → PlayInfo \| null` | W4 | W3's play route |
 | `analytics.ts` | `bump(db, day, courseId, field, by?) → DbStatement` (to use inside a batch) | W7 | W2, W7 |
@@ -156,6 +157,8 @@ Tables, and the workstream that writes them (others only read):
 | `src/data/legal.ts` | `legalDocs(settings)`, `LEGAL_TITLES`, `LEGAL_UPDATED` | legal pages |
 
 Docs: `docs/ops/RUNBOOK.md`, `docs/ops/BACKUPS.md`, `docs/owner/SETUP.md`. Scripts: `scripts/setup.mjs`, `scripts/check-dist.mjs`, `scripts/backup-d1.mjs`.
+
+W2's flow, owner setup and integration notes: `docs/platform/PAYMENTS.md`. W2 also exports `loadAdminOrder`, `toOrderSummary` and `refundableUntil` from `orders.ts` for W5.
 
 ## Middleware: `functions/_middleware.ts`
 
