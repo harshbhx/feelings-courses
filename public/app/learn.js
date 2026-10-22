@@ -69,6 +69,41 @@ if (video instanceof HTMLVideoElement) {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") send(false);
   });
+  // Signed links last at most 2 hours (W4). When the link has expired (a page left open, a seek
+  // after a long pause) the video errors: ask the play API for fresh links once and carry on from
+  // the same place. A refund or a signed-out device answers 401/404, and the error stays.
+  let refreshing = false;
+  video.addEventListener("error", () => {
+    const course = video.dataset.course;
+    const expires = Number(video.dataset.expires) || 0;
+    if (refreshing || !course || Date.now() / 1000 < expires - 60) return;
+    refreshing = true;
+    const at = video.currentTime || 0;
+    const wasPlaying = !video.paused;
+    fetch(`/api/learn/${encodeURIComponent(course)}/lessons/${lessonId}/play`, { credentials: "same-origin" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((info) => {
+        if (!info || typeof info.src !== "string" || !info.src.startsWith("/media/")) return;
+        video.dataset.expires = String(info.expiresAt);
+        const track = video.querySelector("track");
+        if (track && typeof info.captions === "string") track.src = info.captions;
+        video.src = info.src;
+        video.addEventListener(
+          "loadedmetadata",
+          () => {
+            video.currentTime = at;
+            if (wasPlaying) video.play().catch(() => {});
+          },
+          { once: true },
+        );
+        video.load();
+      })
+      .catch(() => {})
+      .finally(() => {
+        refreshing = false;
+      });
+  });
+
   // No right-click "Save video as…" (a speed bump, not protection: the links are signed and expire).
   video.addEventListener("contextmenu", (event) => event.preventDefault());
 }

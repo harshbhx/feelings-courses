@@ -171,7 +171,7 @@ function lessonPage(
 ${
   play
     ? html`<video controls playsinline preload="metadata" controlslist="nodownload" src="${play.src}"
-    data-lesson-id="${lesson.id}" data-resume="${Math.max(play.resumeAt, 0)}">
+    data-lesson-id="${lesson.id}" data-course="${slug}" data-expires="${play.expiresAt}" data-resume="${Math.max(play.resumeAt, 0)}">
     ${play.captions ? html`<track kind="captions" src="${play.captions}" srclang="en" label="Captions" default>` : ""}
   </video>
   <div class="watermark" aria-hidden="true">${play.watermark.name}${play.watermark.phoneMasked ? ` · ${play.watermark.phoneMasked}` : ""}</div>`
