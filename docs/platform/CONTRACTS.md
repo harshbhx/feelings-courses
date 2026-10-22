@@ -144,9 +144,22 @@ Tables, and the workstream that writes them (others only read):
 | `daily.ts` | `maybeRunDaily(env, ctx)` | W7 | W5 middleware, W2 webhook |
 | `rebuild.ts` | `requestRebuild(env, ctx) → { queued, nextAllowedAt }` | W5 | W5 |
 
+### W7 additions (legal, analytics, ops)
+
+| Module | Exports | U |
+|---|---|---|
+| `guard.ts` | `enforceRateLimits(db, [{ rule, subject }], { onError })` → 429 Response or null; `ipSubject(request)` (IPv6 per /64); `contactSubject(contact)` (hashed); `tooManyRequests()` | W2, W3, W5 |
+| `abuse.ts` | `screenRequest(request)` (first step of `_middleware.ts`), `bodyLimit()`, `isLikelyBot()` | middleware, `/api/t` |
+| `backup.ts` | `runBackup(env)` → `{ ok, key, at, bytes, rows, deleted }`, `dumpDatabase(db)`, `BACKUP_TABLES` / `BACKUP_EXCLUDED` | W5 (`POST /api/admin/backup/run`, `GET /api/admin/backup`), `daily.ts` |
+| `daily.ts` | `maybeRunDaily(env, ctx)` (filled), `runDaily(env)` for an admin "run now" | W5, W2 |
+| `analytics.ts` | `bump()` (filled), `STAT_FIELDS` | W2 |
+| `src/data/legal.ts` | `legalDocs(settings)`, `LEGAL_TITLES`, `LEGAL_UPDATED` | legal pages |
+
+Docs: `docs/ops/RUNBOOK.md`, `docs/ops/BACKUPS.md`, `docs/owner/SETUP.md`. Scripts: `scripts/setup.mjs`, `scripts/check-dist.mjs`, `scripts/backup-d1.mjs`.
+
 ## Middleware: `functions/_middleware.ts`
 
-The order is `migrate (only if DB bound) → hostRouting (W1) → siteMiddleware (learn gate, W3) → next`. W0 wrote the composition; W1 owns the file from now on. A failed migration is logged and the site keeps serving.
+The order is `screenRequest (W7) → migrate (only if DB bound) → hostRouting (W1) → siteMiddleware (learn gate, W3) → next`. W0 wrote the composition; W1 owns the file from now on. A failed migration is logged and the site keeps serving.
 
 ## Tests: `tests/`
 

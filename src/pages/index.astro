@@ -9,6 +9,7 @@ import Icon from "../components/Icon.astro";
 import Header from "../components/landing/Header.astro";
 import Footer from "../components/landing/Footer.astro";
 import CourseLanding from "../components/landing/CourseLanding.astro";
+import ViewBeacon from "../components/landing/ViewBeacon.astro";
 import { courses, snapshot } from "../data/snapshot";
 import { site } from "../data/site";
 import { buildEnv } from "../lib/build-env";
@@ -80,6 +81,7 @@ const allDemo = courses.every((c) => c.isDemo);
         </section>
       </main>
       <Footer />
+      <ViewBeacon courseId={0} />
     </Base>
   )
 }
