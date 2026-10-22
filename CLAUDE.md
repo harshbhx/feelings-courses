@@ -12,7 +12,7 @@ The main site is a separate repo, `harshbhx/feelings-beauty-care` (live on feeli
 Built to show the client before they confirm anything:
 - **Content:** everything in `src/data/course.ts` is example content while `course.demo` is true. That covers price, modules, lessons, duration, certificate and access.
 - **Visible:** a ribbon on every page says it's a demo.
-- **Search:** the site is noindexed (meta tag plus `X-Robots-Tag` in `public/_headers`).
+- **Search:** demo content is noindexed page by page (`<meta name="robots">` from `src/lib/seo.ts`); preview builds and `*.pages.dev` are noindex as a whole (W1).
 - **Payments:** test mode only.
 
 When the client confirms a value, change it in `course.ts`, never in a page. Only set `demo: false` when everything in `toConfirm` is confirmed **and** live payment keys are agreed with the owner.
@@ -45,11 +45,11 @@ The site is becoming the production course platform (8 workstreams, W0 to W7). *
   - `config.ts` for env, cookies, TTLs and rate-limit rules;
   - `crypto.ts`, `ratelimit.ts`;
   - `env.ts` (`Env`): read secrets with `requireSecret()`, because they are missing until the owner runs setup.
-- **Stubs:** modules with frozen signatures that throw `NotImplementedError` until their workstream fills them: `session.ts`, `orders.ts`, `pricing.ts`, `media.ts`, `play.ts`, `certificates.ts`, `analytics.ts`, `daily.ts`, `rebuild.ts`, `snapshot.ts`. `hosts.ts` passes requests through until W1 fills it.
+- **Stubs:** modules with frozen signatures that throw `NotImplementedError` until their workstream fills them: `session.ts`, `orders.ts`, `pricing.ts`, `media.ts`, `play.ts`, `certificates.ts`, `analytics.ts`, `daily.ts`, `rebuild.ts`, `snapshot.ts`. W1 filled `hosts.ts` (routing by host, security headers) and `snapshot.ts`; see `docs/platform/HOSTS.md`.
 - **Content at build time:**
   - `scripts/snapshot.mjs` fetches the live snapshot on `main`, falling back to the seed on a 404 and failing the build on a 5xx.
   - `src/data/snapshot.ts` serves it to pages.
-  - Until W1 moves the pages over, the pages still read `src/data/course.ts`.
+  - The landing pages (`/` and `/c/<slug>`, `src/components/landing/CourseLanding.astro`) read the snapshot. The demo checkout, the result pages and the course area still read `src/data/course.ts` until W2 and W3 replace them.
 - **Demo parts still live until their workstream replaces them:**
   - Enroll buttons: `data-enroll` opens `src/components/checkout/Checkout.astro`.
   - The `fbc_enroll` cookie (`functions/_lib/enrollment.ts`), which W3 replaces with D1 sessions.

@@ -5,15 +5,25 @@ import "../styles/global.css";
 import "../styles/motion.css";
 import { site } from "../data/site";
 import { course } from "../data/course";
+import { buildEnv } from "../lib/build-env";
+import { isPreviewBuild, jsonLdText } from "../lib/seo";
 
 interface Props {
   title: string;
   description: string;
-  /** Share image for link previews (WhatsApp, Instagram, X): a 1200×630 JPEG path in public/. */
+  /** Share image for link previews (WhatsApp, Instagram, X): a 1200×630 JPEG path in public/, or an absolute URL. */
   image?: string;
   imageAlt?: string;
   /** Open Graph type. */
   type?: "website" | "article";
+  /** Absolute canonical URL. Default: this path on the hub. Course pages pass their own host's URL. */
+  canonical?: string;
+  /** Keep the page out of search. Default: while the demo runs. Preview builds are always noindex. */
+  noindex?: boolean;
+  /** Show the demo ribbon. Default: while the demo runs. */
+  demo?: boolean;
+  /** schema.org data for a JSON-LD block. */
+  jsonLd?: unknown;
 }
 
 // The default share image is the main site's (feelingsbeautycare.in/og.jpg), copied to public/og.jpg.
@@ -23,9 +33,13 @@ const {
   image = "/og.jpg",
   imageAlt = "Feelings Beauty Care logo beside a bride in red with gold jewellery",
   type = "website",
+  demo = course.demo,
+  jsonLd,
 } = Astro.props;
-const canonical = new URL(Astro.url.pathname.replace(/\.html$/, "").replace(/\/index$/, "/") || "/", site.url).href;
-// Link-preview crawlers need an absolute https URL on the site's own host.
+const canonical =
+  Astro.props.canonical ?? new URL(Astro.url.pathname.replace(/\.html$/, "").replace(/\/index$/, "/") || "/", site.url).href;
+const noindex = (Astro.props.noindex ?? course.demo) || isPreviewBuild(buildEnv);
+// Link-preview crawlers need an absolute https URL (a path is resolved on the hub).
 const imageUrl = new URL(image, site.url).href;
 ---
 
@@ -37,8 +51,8 @@ const imageUrl = new URL(image, site.url).href;
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
-    {/* Demo: kept out of search until the client confirms the course (also X-Robots-Tag in public/_headers). */}
-    {course.demo && <meta name="robots" content="noindex, nofollow" />}
+    {/* Demo content and preview builds stay out of search (functions/_lib/hosts.ts adds X-Robots-Tag on previews). */}
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
     {/* Link previews. The noindex above doesn't stop WhatsApp, Instagram or X fetching these. */}
     <meta property="og:type" content={type} />
     <meta property="og:site_name" content={site.name} />
@@ -60,10 +74,11 @@ const imageUrl = new URL(image, site.url).href;
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    {jsonLd !== undefined && <script is:inline type="application/ld+json" set:html={jsonLdText(jsonLd)} />}
   </head>
   <body>
     {
-      course.demo && (
+      demo && (
         <p class="demo-ribbon" role="note">
           Demo preview: the price and lessons are examples, and payments run in test mode. No real money is charged.
         </p>

@@ -77,7 +77,7 @@ export function seedCourse(): PublicCourse {
     seoDescription: null,
     isDemo: course.demo,
     domainActive: false,
-    canonicalUrl: `https://${DEFAULT_HUB_HOST}/c/${SEED_COURSE_SLUG}/`,
+    canonicalUrl: `https://${DEFAULT_HUB_HOST}/c/${SEED_COURSE_SLUG}`,
     modules: lessonModules.map((mod) => ({
       id: mod.number,
       position: mod.number,

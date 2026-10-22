@@ -1,7 +1,14 @@
 ---
-// Questions from course.faqs. Native <details>: keyboard and screen-reader support for free, and
-// it works without JS. Answers open smoothly where the browser supports it (motion.css).
-import { course } from "../../data/course";
+// Questions from the course's details.faqs. Native <details>: keyboard and screen-reader support
+// for free, and it works without JS. Answers open smoothly where the browser supports it (motion.css).
+import type { PublicCourse } from "../../shared/types";
+
+interface Props {
+  course: PublicCourse;
+}
+
+const { course } = Astro.props;
+const faqs = course.details.faqs;
 ---
 
 <section class="section faq" id="faq" aria-labelledby="faq-title">
@@ -11,7 +18,7 @@ import { course } from "../../data/course";
     </div>
     <div class="faq-list" data-reveal="stagger">
       {
-        course.faqs.map((f, i) => (
+        faqs.map((f, i) => (
           <details style={`--i: ${i}`}>
             <summary>
               <span>{f.q}</span>

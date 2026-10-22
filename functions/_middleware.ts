@@ -3,7 +3,8 @@
 //   1. migrate      when the D1 binding exists, bring the database up to date (once per isolate,
 //                   functions/_lib/migrate.ts). Without a DB (before the owner runs setup) it is
 //                   skipped, so the demo keeps working exactly as before.
-//   2. hostRouting  course hosts → /c/<slug>/ (functions/_lib/hosts.ts, W1). Passes through for now.
+//   2. hostRouting  course hosts → the static /c/<slug> page, hub-only paths → the hub, security
+//                   headers on every response (functions/_lib/hosts.ts, W1; docs/platform/HOSTS.md).
 //   3. siteMiddleware  the course-area gate. Pages routes Functions by the raw path but serves static
 //                   files by the decoded path, so /%6cearn or /learn%2Fsoft-glam would reach the
 //                   course pages without passing functions/learn/_middleware.ts. This sends any path
@@ -11,7 +12,7 @@
 //                   every other request passes straight on.
 //
 // Being at the root, it makes the whole site run through Functions (_routes.json becomes "/*").
-// W1 adds a public/_routes.json that keeps static assets out of Functions.
+// public/_routes.json (W1) keeps hashed assets and icons out of Functions.
 import { siteMiddleware } from "./learn/_gate";
 import { hasDb, type Env } from "./_lib/env.ts";
 import { hostRouting, type MiddlewareContext } from "./_lib/hosts.ts";
