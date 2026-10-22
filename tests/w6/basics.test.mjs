@@ -241,3 +241,16 @@ test("paging labels", () => {
   assert.deepEqual(pageInfo(1, 25, 0), { page: 1, pages: 1, hasPrev: false, hasNext: false, label: "None" });
   assert.equal(pageInfo(1, 25, 1500).label, "1–25 of 1,500");
 });
+
+test("settings: GSTIN and admin password rules match the API", async () => {
+  const { gstinProblem, passwordProblem } = await import("../../src/components/admin/lib/settings.ts");
+  assert.equal(gstinProblem(""), null);
+  assert.equal(gstinProblem("24abcde1234f1z5"), null);
+  assert.match(gstinProblem("24ABCDE1234F1X5"), /15-character/);
+  assert.equal(passwordProblem("short", "old", "short").field, "next");
+  assert.match(passwordProblem(" padded password here ", "old", " padded password here ").message, /space/);
+  assert.match(passwordProblem("aaaaaaaaaaaaaaaaaa", "old", "aaaaaaaaaaaaaaaaaa").message, /6 different/);
+  assert.match(passwordProblem("same old password", "same old password", "same old password").message, /different/);
+  assert.equal(passwordProblem("mango lassi at noon", "old", "mango lassi at nooN").field, "again");
+  assert.equal(passwordProblem("mango lassi at noon", "old", "mango lassi at noon"), null);
+});
