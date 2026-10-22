@@ -7,10 +7,11 @@
  * page at <slug>.feelingsbeautycare.in/ once the domain is attached. The hub's / renders it too
  * while only one course is published (the page Instagram links point at today).
  *
- * Checkout: the demo's <Checkout /> (W0/W2, src/components/checkout) charges the demo course from
- * src/data/course.ts, so it is mounted only for example content. Real courses get W2's live
- * checkout (CheckoutProps = { course, settings }); until then their Enroll buttons lead to the
- * price card and a WhatsApp booking note.
+ * Checkout (W8 integration): <Checkout course settings platform /> on every course that can be
+ * bought. The order names the course and W2 prices it from D1; without D1 (the seed snapshot) the
+ * server answers with the demo flow, so the demo course keeps working. A course that can't be
+ * booked online (a real course without the live platform, or a studio course with no open batch)
+ * keeps the price card and a WhatsApp booking note instead.
  */
 import Base from "../../layouts/Base.astro";
 import Reveal from "./Reveal.astro";
@@ -29,6 +30,7 @@ import Footer from "./Footer.astro";
 import ViewBeacon from "./ViewBeacon.astro";
 import Checkout from "../checkout/Checkout.astro";
 import { site } from "../../data/site";
+import { snapshotSource } from "../../data/snapshot";
 import { buildEnv } from "../../lib/build-env";
 import { courseView } from "../../lib/course-view";
 import { courseDescription, courseIndexable, courseJsonLd, courseTitle } from "../../lib/seo";
@@ -46,6 +48,12 @@ const details = course.details;
 const showCurriculum = details.outcomes.length > 0 || course.modules.some((m) => m.lessons.length > 0);
 // The portrait and the studio's facts belong to the founder; another teacher gets no such section.
 const showTeacher = course.teacher === site.founder;
+// The snapshot came from the live D1: the platform (W2 orders, coupons) is set up.
+const platform = snapshotSource !== "seed";
+// Online booking: the demo course always (it falls back to the demo flow without D1); a real course
+// once the platform is live; a studio-only course needs an open batch with a seat.
+const bookable = course.format !== "in_person" || course.batches.some((b) => b.seatsLeft !== 0);
+const sellable = (course.isDemo || platform) && bookable;
 ---
 
 <Base
@@ -70,7 +78,7 @@ const showTeacher = course.teacher === site.founder;
     {(details.forWho.length > 0 || view.hasLessons || view.hasBatches) && <ForWho view={view} />}
     <Pricing view={view} />
     {
-      !course.isDemo && (
+      !sellable && (
         <p class="container booking-note" role="note">
           Online booking opens soon.{" "}
           <a href={whatsappLink(`Hi ${view.teacherFirstName}, I would like to join the ${course.title}.`)} target="_blank" rel="noopener">
@@ -82,7 +90,7 @@ const showTeacher = course.teacher === site.founder;
     }
     {details.faqs.length > 0 && <Faq course={course} />}
     <FinalCta view={view} />
-    {course.isDemo && <Checkout />}
+    {sellable && <Checkout course={course} settings={settings} platform={platform} />}
   </main>
   <EnrollBar view={view} />
   <Footer />
