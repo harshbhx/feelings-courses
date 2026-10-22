@@ -58,7 +58,7 @@ The site is becoming the production course platform (8 workstreams, W0 to W7). *
 
 ## Payments (Razorpay)
 
-**Test mode only while `course.demo` is true.**
+**Test mode only while `course.demo` is true.** The platform's live flow on D1 (prices from D1, the webhook, refunds within 24 hours, invoice numbers and on-screen receipts) is described in `docs/platform/PAYMENTS.md`. The demo flow below keeps answering until D1 is set up.
 - **Flow:** `POST /api/order` creates a Razorpay order on the server, using the secret key. The browser opens Razorpay Checkout. `POST /api/verify` checks Razorpay's signature (HMAC-SHA256 of `order_id|payment_id` with the key secret) and only then issues the enrollment cookie. Amounts always come from `course.ts` on the server, never from the browser.
 - **Secrets:** `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `ENROLL_SECRET`. The owner sets them in the Cloudflare dashboard (Pages project → Settings → Variables and Secrets). Secrets never go in the repo or through the assistant.
 - **Razorpay test mode without a secret (`razorpay-test`):** while `course.demo` is true and no Key Secret is set, checkout opens Razorpay's real Checkout in Test Mode with the public test Key ID committed in `src/data/payments.ts` (owner-approved, not a secret), without an order. `/api/verify` can't verify those payments (no secret), so it accepts any well-formed `pay_…` id: acceptable only for the demo. Never possible once `demo` is false. Never commit a Key Secret.
