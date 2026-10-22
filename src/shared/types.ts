@@ -103,7 +103,7 @@ export interface PublicBatch {
 /** A published course, as the build renders its landing page. */
 export interface PublicCourse {
   id: number;
-  /** Also the subdomain label (<slug>.feelingsbeautycare.in) and the /c/<slug>/ path. */
+  /** Also the subdomain label (<slug>.feelingsbeautycare.in) and the /c/<slug> path (no trailing slash: the site uses trailingSlash "never"). */
   slug: string;
   title: string;
   subtitle: string | null;
@@ -129,7 +129,7 @@ export interface PublicCourse {
   /** Example content: ribbon, noindex, and live payments refused. */
   isDemo: boolean;
   domainActive: boolean;
-  /** https://<slug>.feelingsbeautycare.in/ once the domain is active, else the hub's /c/<slug>/. */
+  /** https://<slug>.feelingsbeautycare.in/ once the domain is active, else the hub's /c/<slug>. */
   canonicalUrl: string;
   modules: PublicModule[];
   /** Open batches only, soonest first. Empty for online courses. */
@@ -177,7 +177,7 @@ export interface BuildInfo {
   snapshotSource: "live" | "seed" | "url";
 }
 
-/** dist/domains.json: course slugs whose subdomain is active (read by the hub's /c/<slug>/ redirect). */
+/** dist/domains.json: course slugs whose subdomain is active (read by the hub's /c/<slug> redirect). */
 export interface DomainsManifest {
   active: string[];
 }

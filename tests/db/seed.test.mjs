@@ -93,7 +93,7 @@ test("the build's seed snapshot matches the seeded database", () => {
   assert.equal(c.accessDays, row.access_days);
   assert.equal(c.certificateTitle, row.certificate_title);
   assert.deepEqual(c.details, JSON.parse(row.details));
-  assert.equal(c.canonicalUrl, "https://courses.feelingsbeautycare.in/c/selfmakeup/");
+  assert.equal(c.canonicalUrl, "https://courses.feelingsbeautycare.in/c/selfmakeup");
   const dbLessons = db.rows(
     "SELECT l.id, l.slug, l.title, l.minutes, m.id AS module_id FROM lessons l JOIN modules m ON m.id = l.module_id WHERE l.course_id = ? ORDER BY m.position, l.position",
     c.id,

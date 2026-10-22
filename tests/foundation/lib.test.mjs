@@ -21,7 +21,6 @@ import { issueCertificate } from "../../functions/_lib/certificates.ts";
 import { bump, statDay } from "../../functions/_lib/analytics.ts";
 import { requestRebuild } from "../../functions/_lib/rebuild.ts";
 import { maybeRunDaily } from "../../functions/_lib/daily.ts";
-import { buildSnapshot } from "../../functions/_lib/snapshot.ts";
 import { playLesson } from "../../functions/_lib/play.ts";
 import { hostRouting } from "../../functions/_lib/hosts.ts";
 import { COURSE_SLUG_RE, DEFAULT_ACCESS_DAYS, MAX_DEVICES_PER_STUDENT, REFUND_WINDOW_SECONDS, isValidCourseSlug } from "../../src/shared/constants.ts";
@@ -195,14 +194,13 @@ test("stubs: frozen signatures that throw NotImplementedError until their workst
     () => issueCertificate(env, { studentId: 1, courseId: 1, name: "A" }),
     () => requestRebuild(env, { waitUntil() {} }),
     () => maybeRunDaily(env, { waitUntil() {} }),
-    () => buildSnapshot(env),
     () => playLesson(env, { studentId: 1, enrollmentId: 1, courseId: 1, sessionTag: "x" }, 1),
   ];
   for (const fn of pending) await assert.rejects(fn(), NotImplementedError);
   assert.throws(() => bump({}, "2026-10-23", 1, "views"), NotImplementedError);
   // statDay is real: India time.
   assert.equal(statDay(Date.UTC(2026, 9, 22, 19, 0, 0) / 1000), "2026-10-23");
-  // hostRouting is a pass-through until W1.
+  // hostRouting (W1) passes hub pages on to next(); tests/w1/hosts.test.mjs covers the rest.
   const res = await hostRouting({ request: req("/"), env: {}, data: {}, next: async () => new Response("x") }, async () => new Response("passed"));
   assert.equal(await res.text(), "passed");
 });
