@@ -7,7 +7,7 @@ import { whatsappLink } from "../../lib/whatsapp";
 import { addressLine, mainHost } from "./facts";
 import { LEGAL_PAGES, type LegalPage } from "../../shared/constants";
 
-// Short paths work on every host: the router serves /terms from /legal/terms (functions/_lib/hosts.ts).
+// /legal/* is served on every host (course hosts pass it through; /terms and friends also work there).
 const SHORT_TITLES: Record<LegalPage, string> = { terms: "Terms", refunds: "Refunds", privacy: "Privacy", delivery: "Delivery" };
 
 const year = new Date().getFullYear();
@@ -53,7 +53,7 @@ const year = new Date().getFullYear();
       {
         LEGAL_PAGES.map((page) => (
           <li>
-            <a href={`/${page}`}>{SHORT_TITLES[page]}</a>
+            <a href={`/legal/${page}`}>{SHORT_TITLES[page]}</a>
           </li>
         ))
       }
