@@ -322,10 +322,19 @@ function lessonDrawer(key: string, isNew = false): void {
             captionsKey.value = item.key;
             attachCaptions(l.id!, item);
             captionsLine.textContent = `Captions: ${keyName(item.key)}`;
+            removeCaptions.hidden = false;
           },
           onError: (msg) => (captionsNote.textContent = msg),
         })
       : null;
+
+  // Removing captions takes effect with "Done" and "Save lessons" (the file stays in the media library).
+  const removeCaptions = h("button", { type: "button", class: "link-btn", hidden: !l.captionsKey }, icon("trash"), "Remove captions");
+  removeCaptions.addEventListener("click", () => {
+    captionsKey.value = null;
+    captionsLine.textContent = "No captions (removed when you save).";
+    removeCaptions.hidden = true;
+  });
 
   const videoGroup = h(
     "fieldset",
@@ -365,7 +374,7 @@ function lessonDrawer(key: string, isNew = false): void {
       videoGroup,
       ytWrap,
       upWrap,
-      h("div", { class: "field" }, h("span", { class: "field-label", text: "Captions" }, h("span", { class: "opt", text: " (optional)" })), captionsLine, captions, captionsNote),
+      h("div", { class: "field" }, h("span", { class: "field-label", text: "Captions" }, h("span", { class: "opt", text: " (optional)" })), captionsLine, captions, removeCaptions, captionsNote),
       preview.row,
       vertical.row,
       field({ label: "Notes under the video", control: notes, optional: true, hint: "Plain text: products used, steps, links." }),
