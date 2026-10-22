@@ -16,13 +16,11 @@ import { NotImplementedError } from "../../functions/_lib/stub.ts";
 import { fulfilOrder } from "../../functions/_lib/orders.ts";
 import { quote } from "../../functions/_lib/pricing.ts";
 import { createSession, issueLoginToken, readSession, requireEnrollment } from "../../functions/_lib/session.ts";
-import { signMediaUrl } from "../../functions/_lib/media.ts";
 import { issueCertificate } from "../../functions/_lib/certificates.ts";
 import { bump, statDay } from "../../functions/_lib/analytics.ts";
 import { requestRebuild } from "../../functions/_lib/rebuild.ts";
 import { maybeRunDaily } from "../../functions/_lib/daily.ts";
 import { buildSnapshot } from "../../functions/_lib/snapshot.ts";
-import { playLesson } from "../../functions/_lib/play.ts";
 import { hostRouting } from "../../functions/_lib/hosts.ts";
 import { COURSE_SLUG_RE, DEFAULT_ACCESS_DAYS, MAX_DEVICES_PER_STUDENT, REFUND_WINDOW_SECONDS, isValidCourseSlug } from "../../src/shared/constants.ts";
 import { MAX_SESSIONS_PER_STUDENT } from "../../functions/_lib/config.ts";
@@ -191,14 +189,13 @@ test("stubs: frozen signatures that throw NotImplementedError until their workst
     () => readSession(env, req("/")),
     () => issueLoginToken({}, 1, "handoff", "/learn"),
     () => requireEnrollment(env, req("/"), "x"),
-    () => signMediaUrl(env, { kind: "v", lessonId: 1, sessionTag: "public" }),
     () => issueCertificate(env, { studentId: 1, courseId: 1, name: "A" }),
     () => requestRebuild(env, { waitUntil() {} }),
     () => maybeRunDaily(env, { waitUntil() {} }),
     () => buildSnapshot(env),
-    () => playLesson(env, { studentId: 1, enrollmentId: 1, courseId: 1, sessionTag: "x" }, 1),
   ];
   for (const fn of pending) await assert.rejects(fn(), NotImplementedError);
+  // signMediaUrl and playLesson (W4) are real now: tests/w4/.
   assert.throws(() => bump({}, "2026-10-23", 1, "views"), NotImplementedError);
   // statDay is real: India time.
   assert.equal(statDay(Date.UTC(2026, 9, 22, 19, 0, 0) / 1000), "2026-10-23");
