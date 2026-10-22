@@ -14,7 +14,6 @@ import { ConflictError, ValidationError, isUniqueViolation } from "../../functio
 import * as v from "../../functions/_lib/db/validate.ts";
 import { NotImplementedError } from "../../functions/_lib/stub.ts";
 import { statDay } from "../../functions/_lib/analytics.ts";
-import { requestRebuild } from "../../functions/_lib/rebuild.ts";
 import { hostRouting } from "../../functions/_lib/hosts.ts";
 import { COURSE_SLUG_RE, DEFAULT_ACCESS_DAYS, MAX_DEVICES_PER_STUDENT, REFUND_WINDOW_SECONDS, isValidCourseSlug } from "../../src/shared/constants.ts";
 import { MAX_SESSIONS_PER_STUDENT } from "../../functions/_lib/config.ts";
@@ -174,16 +173,11 @@ test("validate: phone, email, coupon and slug normalisation", () => {
 
 // ---------- stubs ----------
 
-test("stubs: frozen signatures that throw NotImplementedError until their workstream lands", async () => {
-  const env = {};
-  const pending = [
-    // fulfilOrder and quote: implemented by W2 (tests/w2/).
-    // createSession, readSession, issueLoginToken, requireEnrollment, issueCertificate: implemented by W3 (tests/w3/).
-    // signMediaUrl and playLesson: implemented by W4 (tests/w4/).
-    () => requestRebuild(env, { waitUntil() {} }),
-  ];
-  for (const fn of pending) await assert.rejects(fn(), NotImplementedError);
-  // bump (W7) and maybeRunDaily (W7) are real now: tests/w7/ops.test.mjs.
+test("stubs: every W0 stub is filled after integration (W1 to W7)", async () => {
+  // fulfilOrder and quote: W2 (tests/w2/). createSession, readSession, issueLoginToken,
+  // requireEnrollment, issueCertificate: W3 (tests/w3/). signMediaUrl, playLesson: W4 (tests/w4/).
+  // requestRebuild: W5 (tests/w5/). bump, maybeRunDaily: W7 (tests/w7/). buildSnapshot, hostRouting: W1 (tests/w1/).
+  // tests/integration/ checks that none of them throws NotImplementedError on the purchase path.
   // statDay is real: India time.
   assert.equal(statDay(Date.UTC(2026, 9, 22, 19, 0, 0) / 1000), "2026-10-23");
   // hostRouting (W1) passes hub pages on to next(); tests/w1/hosts.test.mjs covers the rest.

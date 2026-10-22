@@ -144,7 +144,7 @@ Tables, and the workstream that writes them (others only read):
 | `play.ts` | `playLesson(env, enrollment, lessonId) → PlayInfo \| null` | W4 | W3's play route |
 | `analytics.ts` | `bump(db, day, courseId, field, by?) → DbStatement` (to use inside a batch) | W7 | W2, W7 |
 | `daily.ts` | `maybeRunDaily(env, ctx)` | W7 | W5 middleware, W2 webhook |
-| `rebuild.ts` | `requestRebuild(env, ctx) → { queued, nextAllowedAt }` | W5 | W5 |
+| `rebuild.ts` | `requestRebuild(env, ctx) → { queued, nextAllowedAt, reason? }` (filled by W5; also `publishStatus(env, siteUrl)`) | W5 | W5 |
 
 ### W7 additions (legal, analytics, ops)
 
@@ -179,6 +179,22 @@ W3's sessions, restore, course area and certificates: `docs/platform/STUDENTS.md
 ## Middleware: `functions/_middleware.ts`
 
 The order is `screenRequest (W7) → migrate (only if DB bound) → hostRouting (W1) → siteMiddleware (learn gate, W3) → next`. W0 wrote the composition; W1 owns the file from now on. A failed migration is logged and the site keeps serving.
+
+## Admin API: `functions/_lib/admin/` (W5)
+
+- Documented route by route in `docs/admin-api.md` (for W6).
+- `functions/api/admin/_middleware.ts` guards every `/api/admin/*` route:
+  - the session (`__Host-fbc_admin`, table `admin_sessions`), except `POST /api/admin/login`;
+  - Origin and JSON on writes (W4's binary upload parts under `/api/admin/uploads/` are exempt from the JSON rule);
+  - the hub host only in production;
+  - no-store, security headers and noindex on every response;
+  - W7's `maybeRunDaily` in `waitUntil`.
+- W4's upload routes under `functions/api/admin/uploads/` sit behind the same middleware and read the session from `context.data.admin`.
+- Additive contract changes in `src/shared/api.ts`:
+  - error codes `code_taken`, `student_exists`, `already_enrolled`, `in_use`;
+  - `AdminRebuild` (with `reason`), `AdminSitePublishResponse`, `AdminEraseRequest` (`{ confirm: true }`);
+  - `AdminAuditQuery.entityId` and `before`;
+  - the endpoint `GET /api/admin/orders.csv`.
 
 ## Tests: `tests/`
 

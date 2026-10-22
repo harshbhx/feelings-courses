@@ -104,6 +104,10 @@ export type ApiErrorCode =
   | "slug_locked"
   | "slug_taken"
   | "coupon_used"
+  | "code_taken"
+  | "student_exists"
+  | "already_enrolled"
+  | "in_use"
   // media (W4)
   | "upload_invalid"
   | "upload_too_large";
@@ -295,9 +299,28 @@ export interface AdminOutlineRequest {
   }[];
 }
 
+/**
+ * What a deploy-hook request did. `reason` (W5) says why nothing was queued: "debounced" (a build
+ * was requested under 120 s ago: try again at nextAllowedAt), "no_hook" (DEPLOY_HOOK_URL isn't
+ * set, as on preview) or "hook_failed" (Cloudflare didn't accept the call: retry now).
+ */
+export interface AdminRebuild {
+  queued: boolean;
+  nextAllowedAt: Unix;
+  reason?: "debounced" | "no_hook" | "hook_failed";
+}
+
 export interface AdminPublishResponse {
   course: AdminCourse;
-  rebuild: { queued: boolean; nextAllowedAt: Unix };
+  rebuild: AdminRebuild;
+}
+
+/** POST /api/admin/publish: the publish status after asking for a rebuild of the whole site. */
+export type AdminSitePublishResponse = PublishStatus & { rebuild: AdminRebuild };
+
+/** POST /api/admin/students/:id/erase. Erasing can't be undone, so the body must confirm it. */
+export interface AdminEraseRequest {
+  confirm: true;
 }
 
 export interface AdminDomainCheckResponse {
@@ -419,6 +442,10 @@ export interface AdminBackupRunResponse {
 
 export interface AdminAuditQuery {
   entity?: string;
+  /** Needs `entity`. */
+  entityId?: string;
+  /** Cursor: entries with a smaller id (stable while new entries arrive). Overrides `page`. */
+  before?: number;
   page?: number;
 }
 export type AdminAuditResponse = AuditRecord[];
@@ -496,12 +523,14 @@ export interface Endpoints {
   "DELETE /api/admin/enrollments/:id": E<None, None>;
   "POST /api/admin/students/:id/access-link": E<None, AdminAccessLinkResponse>;
   "POST /api/admin/students/:id/signout-all": E<None, None>;
-  "POST /api/admin/students/:id/erase": E<None, AdminStudentResponse>;
+  "POST /api/admin/students/:id/erase": E<AdminEraseRequest, AdminStudentResponse>;
   "POST /api/admin/students/:id/certificate": E<AdminIssueCertificateRequest, Certificate>;
   "GET /api/admin/students.csv": E<AdminStudentsQuery, string>;
   // admin: payments
   "GET /api/admin/orders": E<AdminOrdersQuery, AdminOrdersResponse>;
   "GET /api/admin/orders/:id": E<None, AdminOrderResponse>;
+  /** The payments export (W5): same filters as the list, no paging. */
+  "GET /api/admin/orders.csv": E<Omit<AdminOrdersQuery, "page">, string>;
   "POST /api/admin/orders/:id/refund": E<AdminRefundRequest, AdminRefundResponse>;
   "POST /api/admin/orders/:id/sync": E<None, AdminOrderResponse>;
   "GET /api/admin/webhooks": E<{ pending?: 1 }, AdminWebhooksResponse>;
@@ -521,7 +550,7 @@ export interface Endpoints {
   "GET /api/admin/settings": E<None, AdminSettingsResponse>;
   "PUT /api/admin/settings": E<AdminSettingsRequest, AdminSettingsResponse>;
   "GET /api/admin/stats": E<AdminStatsQuery, AdminStatsResponse>;
-  "POST /api/admin/publish": E<None, PublishStatus>;
+  "POST /api/admin/publish": E<None, AdminSitePublishResponse>;
   "GET /api/admin/publish/status": E<None, AdminPublishStatusResponse>;
   "GET /api/admin/backup": E<None, Blob>;
   "POST /api/admin/backup/run": E<None, AdminBackupRunResponse>;
