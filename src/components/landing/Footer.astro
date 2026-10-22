@@ -5,6 +5,10 @@ import Logo from "./Logo.astro";
 import { site } from "../../data/site";
 import { whatsappLink } from "../../lib/whatsapp";
 import { addressLine, mainHost } from "./facts";
+import { LEGAL_PAGES, type LegalPage } from "../../shared/constants";
+
+// Short paths work on every host: the router serves /terms from /legal/terms (functions/_lib/hosts.ts).
+const SHORT_TITLES: Record<LegalPage, string> = { terms: "Terms", refunds: "Refunds", privacy: "Privacy", delivery: "Delivery" };
 
 const year = new Date().getFullYear();
 ---
@@ -45,6 +49,16 @@ const year = new Date().getFullYear();
   </div>
   <div class="container footer-legal">
     <p>© {year} {site.name}</p>
+    <ul class="footer-policies" aria-label="Policies">
+      {
+        LEGAL_PAGES.map((page) => (
+          <li>
+            <a href={`/${page}`}>{SHORT_TITLES[page]}</a>
+          </li>
+        ))
+      }
+      <li><a href="/legal">Contact</a></li>
+    </ul>
   </div>
 </footer>
 
@@ -120,9 +134,30 @@ const year = new Date().getFullYear();
   }
 
   .footer-legal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-5);
+    align-items: center;
+    justify-content: space-between;
     margin-top: var(--space-6);
     padding-top: var(--space-4);
     border-top: 1px solid var(--border-on-deep);
+  }
+
+  .footer-policies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .footer-policies a {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    color: inherit;
   }
 
   /* Phones: global.css pads the body for the enroll bar. The footer reaches down under that
