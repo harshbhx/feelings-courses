@@ -19,7 +19,7 @@ Code: `functions/_lib/admin/` (logic, one module per area; `routes.ts` has every
 | Partial edits | `PUT` on a course, batch or coupon changes only the fields you send; `null` clears an optional field. Unknown keys are ignored, so sending back a whole object is fine. |
 | Audit | Every write adds an `audit_log` row (`actor: "admin"`), in the same D1 batch as the change. See `GET /api/admin/audit`. |
 | Not set up | Before the owner runs setup (no D1 binding, or missing `APP_SECRET` / `ADMIN_PASSWORD_HASH`): **503 `platform_not_configured`**. |
-| Other workstreams | Routes that call another workstream's code answer **501 `not_implemented`** until that workstream is merged (marked W2, W3, W7 below). |
+| Other workstreams | Routes marked W2, W3 or W7 below call that workstream's code. On W5's own branch they answered **501 `not_implemented`**; on the integration branch (`docs/INTEGRATION.md`) every one of them is live. |
 
 ## Session
 
@@ -36,7 +36,7 @@ Code: `functions/_lib/admin/` (logic, one module per area; `routes.ts` has every
 
 ### `GET /api/admin/me` → `AdminMeResponse`
 
-`{ ok: true, expiresAt, appEnv, paymentMode }`. `expiresAt` is when the session ends if unused (it slides with every request). `paymentMode` is `"test"`, `"live"` or `"not_configured"`: show a test-mode badge for `"test"`.
+`{ ok: true, expiresAt, appEnv, paymentMode, hubHost, apexDomain }`. `expiresAt` is when the session ends if unused (it slides with every request). `paymentMode` is `"test"`, `"live"` or `"not_configured"`: show a test-mode badge for `"test"`. `hubHost` and `apexDomain` (added at integration) are the hosts the router and the domain check use (`HUB_HOST`, `APEX_DOMAIN`, production's by default): the admin builds course addresses (`<slug>.<apexDomain>`, `https://<hubHost>/c/<slug>`) from them.
 
 ### `POST /api/admin/password` — `{ current, next }` → `{ ok: true }` + new `Set-Cookie`
 
@@ -179,7 +179,7 @@ Ends access now and frees the batch seat. Repeating it is harmless.
 
 ### `POST /api/admin/students/:id/access-link` → `AdminAccessLinkResponse` (W3)
 
-`{ url, whatsappUrl, expiresAt }`: a one-time sign-in link (24 hours, single use) for a student on a new phone. There is no email service: open `whatsappUrl` (a prefilled `wa.me` message to the student) so the owner sends it herself. **501 until W3 is merged.**
+`{ url, whatsappUrl, expiresAt }` (200): a one-time sign-in link (24 hours, single use) for a student on a new phone, made by W3's `createAccessLink`. Opening it shows a confirm page; its button signs the student in (so a link preview can't use it up). There is no email service: open `whatsappUrl` (a prefilled `wa.me` message to the student) so the owner sends it herself.
 
 ### `POST /api/admin/students/:id/signout-all` → 204
 
@@ -196,7 +196,7 @@ DPDP erase. It can't be undone, so the body must be `{ "confirm": true }` (else 
 
 ### `POST /api/admin/students/:id/certificate` — `{ courseId, name }` → 201 `Certificate` (W3)
 
-Issues or reissues a certificate (`name` 2 to 80, as printed). **501 until W3 is merged.**
+Issues or reissues a certificate (`name` 2 to 80, as printed), through W3's `issueCertificate` with the admin as the actor (one `certificate.issue` audit row). `verifyUrl` is the public check page on the hub.
 
 ## Payments
 
@@ -220,12 +220,11 @@ Up to 20,000 rows: order, invoice no, created and paid (IST), status, mode, cour
 - `reason` 1 to 300.
 - `revoke`: whether access ends with the refund.
 - W2 enforces the **24-hour window**: **409 `refund_window_closed`**. Also **409 `not_refundable`** (not paid) and **409 `mode_mismatch`** (a test order on live keys, or the other way round).
-- The refund starts `pending`; Razorpay's webhook settles it.
-- **501 until W2 is merged.**
+- The refund starts `pending`; Razorpay's webhook (or a sync) settles it.
 
 ### `POST /api/admin/orders/:id/sync` → `AdminOrder` (W2)
 
-Re-reads the payment and refunds from Razorpay. **501 until W2 is merged.**
+Re-reads the payment and refunds from Razorpay (W2's `syncOrder`), then answers with the same `AdminOrder` as `GET /api/admin/orders/:id`.
 
 ### `GET /api/admin/webhooks?pending=1` → `WebhookEventRow[]`
 
@@ -233,7 +232,7 @@ The latest 200 Razorpay webhook events (`pending=1`: unprocessed only). Payloads
 
 ### `POST /api/admin/webhooks/:id/replay` → `{ ok: true }` (W2)
 
-Processes a stored event again. **501 until W2 is merged.**
+Processes a stored event again (W2's `processWebhookEvent`). `:id` is the event's `eventId` from the list. Safe to repeat: a payment or refund is never counted twice.
 
 ## Coupons
 
@@ -342,6 +341,8 @@ Body `{}`. Makes a gzipped SQL dump of every business table in R2 now (`backups/
 
 ### `GET /api/admin/backup`
 The newest dump as a download (`application/gzip`, `Content-Disposition: attachment`). `404` when there is none yet. Audited as `backup.download`. The daily job (W7) also makes one dump a day.
+
+The admin's Settings page has the Backups panel for both (last copy, "Back up now", "Download the newest"). The run needs no body.
 
 ## Security notes
 

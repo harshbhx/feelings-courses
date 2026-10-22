@@ -193,6 +193,12 @@ The integration branch (`docs/INTEGRATION.md`) settled the overlaps between work
 | Certificate audit row | W3 `issueCertificate(…, { actor })` writes it once | W3 claim, W5 admin issue (actor `admin`) |
 | Student receipt | W2 `buildReceipt()` / `receiptPath()` | `GET /api/me/orders/:id`, `/account` links |
 | Backups | W7 `backup.ts` `runBackup()` | W5 `POST /api/admin/backup/run`, `GET /api/admin/backup`, W7 daily job |
+| Phone numbers (E.164) | `normalizePhone()` in `src/shared/constants.ts` | W0 `validate.ts` `phone()`, W2 checkout `normalisePhone`, W6 admin forms |
+| GSTIN format | `GSTIN_RE` in `src/shared/constants.ts` | W5 settings, W6 settings form |
+| Upload types and sizes | `MEDIA_FILE_TYPES`, `MEDIA_MAX_BYTES`, `extensionOf()` in `src/shared/constants.ts` | W4 `media-rules.ts` (`MEDIA_RULES`, `MAX_UPLOAD_BYTES`), W6 file picker (`UPLOAD_RULES`) |
+| Rupee formatting | W1 `course-view.ts` `formatInr()` | W6 `formatPaise()` (zero is "₹0" there, not "Free") |
+| Hub host and course domain in the admin | `config(env)` via `GET /api/admin/me` (`hubHost`, `apexDomain`) | W6 course addresses, Cloudflare steps, settings |
+| An order as the admin sees it | W5 `admin/orders.ts` `getOrder()` | `GET /api/admin/orders/:id` and `POST /api/admin/orders/:id/sync` (after W2's `syncOrder`) |
 
 `<Checkout course settings platform>` (`src/components/checkout/Checkout.astro`) sends an `OrderRequest` and follows `VerifyResponse.redirect` only to the same site or the hub. `tests/integration/routes.test.mjs` lists what a course host does with every Functions route (serve, hub or 404); a new route file fails it until it is added.
 
@@ -215,6 +221,7 @@ The order is `screenRequest (W7) → migrate (only if DB bound) → hostRouting 
   - `AdminRebuild` (with `reason`), `AdminSitePublishResponse`, `AdminEraseRequest` (`{ confirm: true }`);
   - `AdminAuditQuery.entityId` and `before`;
   - the endpoint `GET /api/admin/orders.csv`.
+- W8 additions (integration, additive): `AdminMeResponse.hubHost` and `apexDomain`; in `src/shared/constants.ts` `normalizePhone`, `GSTIN_RE`, `MEDIA_FILE_TYPES`, `MEDIA_MAX_BYTES` and `extensionOf` (see "W8 integration" above).
 
 ## Tests: `tests/`
 

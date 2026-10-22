@@ -16,7 +16,7 @@ no inline handlers, phone first).
 | `/admin/students` (`?q=&course=&page=&open=`) | `students.astro` | `client/students.ts` |
 | `/admin/payments` (`?status=&course=&from=&to=&page=&open=`) | `payments.astro` | `client/payments.ts` |
 | `/admin/coupons` | `coupons.astro` | `client/coupons.ts` |
-| `/admin/settings` | `settings.astro` | `client/settings.ts` |
+| `/admin/settings` (business, payments, legal, site, backups, addresses, password) | `settings.astro` | `client/settings.ts` |
 | `/admin/activity` (`?entity=`) | `activity.astro` | `client/activity.ts` |
 
 ## Layers
@@ -27,7 +27,10 @@ no inline handlers, phone first).
   error wording and the safe sign-in redirect. Put new rules here first, with a test.
 - `client/` — browser helpers and screens:
   - `api.ts`: `admin(key, params, body)` wraps `call()` from `src/lib/api-client.ts`. A 401 `unauthorized`
-    goes to `/admin?next=<this page>`.
+    goes to `/admin?next=<this page>`. `adminMe()` is the page's one `GET /api/admin/me` (the shell and
+    the screens share it); `siteHosts()` / `hostsReady()` give the hub host and course domain it
+    returned, for every course address (`courseAddresses(slug, siteHosts())`). `download(path)` saves an
+    attachment the API serves (the newest backup).
   - `states.ts`: `loadInto(region, load, render)` shows placeholders, then the data, or an error with
     "Try again"; `emptyBox()` for empty lists. Use them for every load.
   - `fields.ts`: `field()`, `input()`, `select()`, `switchRow()`, and `setErrors(root, errors)`, which puts
@@ -48,13 +51,16 @@ no inline handlers, phone first).
 - Edits send only the fields that changed (`changedFields`, `couponChanges`).
 - Anything that can't be undone asks first (`confirmDialog`, typed confirmation for erase).
 - **No GSTIN outside the settings form** (owner decision); a test enforces it.
-- Parts that need another workstream (refunds, sync and replay: W2; sign-in links and certificates: W3)
-  show "Not switched on yet" on a 501 instead of failing.
+- Refunds, sync and replay (W2) and sign-in links and certificates (W3) are live on the integration
+  branch. A 501 (only from a deployment older than this admin) shows "Not switched on yet".
+- Course addresses use the hosts from `GET /api/admin/me`, never typed-in domains, so the admin shows
+  what the router serves (production's hosts until the answer arrives).
+- Rules the server checks again come from `src/shared/constants.ts`, not copies: phone numbers
+  (`normalizePhone`), the GSTIN format, and the upload types and sizes (W4's table).
 
 ## Uploads
 
-`editor/uploads.ts` runs W4's `uploadMedia()` (`src/lib/media-upload.ts`, an identical copy of W4's file
-until both are merged) per destination: a lesson's video or captions, the cover, the sharing image.
+`editor/uploads.ts` runs W4's `uploadMedia()` (`src/lib/media-upload.ts`) per destination: a lesson's video or captions, the cover, the sharing image.
 Progress, pause/resume and cancel show wherever `data-upload-slot="<id>"` is on the page, so a lesson
 row keeps showing progress after its drawer closes. Choosing the same file again resumes.
 
