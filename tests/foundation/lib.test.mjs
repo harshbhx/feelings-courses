@@ -19,7 +19,6 @@ import { createSession, issueLoginToken, readSession, requireEnrollment } from "
 import { signMediaUrl } from "../../functions/_lib/media.ts";
 import { issueCertificate } from "../../functions/_lib/certificates.ts";
 import { bump, statDay } from "../../functions/_lib/analytics.ts";
-import { requestRebuild } from "../../functions/_lib/rebuild.ts";
 import { maybeRunDaily } from "../../functions/_lib/daily.ts";
 import { buildSnapshot } from "../../functions/_lib/snapshot.ts";
 import { playLesson } from "../../functions/_lib/play.ts";
@@ -193,7 +192,7 @@ test("stubs: frozen signatures that throw NotImplementedError until their workst
     () => requireEnrollment(env, req("/"), "x"),
     () => signMediaUrl(env, { kind: "v", lessonId: 1, sessionTag: "public" }),
     () => issueCertificate(env, { studentId: 1, courseId: 1, name: "A" }),
-    () => requestRebuild(env, { waitUntil() {} }),
+    // requestRebuild: implemented by W5 (tests/w5/courses.test.mjs).
     () => maybeRunDaily(env, { waitUntil() {} }),
     () => buildSnapshot(env),
     () => playLesson(env, { studentId: 1, enrollmentId: 1, courseId: 1, sessionTag: "x" }, 1),
