@@ -86,6 +86,11 @@ export type ApiErrorCode =
   | "payment_not_confirmed"
   | "order_mismatch"
   | "razorpay_unavailable"
+  | "already_enrolled"
+  | "not_refundable"
+  | "refund_window_closed"
+  | "mode_mismatch"
+  | "razorpay_refused"
   // students (W3)
   | "not_signed_in"
   | "not_enrolled"
@@ -170,8 +175,12 @@ export interface VerifyRequest {
   razorpay_payment_id: string;
   razorpay_signature: string;
 }
-/** `redirect` is always https://<HUB>/auth/continue?t=… */
-export type VerifyResponse = { ok: true; redirect: string };
+/**
+ * `redirect` is https://<HUB>/auth/continue?t=… (W3's handoff, which lands on the receipt). Until
+ * W3's sign-in exists it is the receipt link itself. `receipt` is the on-screen receipt,
+ * https://<HUB>/receipt/<orderId>?k=… (no email service: the buyer keeps or shares this link).
+ */
+export type VerifyResponse = { ok: true; redirect: string; receipt?: string };
 
 export interface TrackRequest {
   /** courses.id, 0 for hub pages. */
@@ -442,6 +451,8 @@ export interface Endpoints {
   "POST /api/razorpay/webhook": E<unknown, Ok>;
   "POST /api/t": E<TrackRequest, None>;
   "GET /api/certificates/:code": E<None, CertificateCheckResponse>;
+  /** The on-screen receipt page (HTML). `k` is the HMAC key from the verify response's link. */
+  "GET /receipt/:id": E<{ k: string }, string>;
   // students
   "POST /api/auth/restore": E<RestoreRequest, RestoreResponse>;
   "GET /auth/continue": E<{ t: string }, None>;
