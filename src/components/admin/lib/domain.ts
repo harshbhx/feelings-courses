@@ -5,7 +5,7 @@
  * Cloudflare, so it is about four clicks and nothing to type but the address.
  */
 import type { AdminCourse, DomainStatus } from "../../../shared/types.ts";
-import { courseAddresses } from "./slug.ts";
+import { courseAddresses, DEFAULT_SITE_HOSTS, type SiteHosts } from "./slug.ts";
 
 /** The Pages project the site deploys to (CLAUDE.md, Deploy). */
 export const PAGES_PROJECT = "feelings-courses";
@@ -23,8 +23,8 @@ export interface SetupStep {
 }
 
 /** The steps for one course's subdomain. */
-export function domainSteps(slug: string): SetupStep[] {
-  const { host } = courseAddresses(slug);
+export function domainSteps(slug: string, hosts: SiteHosts = DEFAULT_SITE_HOSTS): SetupStep[] {
+  const { host } = courseAddresses(slug, hosts);
   return [
     {
       title: `Open the "${PAGES_PROJECT}" project in Cloudflare`,
@@ -50,8 +50,8 @@ export interface DomainView {
 }
 
 /** How to show a course's domain status. */
-export function domainView(status: DomainStatus, slug: string): DomainView {
-  const { host } = courseAddresses(slug);
+export function domainView(status: DomainStatus, slug: string, hosts: SiteHosts = DEFAULT_SITE_HOSTS): DomainView {
+  const { host } = courseAddresses(slug, hosts);
   switch (status) {
     case "active":
       return { label: "Live", tone: "live", help: `${host} opens this course. Its web address is locked so links keep working.` };
@@ -65,7 +65,7 @@ export function domainView(status: DomainStatus, slug: string): DomainView {
       return {
         label: "Not set up",
         tone: "off",
-        help: `Until you add ${host} in Cloudflare, the course still works at its courses.feelingsbeautycare.in/c/ address.`,
+        help: `Until you add ${host} in Cloudflare, the course still works at its ${hosts.hubHost}/c/ address.`,
       };
   }
 }

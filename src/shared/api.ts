@@ -272,6 +272,9 @@ export interface AdminMeResponse {
   expiresAt: Unix;
   appEnv: AdminSettings["appEnv"];
   paymentMode: AdminSettings["paymentMode"];
+  /** The hub's host and the course hosts' domain, as the router sees them (config(env), W8). */
+  hubHost: string;
+  apexDomain: string;
 }
 
 export type AdminCoursesResponse = AdminCourse[];

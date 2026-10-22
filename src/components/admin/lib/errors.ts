@@ -35,11 +35,13 @@ export function describeError(err: ErrorLike, what = "this"): ErrorView {
       message: "The course platform isn't connected yet. Harsh runs the one-time setup (npm run setup), then this works.",
       retry: true,
     };
+  // Every workstream is merged on the integration branch, so a 501 only comes from a deployment that
+  // is behind this admin (an older Functions build). Nothing was changed on the server.
   if (err.code === "not_implemented" || err.status === 501)
     return {
       kind: "coming",
       title: "Not switched on yet",
-      message: "This part arrives with the next platform update (payments or student accounts). Nothing was changed.",
+      message: "This part isn't switched on in this copy of the site yet. Nothing was changed.",
       retry: false,
     };
   if (err.status === 429) {

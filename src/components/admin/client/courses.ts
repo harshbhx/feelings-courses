@@ -1,6 +1,6 @@
 /** Courses list (GET /api/admin/courses) and the "New course" dialog (POST /api/admin/courses). */
 import type { AdminCourse, AdminCourseInput, CourseFormat, CourseStatus } from "../../../shared/types";
-import { admin, asApiError } from "./api";
+import { admin, asApiError, hostsReady, siteHosts } from "./api";
 import { $, $$, fill, h, icon, ready } from "./dom";
 import { field, input, setErrors } from "./fields";
 import { num, plural } from "./format";
@@ -28,7 +28,8 @@ function cover(c: AdminCourse): HTMLElement {
 
 function row(c: AdminCourse): HTMLElement {
   const title = c.title.trim() || "Untitled course";
-  const addr = courseAddresses(c.slug);
+  const hosts = siteHosts();
+  const addr = courseAddresses(c.slug, hosts);
   const live = c.domainStatus === "active";
   const viewHref = live ? addr.subdomainUrl : addr.hubUrl;
   const contents =
@@ -51,9 +52,9 @@ function row(c: AdminCourse): HTMLElement {
         h("p", { class: "crs-meta" }, h("span", { class: "crs-price", text: `${feeLabel(c.pricePaise)} · ` }), `${FORMAT_SHORT[c.format]} · ${contents}`),
         h(
           "p",
-          { class: "crs-host", title: domainView(c.domainStatus, c.slug).help },
+          { class: "crs-host", title: domainView(c.domainStatus, c.slug, hosts).help },
           icon("link-simple"),
-          live ? addr.host : `${addr.host} · ${domainView(c.domainStatus, c.slug).label.toLowerCase()}`,
+          live ? addr.host : `${addr.host} · ${domainView(c.domainStatus, c.slug, hosts).label.toLowerCase()}`,
         ),
         h("div", { class: "crs-line" }, statusPill(c), h("span", { class: "crs-students" }, icon("users-three"), plural(c.enrollmentCount, "student"))),
       ),
@@ -80,7 +81,7 @@ export function newCourseDialog(): void {
   let slugTouched = false;
   const showHost = () => {
     const s = slug.value.trim();
-    hostNote.textContent = s && !courseSlugProblem(s) ? `Its address: ${courseAddresses(s).host}` : "Lowercase letters, digits and hyphens. It becomes the course's own web address.";
+    hostNote.textContent = s && !courseSlugProblem(s) ? `Its address: ${courseAddresses(s, siteHosts()).host}` : "Lowercase letters, digits and hyphens. It becomes the course's own web address.";
   };
   title.addEventListener("input", () => {
     if (!slugTouched) slug.value = courseSlugFrom(title.value);
@@ -198,7 +199,7 @@ ready(() => {
   const head = region.querySelector(".crs-head");
   void loadInto(
     list,
-    () => admin("GET /api/admin/courses"),
+    async () => (await Promise.all([admin("GET /api/admin/courses"), hostsReady()]))[0],
     (data) => {
       courses = data;
       head?.removeAttribute("hidden");

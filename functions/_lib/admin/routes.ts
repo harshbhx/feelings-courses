@@ -5,7 +5,7 @@
  *
  * All of them run behind functions/api/admin/_middleware.ts (session, Origin, JSON, headers).
  */
-import type { AdminBackupRunResponse } from "../../../src/shared/api.ts";
+import type { AdminBackupRunResponse, AdminMeResponse } from "../../../src/shared/api.ts";
 import { createAccessLink } from "../access-link.ts";
 import { BACKUP_PREFIX, runBackup } from "../backup.ts";
 import { issueCertificate } from "../certificates.ts";
@@ -102,7 +102,7 @@ export const passwordRoute = adminRoute({
   },
 });
 
-/** GET /api/admin/me → { ok, expiresAt, appEnv, paymentMode }. */
+/** GET /api/admin/me → { ok, expiresAt, appEnv, paymentMode, hubHost, apexDomain }. */
 export const meRoute = adminRoute({
   GET: (ctx) => {
     const cfg = config(ctx.env);
@@ -111,7 +111,10 @@ export const meRoute = adminRoute({
       expiresAt: ctx.data.admin?.expiresAt ?? 0,
       appEnv: cfg.appEnv,
       paymentMode: cfg.paymentMode ?? "not_configured",
-    });
+      // The admin shows course addresses with the same hosts the router and the domain check use.
+      hubHost: cfg.hubHost,
+      apexDomain: cfg.apexDomain,
+    } satisfies AdminMeResponse);
   },
 });
 
@@ -311,12 +314,16 @@ export const refundRoute = adminRoute({
   },
 });
 
-/** POST /api/admin/orders/:id/sync (W2's syncOrder: re-reads Razorpay) */
+/**
+ * POST /api/admin/orders/:id/sync (W2's syncOrder: re-reads Razorpay). Answers with the same
+ * AdminOrder mapping as GET /api/admin/orders/:id, so the admin's order drawer shows one shape.
+ */
 export const syncRoute = adminRoute({
   POST: async (ctx) => {
     const id = pathId(ctx.params.id);
     await getOrder(dbOf(ctx), id);
-    return json(await syncOrder(ctx.env, id));
+    await syncOrder(ctx.env, id);
+    return json(await getOrder(dbOf(ctx), id));
   },
 });
 

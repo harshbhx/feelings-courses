@@ -10,6 +10,7 @@
 import Admin from "../../../layouts/Admin.astro";
 import Icon from "../../../components/Icon.astro";
 import Field from "../../../components/admin/editor/Field.astro";
+import { DEFAULT_APEX_DOMAIN } from "../../../shared/constants";
 
 const sections = [
   { id: "sec-basics", label: "Basics" },
@@ -130,7 +131,7 @@ const sections = [
                     aria-describedby="f-slug-hint f-slug-err"
                     data-field="slug"
                   />
-                  <span class="slug-apex" aria-hidden="true">.feelingsbeautycare.in</span>
+                  <span class="slug-apex" aria-hidden="true" data-slug-apex>.{DEFAULT_APEX_DOMAIN}</span>
                 </div>
                 <p class="field-hint" id="f-slug-hint" data-slug-hint>Lowercase letters, digits and hyphens.</p>
                 <p class="field-error" id="f-slug-err"></p>

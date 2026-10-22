@@ -6,7 +6,7 @@
  *   `admin:changed` on document after a save, and the chip checks again;
  * - Sign out.
  */
-import { admin, asApiError } from "./api";
+import { admin, adminMe, asApiError } from "./api";
 import { $, $$, ready } from "./dom";
 import { CHANGED_EVENT } from "./events";
 import { busy, toast } from "./ui";
@@ -17,7 +17,7 @@ import { unixNow } from "../lib/time";
 async function session(): Promise<void> {
   const badge = $("[data-mode-badge]");
   try {
-    const me = await admin("GET /api/admin/me");
+    const me = await adminMe();
     document.documentElement.dataset.payment = me.paymentMode;
     if (!badge) return;
     const label = badge.querySelector("[data-mode-label]");

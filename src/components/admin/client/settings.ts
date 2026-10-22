@@ -1,6 +1,6 @@
-/** Settings: business details, legal confirmation, payment mode, site status, course addresses, password. */
+/** Settings: business details, legal confirmation, payment mode, site status, backups, course addresses, password. */
 import type { AdminCourse, AdminSettings, PublishStatus } from "../../../shared/types";
-import { admin, asApiError } from "./api";
+import { admin, asApiError, download, hostsReady, siteHosts } from "./api";
 import { courses } from "./course-options";
 import { $, fill, h, icon, ready } from "./dom";
 import { clearErrors, setErrors } from "./fields";
@@ -86,10 +86,50 @@ async function renderSite(): Promise<void> {
       h("dd", { text: env }),
       h("dt", { text: "Last update" }),
       h("dd", { text: settings.lastRebuildAt ? `${ago(settings.lastRebuildAt, unixNow())}` : "Not yet" }),
-      h("dt", { text: "Last backup" }),
-      h("dd", { text: settings.lastBackupAt ? istDateTime(settings.lastBackupAt) : "Not yet (runs daily once set up)" }),
     ),
     view?.action ? h("div", null, publish) : null,
+  );
+}
+
+/**
+ * Backups (W7's backup.ts through the admin's backup routes): when the last copy was made, "Back up
+ * now" (POST /api/admin/backup/run) and a download of the newest copy (GET /api/admin/backup).
+ */
+function renderBackups(): void {
+  const root = $("[data-backups]");
+  if (!root) return;
+  const last = h("p", { class: "set-mode", text: settings.lastBackupAt ? `Last copy: ${istDateTime(settings.lastBackupAt)}` : "No copy yet" });
+  const run = h("button", { type: "button", class: "btn btn-secondary" }, "Back up now");
+  run.addEventListener("click", () =>
+    void busy(run, async () => {
+      try {
+        const r = await admin("POST /api/admin/backup/run");
+        settings = { ...settings, lastBackupAt: r.at };
+        toast("Backup saved.");
+        renderBackups();
+      } catch (err) {
+        toast(describeError(asApiError(err), "the backup").message, "error");
+      }
+    }),
+  );
+  const get = h("button", { type: "button", class: "btn btn-ghost" }, icon("download-simple"), "Download the newest");
+  get.addEventListener("click", () =>
+    void busy(get, async () => {
+      try {
+        await download("/api/admin/backup", "backup.sql.gz");
+      } catch (err) {
+        toast(describeError(asApiError(err), "the backup").message, "error");
+      }
+    }),
+  );
+  fill(
+    root,
+    last,
+    h("p", {
+      class: "field-hint",
+      text: "Every course, student, payment and setting, copied to the site's storage once a day (the last 35 days are kept). Sign-in sessions are never in a copy. Keep a download somewhere safe now and then.",
+    }),
+    h("div", { class: "btn-row" }, run, get),
   );
 }
 
@@ -97,6 +137,7 @@ function renderAddresses(list: AdminCourse[]): void {
   const root = $("[data-addresses]");
   if (!root) return;
   const shown = list.filter((c) => c.status !== "archived");
+  const hosts = siteHosts();
   if (!shown.length) {
     fill(root, emptyBox({ icon: "link-simple", title: "No courses yet", text: "Each course gets its own address when you create it." }));
     return;
@@ -104,11 +145,11 @@ function renderAddresses(list: AdminCourse[]): void {
   fill(
     root,
     shown.map((c) => {
-      const v = domainView(c.domainStatus, c.slug);
+      const v = domainView(c.domainStatus, c.slug, hosts);
       return h(
         "div",
         { class: "addr-row" },
-        h("div", { class: "addr-main" }, h("strong", { text: c.title }), h("span", { class: "addr-host", text: courseAddresses(c.slug).host })),
+        h("div", { class: "addr-main" }, h("strong", { text: c.title }), h("span", { class: "addr-host", text: courseAddresses(c.slug, hosts).host })),
         h(
           "div",
           { class: "btn-row" },
@@ -210,8 +251,9 @@ ready(() => {
     const legal = $<HTMLInputElement>("[data-legal]");
     if (legal) legal.checked = settings.legalConfirmed;
     void renderSite();
-    courses()
-      .then(renderAddresses)
+    renderBackups();
+    Promise.all([courses(), hostsReady()])
+      .then(([list]) => renderAddresses(list))
       .catch(() => fill($("[data-addresses]")!, h("p", { class: "card-pad field-hint", text: "Couldn't load the courses." })));
     if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
   };

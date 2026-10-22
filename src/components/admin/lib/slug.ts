@@ -78,6 +78,18 @@ export function lessonSlugProblem(slug: string): string | null {
   return null;
 }
 
+/**
+ * The hub's host and the domain course hosts live under. The admin reads them from
+ * GET /api/admin/me (the same config(env) the router and the domain check use); the defaults are
+ * production's.
+ */
+export interface SiteHosts {
+  hubHost: string;
+  apexDomain: string;
+}
+
+export const DEFAULT_SITE_HOSTS: SiteHosts = { hubHost: DEFAULT_HUB_HOST, apexDomain: DEFAULT_APEX_DOMAIN };
+
 export interface CourseAddresses {
   /** bridal-basics.feelingsbeautycare.in */
   host: string;
@@ -88,9 +100,9 @@ export interface CourseAddresses {
 }
 
 /** Where a course lives on the web. */
-export function courseAddresses(slug: string, apex = DEFAULT_APEX_DOMAIN, hub = DEFAULT_HUB_HOST): CourseAddresses {
-  const host = `${slug}.${apex}`;
-  return { host, subdomainUrl: `https://${host}/`, hubUrl: `https://${hub}/c/${slug}` };
+export function courseAddresses(slug: string, hosts: SiteHosts = DEFAULT_SITE_HOSTS): CourseAddresses {
+  const host = `${slug}.${hosts.apexDomain}`;
+  return { host, subdomainUrl: `https://${host}/`, hubUrl: `https://${hosts.hubHost}/c/${slug}` };
 }
 
 /**

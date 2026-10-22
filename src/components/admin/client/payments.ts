@@ -1,7 +1,7 @@
 /**
  * Payments: orders list with filters, CSV export, the order drawer (refund, re-check with Razorpay),
- * and Razorpay events with Replay. Refund, sync and replay answer 501 until W2 is merged; the screens
- * say so instead of failing.
+ * and Razorpay events with Replay. Refund, sync and replay run W2's code (refundOrder, syncOrder,
+ * processWebhookEvent) through the admin API; W2 enforces the 24-hour window and the key mode again.
  */
 import type { AdminOrdersQuery, Page } from "../../../shared/api";
 import type { AdminOrder, OrderStatus, WebhookEventRow } from "../../../shared/types";

@@ -2,7 +2,8 @@
 // Settings (GET/PUT /api/admin/settings): business details printed on receipts (the GSTIN is kept
 // for the owner's records only and never shown anywhere else: owner decision), the legal pages
 // confirmation, payment mode (read only: it follows the Razorpay keys), the site's publish state,
-// each course's subdomain, and the admin password (POST /api/admin/password).
+// backups (POST /api/admin/backup/run, GET /api/admin/backup), each course's subdomain, and the
+// admin password (POST /api/admin/password).
 import Admin from "../../layouts/Admin.astro";
 import Icon from "../../components/Icon.astro";
 import Field from "../../components/admin/editor/Field.astro";
@@ -19,11 +20,11 @@ const states = [
 ].map(([value, label]) => ({ value, label: `${label} (${value})` }));
 ---
 
-<Admin title="Settings" active="settings" icons={["storefront", "link-simple", "lock-simple", "arrow-right", "seal-check", "sign-out", "list-checks", "pencil-simple"]}>
+<Admin title="Settings" active="settings" icons={["storefront", "link-simple", "lock-simple", "arrow-right", "seal-check", "sign-out", "list-checks", "pencil-simple", "download-simple"]}>
   <header class="page-head">
     <div>
       <h1 class="page-title">Settings</h1>
-      <p class="page-sub">Your business details, payments, course addresses and the admin password.</p>
+      <p class="page-sub">Your business details, payments, backups, course addresses and the admin password.</p>
     </div>
     <div class="page-actions">
       <a class="btn btn-secondary" href="/admin/activity">
@@ -132,6 +133,11 @@ const states = [
       <section class="card card-pad set-panel" aria-labelledby="h-site">
         <h2 class="card-title" id="h-site">Site</h2>
         <div data-site></div>
+      </section>
+
+      <section class="card card-pad set-panel" id="backups" aria-labelledby="h-backups">
+        <h2 class="card-title" id="h-backups">Backups</h2>
+        <div data-backups></div>
       </section>
 
       <section class="card card-pad set-panel set-signout" aria-labelledby="h-session">

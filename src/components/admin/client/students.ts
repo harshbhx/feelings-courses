@@ -1,8 +1,9 @@
 /**
  * Students: the searchable list, "Add student", and the student drawer. Everything goes through
- * W5's admin API; access links and certificates answer 501 until W3 is merged, which the drawer
- * explains instead of failing.
+ * W5's admin API; one-time sign-in links and certificates are W3's (createAccessLink, issueCertificate
+ * with the admin as the actor).
  */
+import { MAX_DEVICES_PER_STUDENT } from "../../../shared/constants";
 import type { AdminStudent, AdminStudentRow, EnrollmentSummary, Unix } from "../../../shared/types";
 import type { AdminStudentsQuery, Page } from "../../../shared/api";
 import { admin, asApiError } from "./api";
@@ -526,7 +527,7 @@ function renderStudent(s: AdminStudent): void {
           s.sessions.map((d) => h("li", { class: "sub-item" }, h("span", { class: "enr-title" }, icon("device-mobile"), " ", deviceLabel(d.userAgent)), h("span", { class: "enr-meta", text: `Last used ${ago(d.lastSeenAt, now)} · signed in ${istDate(d.createdAt)}` }))),
         )
       : h("p", { class: "field-hint", text: "Not signed in anywhere." }),
-    h("p", { class: "field-hint", text: "Up to 2 devices. Signing in on a third signs out the oldest." }),
+    h("p", { class: "field-hint", text: `Up to ${MAX_DEVICES_PER_STUDENT} devices. Signing in on another signs out the oldest.` }),
     !s.erasedAt
       ? h(
           "div",

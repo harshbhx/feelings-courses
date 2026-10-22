@@ -4,7 +4,7 @@
  * own. Leaving with unsaved changes (or an upload running) asks first.
  */
 import type { AdminCourse, CourseFormat } from "../../../shared/types";
-import { admin, asApiError } from "../client/api";
+import { admin, asApiError, hostsReady, siteHosts } from "../client/api";
 import { $, $$, fill, h, icon, ready, reducedMotion } from "../client/dom";
 import { clearErrors, setErrors } from "../client/fields";
 import { notifyChanged } from "../client/events";
@@ -172,7 +172,7 @@ function renderHeader(): void {
   const heading = $("[data-ed-heading]");
   if (heading) heading.textContent = course.title || "Untitled course";
   document.title = `${course.title || "Course"} · Course admin · Feelings Beauty Care`;
-  const addr = courseAddresses(course.slug);
+  const addr = courseAddresses(course.slug, siteHosts());
   const view = $<HTMLAnchorElement>("[data-view-link]");
   if (view) {
     view.href = course.domainStatus === "active" ? addr.subdomainUrl : addr.hubUrl;
@@ -232,8 +232,11 @@ function syncFormat(): void {
 // ---------------------------------------------------------------- web address
 
 function renderAddress(probe?: string): void {
-  const addr = courseAddresses(course.slug);
-  const view = domainView(course.domainStatus, course.slug);
+  const hosts = siteHosts();
+  const addr = courseAddresses(course.slug, hosts);
+  const view = domainView(course.domainStatus, course.slug, hosts);
+  const apex = $("[data-slug-apex]");
+  if (apex) apex.textContent = `.${hosts.apexDomain}`;
   const pill = $("[data-domain-pill]");
   if (pill) {
     pill.textContent = view.label;
@@ -264,7 +267,7 @@ function renderAddress(probe?: string): void {
   if (steps) {
     fill(
       steps,
-      domainSteps(course.slug).map((s) =>
+      domainSteps(course.slug, hosts).map((s) =>
         h(
           "li",
           null,
@@ -535,7 +538,7 @@ async function save(button: HTMLButtonElement | null): Promise<void> {
   if (diff.slug !== undefined && course.domainStatus !== "none") {
     const ok = await confirmDialog({
       title: "Change the web address?",
-      body: `The new address needs its own subdomain in Cloudflare. ${courseAddresses(course.slug).host} stops being this course's address.`,
+      body: `The new address needs its own subdomain in Cloudflare. ${courseAddresses(course.slug, siteHosts()).host} stops being this course's address.`,
       confirm: "Change it",
     });
     if (!ok) return;
@@ -630,7 +633,7 @@ function wire(): void {
     }
     const hint = $("[data-slug-hint]");
     const problem = courseSlugProblem(tidy);
-    if (hint && !course.slugLocked) hint.textContent = problem ?? `New address: ${courseAddresses(tidy).host}`;
+    if (hint && !course.slugLocked) hint.textContent = problem ?? `New address: ${courseAddresses(tidy, siteHosts()).host}`;
   });
   $<HTMLFormElement>("[data-form]")?.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -679,7 +682,7 @@ ready(() => {
     fill(loading, skeleton(4, "block"), h("p", { class: "visually-hidden", text: "Loading the course…" }));
     loading.setAttribute("aria-busy", "true");
     try {
-      course = await admin("GET /api/admin/courses/:id", { id });
+      [course] = await Promise.all([admin("GET /api/admin/courses/:id", { id }), hostsReady()]);
     } catch (err) {
       loading.removeAttribute("aria-busy");
       const e = asApiError(err);
