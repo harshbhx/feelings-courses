@@ -92,6 +92,7 @@ export type ApiErrorCode =
   | "no_match"
   | "token_invalid"
   | "course_incomplete"
+  | "no_certificate"
   // admin (W5)
   | "admin_locked"
   | "wrong_password"

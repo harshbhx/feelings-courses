@@ -128,7 +128,9 @@ ${course.modules.map(
   </ol>
 </section>`,
 )}`
-    : html`<section class="card"><p>The recorded lessons for this course will appear here.</p></section>`
+    : course.course.format === "in_person"
+      ? html``
+      : html`<section class="card"><p>The recorded lessons for this course will appear here.</p></section>`
 }
 ${certificateCard(course)}`,
   );

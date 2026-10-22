@@ -321,3 +321,12 @@ test("coursePath and learnSegments agree on what is the course area", () => {
   assert.equal(learnSegments("/learn/a/b/c"), null);
   assert.equal(learnSegments("/learn/<x>"), null);
 });
+
+test("before setup (no D1): the account pages say so instead of failing", async () => {
+  for (const handler of [handleSignin, handleAccount, handleContinue, handleLogout]) {
+    const get = await handler(req("/signin"), {}, NOW);
+    assert.equal(get.status, 503);
+    const post = await handler(postForm("/signin", { contact: "9876543210", paymentId: ASHA.payment }), {}, NOW);
+    assert.equal(post.status, 503);
+  }
+});

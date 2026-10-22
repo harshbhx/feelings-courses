@@ -6,8 +6,9 @@ import { MAX_DEVICES_PER_STUDENT } from "../../../src/shared/constants.ts";
 import type { EnrollmentSummary, OrderSummary, Student, StudentSession } from "../../../src/shared/types.ts";
 import { unixNow } from "../db/d1.ts";
 import { ValidationError } from "../db/errors.ts";
-import type { Env } from "../env.ts";
+import { hasDb, type Env } from "../env.ts";
 import { readForm } from "../http.ts";
+import { notSetUp } from "./auth.ts";
 import { listEnrollments } from "../learn.ts";
 import { clearSessionCookie, readSession, revokeSession } from "../session.ts";
 import { deviceLabel, getStudent, listOrders, listSessions, updateStudent } from "../students.ts";
@@ -149,6 +150,7 @@ ${formError ? html`<p class="alert" role="alert">${formError}</p>` : ""}
 
 export async function handleAccount(request: Request, env: Env, now = unixNow()): Promise<Response> {
   const business = await loadBusiness(env.DB ?? null);
+  if (!hasDb(env)) return notSetUp(business);
   const session = await readSession(env, request, now);
   if (!session) {
     if (request.method === "POST") return pageRedirect("/signin?next=/account");

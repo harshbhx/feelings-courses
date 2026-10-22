@@ -12,7 +12,7 @@ import { LEGACY_ENROLL_COOKIE } from "../config.ts";
 import { writeAudit } from "../db/audit.ts";
 import { unixNow } from "../db/d1.ts";
 import { ValidationError } from "../db/errors.ts";
-import type { Env } from "../env.ts";
+import { hasDb, type Env } from "../env.ts";
 import { readForm } from "../http.ts";
 import { restoreAccess } from "../restore.ts";
 import {
@@ -96,8 +96,17 @@ function signinForm(business: Business, state: SigninState): Raw {
   );
 }
 
+/** Before the owner runs setup there is no D1, so no accounts: say so instead of failing. */
+export function notSetUp(business: Business): Response {
+  return page(
+    messagePage({ title: "Not available yet", business }, "Not available yet", "Student accounts aren't set up on this site yet."),
+    503,
+  );
+}
+
 export async function handleSignin(request: Request, env: Env, now = unixNow()): Promise<Response> {
   const business = await loadBusiness(env.DB ?? null);
+  if (!hasDb(env)) return notSetUp(business);
   const url = new URL(request.url);
   if (request.method === "GET" || request.method === "HEAD") {
     const next = nextPath(url.searchParams.get("next"));
@@ -201,7 +210,7 @@ async function signInWithToken(request: Request, env: Env, token: unknown, now: 
 
 export async function handleContinue(request: Request, env: Env, now = unixNow()): Promise<Response> {
   const business = await loadBusiness(env.DB ?? null);
-  if (!env.DB) return expiredLink(business);
+  if (!hasDb(env)) return notSetUp(business);
   if (request.method === "GET" || request.method === "HEAD") {
     const token = new URL(request.url).searchParams.get("t");
     const purpose = await peekLoginToken(env.DB, token, now);
@@ -220,6 +229,7 @@ export async function handleContinue(request: Request, env: Env, now = unixNow()
 
 export async function handleLogout(request: Request, env: Env, now = unixNow()): Promise<Response> {
   const business = await loadBusiness(env.DB ?? null);
+  if (!hasDb(env)) return notSetUp(business);
   if (request.method === "POST") {
     if (!formFromSameSite(request)) return crossSite(business);
     const session = await readSession(env, request, now);
