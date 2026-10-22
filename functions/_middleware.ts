@@ -1,5 +1,7 @@
 // Runs for every request. The order (plan W0):
 //
+//   0. screen       refuse obviously bad requests (odd methods, huge URLs or bodies, NUL bytes) before
+//                   any work (functions/_lib/abuse.ts, W7).
 //   1. migrate      when the D1 binding exists, bring the database up to date (once per isolate,
 //                   functions/_lib/migrate.ts). Without a DB (before the owner runs setup) it is
 //                   skipped, so the demo keeps working exactly as before.
@@ -14,13 +16,16 @@
 // Being at the root, it makes the whole site run through Functions (_routes.json becomes "/*").
 // public/_routes.json (W1) keeps hashed assets and icons out of Functions.
 import { siteMiddleware } from "./learn/_gate";
+import { screenRequest } from "./_lib/abuse.ts";
 import { hasDb, type Env } from "./_lib/env.ts";
-import { hostRouting, type MiddlewareContext } from "./_lib/hosts.ts";
+import { finish, hostRouting, type MiddlewareContext } from "./_lib/hosts.ts";
 import { ensureMigrated } from "./_lib/migrate.ts";
 
 /** The composition. Tests call onRequest with a fake context (tests/foundation/middleware.test.mjs). */
 async function rootMiddleware(context: MiddlewareContext): Promise<Response> {
   const { env } = context;
+  const refused = screenRequest(context.request);
+  if (refused) return finish(refused);
   if (hasDb(env)) {
     try {
       await ensureMigrated(env.DB);
