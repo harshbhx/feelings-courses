@@ -1,603 +1,76 @@
 ---
-// Coupons (DEMO): make a code per reel or influencer, see its uses and revenue, switch it on or
-// off, edit or delete it. Codes are saved in this browser by src/lib/demo-store.ts; uses and
-// revenue come from the example payments (src/lib/demo-store-coupons.ts). The list is built by
-// src/components/admin/coupons/coupons.ts.
+// Coupons: every code (GET /api/admin/coupons) with its discount, course, uses and dates; switch a
+// code on or off in place, create and edit in a drawer, delete a code nobody has used. Prices are
+// always worked out on the server at checkout (W2); this screen only manages the codes.
 import Admin from "../../layouts/Admin.astro";
 import Icon from "../../components/Icon.astro";
-import CouponDrawer from "../../components/admin/coupons/CouponDrawer.astro";
 ---
 
-<Admin title="Coupons" active="coupons" icons={["copy", "pencil-simple", "trash", "trend-up", "ticket", "plus"]}>
+<Admin title="Coupons" active="coupons" icons={["copy", "pencil-simple", "trash", "ticket", "plus", "percent", "currency-inr"]}>
   <header class="page-head">
     <div>
       <h1 class="page-title">Coupons</h1>
-      <p class="page-sub">Discount codes for your reels, stories and collaborations, and how much each one sells.</p>
-      <p class="demo-note">
-        <Icon name="info" />
-        Example codes and sales (demo data). No real discount is given.
-      </p>
+      <p class="page-sub">Discount codes for your reels, stories and collaborations. One code per reel shows which one sells.</p>
     </div>
     <div class="page-actions">
-      <button class="btn btn-primary" type="button" data-cpn-new>
+      <button class="btn btn-primary" type="button" data-new>
         <Icon name="plus" />
         New coupon
       </button>
     </div>
   </header>
 
-  <section class="cpn-kpis" aria-label="Coupon results (demo data)">
-    <article class="card cpn-kpi">
-      <h2 class="cpn-kpi-label">Revenue with a code</h2>
-      <p class="cpn-kpi-value num" data-k="revenue">&nbsp;</p>
-      <p class="cpn-kpi-meta" data-k="revenue-meta">&nbsp;</p>
-    </article>
-    <article class="card cpn-kpi">
-      <h2 class="cpn-kpi-label">Codes running</h2>
-      <p class="cpn-kpi-value num" data-k="running">&nbsp;</p>
-      <p class="cpn-kpi-meta" data-k="running-meta">&nbsp;</p>
-    </article>
-    <article class="card cpn-kpi">
-      <h2 class="cpn-kpi-label">Top code</h2>
-      <p class="cpn-kpi-value cpn-kpi-code" data-k="top">&nbsp;</p>
-      <p class="cpn-kpi-meta" data-k="top-meta">&nbsp;</p>
-    </article>
+  <div class="toolbar">
+    <div class="segmented" role="group" aria-label="Show">
+      <button type="button" aria-pressed="true" data-filter="all">All <span data-n="all"></span></button>
+      <button type="button" aria-pressed="false" data-filter="active">Running <span data-n="active"></span></button>
+      <button type="button" aria-pressed="false" data-filter="stopped">Stopped <span data-n="stopped"></span></button>
+    </div>
+  </div>
+
+  <section class="card" aria-labelledby="cpn-title">
+    <h2 class="visually-hidden" id="cpn-title">Your codes</h2>
+    <div data-region></div>
   </section>
-
-  <aside class="cpn-tip" aria-labelledby="cpn-tip-title">
-    <span class="cpn-tip-ic"><Icon name="sparkle" /></span>
-    <div class="cpn-tip-text">
-      <p class="cpn-tip-title" id="cpn-tip-title">Use one code per reel or influencer to see which one sells.</p>
-      <p>Put a fresh code in each reel's caption or give one to each creator. This list then counts the sales from each.</p>
-    </div>
-    <button class="btn btn-secondary cpn-tip-btn" type="button" data-cpn-reel>
-      <Icon name="plus" />
-      <span data-cpn-reel-label>Make REEL4</span>
-    </button>
-  </aside>
-
-  <section class="card cpn-card" aria-labelledby="cpn-list-title">
-    <div class="card-head cpn-card-head">
-      <div>
-        <h2 class="card-title" id="cpn-list-title">Your codes</h2>
-        <p class="card-sub" aria-live="polite" data-cpn-count>&nbsp;</p>
-      </div>
-      <div class="segmented cpn-filter" role="group" aria-label="Show">
-        <button type="button" aria-pressed="true" data-cpn-filter="all">All <span class="cpn-n" data-n="all"></span></button>
-        <button type="button" aria-pressed="false" data-cpn-filter="running">Running <span class="cpn-n" data-n="running"></span></button>
-        <button type="button" aria-pressed="false" data-cpn-filter="stopped">Stopped <span class="cpn-n" data-n="stopped"></span></button>
-      </div>
-    </div>
-    <div class="rows-head cpn-cols" aria-hidden="true">
-      <span>Code</span>
-      <span class="cpn-cols-stats"><span>Uses</span><span>Revenue</span><span>Last day</span></span>
-      <span>On</span>
-      <span></span>
-    </div>
-    <ul class="rows cpn-rows" data-cpn-list>
-      <li class="cpn-skel" aria-hidden="true"><span></span><span></span></li>
-      <li class="cpn-skel" aria-hidden="true"><span></span><span></span></li>
-      <li class="cpn-skel" aria-hidden="true"><span></span><span></span></li>
-    </ul>
-    <noscript><p class="empty">The coupon list needs JavaScript.</p></noscript>
-  </section>
-
-  <CouponDrawer />
 </Admin>
 
 <script>
-  import "../../components/admin/coupons/coupons";
+  import "../../components/admin/client/coupons";
 </script>
 
 <style is:global>
-  /* [hidden] must win over the display of shared classes (.notice, .error-summary, .btn). */
-  .admin [hidden] {
-    display: none !important;
-  }
-
-  /* ── Results ── */
-  .cpn-kpis {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-3);
-    margin-bottom: var(--space-4);
-  }
-
-  .cpn-kpi {
-    display: grid;
-    align-content: start;
-    gap: var(--space-1);
-    min-width: 0;
-    padding: var(--space-4);
-  }
-
-  /* Phones: revenue gets the full width, the other two share a row. */
-  .cpn-kpi:first-child {
-    grid-column: 1 / -1;
-  }
-
-  .cpn-kpi-label {
+  .segmented [data-n] {
     color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-strong);
-    letter-spacing: 0;
-    line-height: 1.3;
+    font-weight: var(--weight-ui);
+    font-variant-numeric: tabular-nums;
   }
 
-  .cpn-kpi-value {
+  .cpn-code {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
     color: var(--text);
-    font-size: clamp(1.375rem, 1.1rem + 1.2vw, 2rem);
-    font-weight: var(--weight-display);
-    letter-spacing: -0.03em;
-    line-height: 1.15;
-    overflow-wrap: anywhere;
-  }
-
-  /* Codes are long words: a size that keeps LAUNCH500 on one line in a half-width phone tile. */
-  .cpn-kpi-code {
-    font-size: clamp(1.125rem, 0.85rem + 1.3vw, 2rem);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-weight: var(--weight-strong);
     letter-spacing: 0.02em;
   }
 
-  .cpn-kpi-meta {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-ui);
-    line-height: 1.35;
-  }
-
-  @media (min-width: 40rem) {
-    .cpn-kpis {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .cpn-kpi:first-child {
-      grid-column: auto;
-    }
-  }
-
-  @media (min-width: 64rem) {
-    .cpn-kpis {
-      gap: var(--space-4);
-      margin-bottom: var(--space-5);
-    }
-
-    .cpn-kpi {
-      gap: var(--space-2);
-      padding: var(--space-5);
-    }
-  }
-
-  /* ── Tip ── */
-  .cpn-tip {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--space-3) var(--space-4);
-    align-items: start;
-    margin-bottom: var(--space-4);
-    padding: var(--space-4);
-    border-radius: var(--radius-md);
-    background: var(--bg-tint);
-    color: var(--text-body);
-  }
-
-  .cpn-tip-ic {
-    display: grid;
-    place-items: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 50%;
-    background: var(--bg);
-    color: var(--maroon-800);
-  }
-
-  .cpn-tip-text {
-    display: grid;
-    gap: var(--space-1);
-  }
-
-  .cpn-tip-title {
-    color: var(--text);
-    font-size: var(--text-base);
-    font-weight: var(--weight-strong);
-    line-height: 1.35;
-    letter-spacing: -0.01em;
-  }
-
-  .cpn-tip-btn {
-    grid-column: 1 / -1;
-    justify-self: start;
-  }
-
-  @media (max-width: 30rem) {
-    .cpn-tip-btn {
-      justify-self: stretch;
-    }
-  }
-
-  @media (min-width: 48rem) {
-    .cpn-tip {
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      align-items: center;
-      padding: var(--space-4) var(--space-5);
-    }
-
-    .cpn-tip-btn {
-      grid-column: auto;
-    }
-  }
-
-  @media (min-width: 64rem) {
-    .cpn-tip {
-      margin-bottom: var(--space-5);
-    }
-  }
-
-  /* ── List ── */
-  .cpn-card-head {
-    flex-wrap: wrap;
-  }
-
-  .cpn-filter button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  .cpn-n {
-    color: var(--text-muted);
-    font-weight: var(--weight-ui);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .cpn-n:empty {
-    display: none;
-  }
-
-  @media (max-width: 30rem) {
-    .admin .cpn-filter {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      width: 100%;
-    }
-
-    .admin .cpn-filter button {
-      justify-content: center;
-      padding: 0 0.5rem;
-    }
-  }
-
-  /* One coupon. Phones and tablets: a stacked card; from 64rem: a table row. */
-  .cpn-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "id toggle"
-      "stats stats"
-      "actions actions";
-    gap: var(--space-3) var(--space-3);
-    padding: var(--space-4) var(--card-pad);
-  }
-
-  .cpn-id {
-    grid-area: id;
-    display: grid;
-    gap: var(--space-2);
-    min-width: 0;
-  }
-
-  .cpn-codeline {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-1) var(--space-2);
-    min-width: 0;
-  }
-
-  /* The signature detail: each code drawn as a small ticket stub, as buyers will type it. */
-  .cpn-code {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    max-width: 100%;
-    padding: 0.3rem 0.8rem;
-    border: 1.5px dashed var(--border-control);
-    border-radius: var(--radius-sm);
-    background: var(--bg-soft);
-    color: var(--text);
-    font-size: var(--text-base);
-    font-weight: var(--weight-display);
-    letter-spacing: 0.06em;
-    line-height: 1.3;
-    overflow-wrap: anywhere;
-    user-select: all;
-  }
-
-  .cpn-code::before,
-  .cpn-code::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    width: 0.5rem;
-    height: 0.5rem;
-    border: 1.5px dashed var(--border-control);
-    border-radius: 50%;
-    background: var(--bg);
-    transform: translateY(-50%);
-    clip-path: inset(0 0 0 50%);
-  }
-
-  .cpn-code::before {
-    left: -0.3rem;
-  }
-
-  .cpn-code::after {
-    right: -0.3rem;
-    clip-path: inset(0 50% 0 0);
-  }
-
-  .is-stopped .cpn-code {
-    color: var(--text-muted);
-  }
-
-  .cpn-copy {
-    width: 2.75rem;
-    height: 2.75rem;
-    margin: -0.5rem 0;
-  }
-
-  .cpn-copy .icon {
-    width: 1.1rem;
-    height: 1.1rem;
-  }
-
-  .cpn-top {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.15rem 0.55rem;
-    border-radius: var(--radius-pill);
-    background: var(--bg-tint);
-    color: var(--maroon-800);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-strong);
-    white-space: nowrap;
-  }
-
-  .cpn-top .icon {
-    width: 0.95rem;
-    height: 0.95rem;
-  }
-
-  .cpn-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-1) var(--space-2);
-    color: var(--text-body);
-    font-weight: var(--weight-ui);
-    line-height: 1.4;
-  }
-
-  .cpn-meta .cpn-off {
-    color: var(--text);
-    font-weight: var(--weight-strong);
-  }
-
-  /* The dot travels with the course name, so a wrap never leaves it dangling. */
-  .cpn-meta .cpn-course {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .cpn-meta .cpn-course::before {
-    content: "·";
-    margin-right: var(--space-2);
-    color: var(--border-control);
-  }
-
-  .cpn-state.is-expired,
-  .cpn-state.is-used-up {
-    border-color: var(--maroon-800);
-    color: var(--maroon-800);
-  }
-
-  .cpn-state.is-expired::before,
-  .cpn-state.is-used-up::before {
-    border-color: var(--maroon-800);
-  }
-
-  .cpn-toggle {
-    grid-area: toggle;
-    align-self: start;
-    margin: -0.35rem -0.25rem 0 0;
-  }
-
-  .cpn-stats {
-    grid-area: stats;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-3);
-    margin: 0;
-    padding: var(--space-3);
-    border-radius: var(--radius-sm);
-    background: var(--bg-soft);
-  }
-
-  .cpn-stat {
-    display: grid;
-    align-content: start;
-    gap: 0.15rem;
-    min-width: 0;
-  }
-
-  .cpn-stat dd {
-    display: grid;
-    gap: 0.2rem;
-    margin: 0;
-    min-width: 0;
-  }
-
-  .cpn-stat strong {
-    color: var(--text);
-    font-size: var(--text-base);
-    font-weight: var(--weight-strong);
-    font-variant-numeric: tabular-nums;
-    line-height: 1.25;
-    overflow-wrap: anywhere;
-  }
-
-  .cpn-stat strong small {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-ui);
-  }
-
-  .cpn-sub {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-ui);
-    line-height: 1.3;
-  }
-
-  .cpn-sub.is-soon {
-    color: var(--maroon-800);
-    font-weight: var(--weight-strong);
-  }
-
-  .cpn-stat .meter {
-    margin-top: 0.15rem;
-    max-width: 7rem;
-  }
-
   .cpn-actions {
-    grid-area: actions;
     display: flex;
     justify-content: flex-end;
     gap: var(--space-1);
-    margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) calc(var(--space-2) * -1) 0;
   }
 
-  .cpn-actions .btn {
-    padding-inline: 0.85rem;
-  }
-
-  .cpn-del:hover {
-    color: var(--accent);
-  }
-
-  /* A just-saved coupon blinks its background once. Reduced motion: no blink. */
-  @media (prefers-reduced-motion: no-preference) {
-    .cpn-row.is-fresh {
-      animation: cpn-fresh 1600ms var(--ease-out);
-    }
-
-    @keyframes cpn-fresh {
-      from,
-      30% {
-        background-color: var(--bg-tint);
-      }
-    }
-  }
-
-  @media (min-width: 64rem) {
-    .admin .cpn-cols,
-    .cpn-row {
-      grid-template-columns: minmax(0, 1.5fr) minmax(0, 2.6fr) 3.5rem 6rem;
-      column-gap: var(--space-4);
-    }
-
-    .admin .cpn-card .cpn-cols {
-      display: grid;
-      align-items: center;
-      padding: var(--space-3) var(--card-pad);
-      border-bottom: 1px solid var(--border);
-      color: var(--text-muted);
-      font-size: var(--text-xs);
-      font-weight: var(--weight-strong);
-    }
-
-    .cpn-cols-stats {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--space-3);
-      padding-inline: var(--space-3);
-    }
-
-    .cpn-row {
-      grid-template-areas: "id stats toggle actions";
-      align-items: center;
-    }
-
-    .cpn-stats {
-      padding-block: 0;
-      background: none;
-    }
-
-    .cpn-stat .cell-label {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-    }
-
-    .cpn-toggle {
-      align-self: center;
-      margin: 0;
-    }
-
-    .cpn-actions {
-      margin: 0;
-      gap: 0;
-    }
-
-    /* Icon buttons here; their names come from aria-label. */
-    .admin .cpn-actions .btn {
-      width: 2.75rem;
-      padding: 0;
-      border-radius: 50%;
-    }
-
-    .cpn-actions .btn > span {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-    }
-  }
-
-  /* While the list loads (a moment). No shimmer: it's gone before it could move. */
-  .cpn-skel {
-    display: grid;
+  .cpn-on {
+    display: inline-flex;
+    align-items: center;
     gap: var(--space-2);
-    padding: var(--space-4) var(--card-pad);
   }
 
-  .cpn-skel span {
-    display: block;
-    width: 8rem;
-    height: 1.75rem;
-    border-radius: var(--radius-sm);
-    background: var(--bg-soft);
-  }
-
-  .cpn-skel span + span {
-    width: min(100%, 16rem);
-    height: 0.9rem;
-  }
-
-  .cpn-empty .btn {
-    margin-top: var(--space-2);
-  }
-
-  @media (forced-colors: active) {
-    .cpn-code::before,
-    .cpn-code::after {
-      display: none;
+  @media (max-width: 47.99rem) {
+    .cpn-actions {
+      grid-column: 1 / -1;
+      justify-content: flex-start;
     }
   }
 </style>
