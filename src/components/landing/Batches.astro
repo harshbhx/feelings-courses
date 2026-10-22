@@ -1,0 +1,137 @@
+---
+/**
+ * Studio batches (#batches) for in-person and hybrid courses: the open batches from the snapshot,
+ * soonest first, with dates, schedule, price (a batch may have its own) and seats left. A full
+ * batch stays listed, marked Full, so the visitor sees when the next one is.
+ *
+ * Seats are as of the last build; the checkout re-checks them on the server (W2), so this list
+ * never promises a seat. Without open batches the section says so and offers WhatsApp.
+ */
+import Icon from "../Icon.astro";
+import { site } from "../../data/site";
+import { whatsappLink } from "../../lib/whatsapp";
+import { batchDates, formatInr, seatsLabel, type CourseView } from "../../lib/course-view";
+
+interface Props {
+  view: CourseView;
+}
+
+const { view } = Astro.props;
+const { course } = view;
+const ask = whatsappLink(`Hi ${view.teacherFirstName}, when is the next batch of the ${course.title}?`);
+---
+
+<section class="section batches" id="batches" aria-labelledby="batches-title">
+  <div class="container">
+    <div class="section-head" data-reveal>
+      <h2 id="batches-title">Batch dates<span class="bindi" aria-hidden="true"></span></h2>
+      <p class="lead">Classes at {site.name}, {site.address.city}. Pick a batch when you book.</p>
+    </div>
+
+    {
+      course.batches.length > 0 ? (
+        <ul class="batch-list" data-reveal="stagger">
+          {course.batches.map((b, i) => {
+            const seats = seatsLabel(b);
+            return (
+              <li class:list={["batch", { "is-full": b.seatsLeft === 0 }]} style={`--i: ${i}`}>
+                <span class="batch-title">{b.title}</span>
+                <span class="batch-dates">
+                  <Icon name="calendar-blank" />
+                  {batchDates(b)}
+                </span>
+                {b.scheduleText && (
+                  <span class="batch-schedule">
+                    <Icon name="clock" />
+                    {b.scheduleText}
+                  </span>
+                )}
+                <span class="batch-foot">
+                  <span class="batch-price">{formatInr(b.pricePaise ?? course.pricePaise)}</span>
+                  {seats && <span class="batch-seats">{seats}</span>}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p class="batch-none" data-reveal>
+          No batch is open for booking right now.{" "}
+          <a href={ask} target="_blank" rel="noopener">
+            Ask about the next one on WhatsApp
+          </a>
+          .
+        </p>
+      )
+    }
+  </div>
+</section>
+
+<style>
+  .batch-list {
+    display: grid;
+    gap: var(--space-4);
+    margin: var(--space-6) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  @media (min-width: 48rem) {
+    .batch-list {
+      grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    }
+  }
+
+  .batch {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg);
+  }
+
+  .batch-title {
+    color: var(--text);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-strong);
+    line-height: var(--leading-snug);
+  }
+
+  .batch-dates,
+  .batch-schedule {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: center;
+    color: var(--text-body);
+  }
+
+  .batch-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: baseline;
+    justify-content: space-between;
+    margin-top: var(--space-2);
+  }
+
+  .batch-price {
+    color: var(--text);
+    font-weight: var(--weight-strong);
+  }
+
+  .batch-seats {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  .is-full .batch-seats {
+    color: var(--accent);
+    font-weight: var(--weight-ui);
+  }
+
+  .batch-none {
+    margin-top: var(--space-5);
+    color: var(--text-body);
+  }
+</style>

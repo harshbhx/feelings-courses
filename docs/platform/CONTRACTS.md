@@ -132,7 +132,7 @@ Tables, and the workstream that writes them (others only read):
 
 | Module | Signature | Owner | Called by |
 |---|---|---|---|
-| `hosts.ts` | `hostRouting(context, next)`. Passes through today. | W1 | `_middleware.ts` |
+| `hosts.ts` | `hostRouting(context, next)`. Filled by W1 (docs/platform/HOSTS.md). | W1 | `_middleware.ts` |
 | `snapshot.ts` | `buildSnapshot(env): Promise<Snapshot>` | W1 | `/api/public/snapshot` |
 | `session.ts` | `createSession(db, studentId, request) → { cookie }`; `readSession(env, request) → SessionRef \| null`; `issueLoginToken(db, studentId, purpose, redirectPath) → raw token`; `requireEnrollment(env, request, courseSlug) → EnrollmentRef \| null` | W3 | W2 (handoff), W4, W5 (access link) |
 | `certificates.ts` | `issueCertificate(env, { studentId, courseId, name }) → Certificate` | W3 | W3, W5 |

@@ -195,12 +195,14 @@ export interface FinishOptions {
 
 /**
  * A mutable copy of `response` with the security headers, never overwriting a header the response
- * already set (except X-Robots-Tag, which only ever gets stricter).
+ * already set, except where the result is stricter (X-Robots-Tag, X-Frame-Options on private paths).
  */
 export function finish(response: Response, options: FinishOptions = {}): Response {
   // Responses from fetch() or ASSETS have immutable headers: copy before changing anything.
   const copy = new Response(NULL_BODY.has(response.status) ? null : response.body, response);
   const headers = copy.headers;
+  // Private areas are never framed, even when a static rule already said SAMEORIGIN.
+  if (options.private) headers.set("X-Frame-Options", "DENY");
   securityHeaders(headers, { frameDeny: options.private });
   if (options.noindex) headers.set("X-Robots-Tag", "noindex, nofollow");
   const type = headers.get("Content-Type") ?? "";

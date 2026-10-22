@@ -114,6 +114,12 @@ test("hub: private areas are never framed or indexed", async () => {
   assert.match(res.headers.get("Content-Security-Policy"), /frame-ancestors 'none'/);
 });
 
+test("hub: a static SAMEORIGIN on a private page becomes DENY", async () => {
+  const next = async () => new Response("<p>x</p>", { headers: { "Content-Type": "text/html", "X-Frame-Options": "SAMEORIGIN" } });
+  const { res } = await route(req("/admin"), { next });
+  assert.equal(res.headers.get("X-Frame-Options"), "DENY");
+});
+
 test("hub: an existing CSP and other headers are kept", async () => {
   const next = async () =>
     new Response("<p>x</p>", { headers: { "Content-Type": "text/html", "Content-Security-Policy": "default-src 'self'", "X-Frame-Options": "DENY" } });

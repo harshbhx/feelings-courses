@@ -11,8 +11,15 @@ import { getImage } from "astro:assets";
 import Icon from "../Icon.astro";
 import urmi from "../../assets/photos/urmi-mengar.webp";
 import { site } from "../../data/site";
-import { course } from "../../data/course";
-import { ratingCount, ratingMonth, teacherFirstName as firstName } from "./facts";
+import { ratingCount, ratingMonth } from "./facts";
+
+interface Props {
+  /** The course's teacher, as the admin entered it. */
+  teacher: string;
+}
+
+const { teacher } = Astro.props;
+const firstName = teacher.split(" ")[0];
 
 const sizes = "(min-width: 56rem) min(36vw, 28rem), min(80vw, 20rem)";
 const widths = [320, 480, 640, 960];
@@ -27,7 +34,7 @@ const [avif, webp] = await Promise.all([
     <div class="teacher-body" data-reveal>
       <h2 id="teacher-title">Your teacher, {firstName}<span class="bindi" aria-hidden="true"></span></h2>
       <p class="lead">
-        {course.teacher} runs {site.name} in {site.address.city}: a ladies’ parlour, bridal studio and makeup academy. She teaches
+        {teacher} runs {site.name} in {site.address.city}: a ladies’ parlour, bridal studio and makeup academy. She teaches
         this course herself.
       </p>
 
@@ -67,7 +74,7 @@ const [avif, webp] = await Promise.all([
           sizes={sizes}
           width={urmi.width}
           height={urmi.height}
-          alt={`${course.teacher}, founder of ${site.name}`}
+          alt={`${teacher}, founder of ${site.name}`}
           loading="lazy"
           decoding="async"
         />

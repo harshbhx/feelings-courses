@@ -13,11 +13,16 @@
  */
 import Icon from "../Icon.astro";
 import Reel from "./Reel.astro";
-import { course } from "../../data/course";
 import { site } from "../../data/site";
-import { teacherFirstName } from "./facts";
+import type { PublicCourse } from "../../shared/types";
 
-const clips = course.glimpses.slice(1);
+interface Props {
+  course: PublicCourse;
+}
+
+const { course } = Astro.props;
+const teacherFirstName = course.teacher.split(" ")[0];
+const clips = course.details.glimpses.slice(1);
 ---
 
 {
@@ -46,7 +51,7 @@ const clips = course.glimpses.slice(1);
         <ul class="rail" id="glimpses-rail" data-rail data-reveal="stagger">
           {clips.map((clip, i) => (
             <li class="rail-item" style={`--i: ${i}`}>
-              <Reel id={clip.id} label={clip.label} caption sizes="(min-width: 64rem) 15rem, (min-width: 48rem) 13.5rem, 58vw" widths={[270, 360, 450, 540]} />
+              <Reel id={clip.youtubeId} label={clip.label} caption sizes="(min-width: 64rem) 15rem, (min-width: 48rem) 13.5rem, 58vw" widths={[270, 360, 450, 540]} />
             </li>
           ))}
         </ul>
