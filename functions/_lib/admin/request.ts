@@ -89,9 +89,17 @@ export function pathId(value: string | string[] | undefined): number {
   return Number(raw);
 }
 
+/**
+ * Larger body caps than the API's 16 KB default, where the schema allows long text: a course
+ * (description up to 20,000 characters, details JSON up to 50,000) and a whole outline (up to 300
+ * lessons with notes).
+ */
+export const COURSE_BODY_BYTES = 128 * 1024;
+export const OUTLINE_BODY_BYTES = 512 * 1024;
+
 /** The JSON object body, or a thrown 400 / 413 response. */
-export async function body(ctx: AdminContext): Promise<Record<string, unknown>> {
-  const result = await readJson(ctx.request);
+export async function body(ctx: AdminContext, maxBytes?: number): Promise<Record<string, unknown>> {
+  const result = await readJson(ctx.request, maxBytes);
   if (!result.ok) throw new ResponseError(result.response);
   return result.value;
 }

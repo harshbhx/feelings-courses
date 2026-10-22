@@ -65,7 +65,7 @@ export function addStudentRow(db, { name = "Riya Shah", phone = "+919876543210",
 }
 
 /** Inserts a paid order (and its enrollment) and returns the order id. */
-export function addPaidOrder(db, { studentId, courseId = 1, amount = 299_900, paidAt = 1_760_000_100, mode = "live", payId, batchId = null } = {}) {
+export function addPaidOrder(db, { studentId, courseId = 1, amount = 299_900, paidAt = Math.floor(Date.now() / 1000) - 3600, mode = "live", payId, batchId = null } = {}) {
   const pay = payId ?? `pay_${Math.random().toString(36).slice(2, 12)}`;
   db.sqlite
     .prepare(

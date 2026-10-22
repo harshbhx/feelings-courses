@@ -30,7 +30,7 @@ import {
 } from "./courses.ts";
 import { csvResponse } from "./csv.ts";
 import { ORDER_STATUSES, getOrder, listOrders, listWebhooks, ordersCsv, webhookExists, type OrderFilters } from "./orders.ts";
-import { adminRoute, body, dbOf, noContent, pathId, query, type AdminContext } from "./request.ts";
+import { COURSE_BODY_BYTES, OUTLINE_BODY_BYTES, adminRoute, body, dbOf, noContent, pathId, query, type AdminContext } from "./request.ts";
 import { getAdminSettings, getStats, listAudit, updateAdminSettings } from "./settings.ts";
 import {
   addStudent,
@@ -118,13 +118,13 @@ export const meRoute = adminRoute({
 /** GET /api/admin/courses · POST /api/admin/courses */
 export const coursesRoute = adminRoute({
   GET: async (ctx) => json(await listCourses(dbOf(ctx))),
-  POST: async (ctx) => json(await createCourse(dbOf(ctx), await body(ctx), unixNow()), 201),
+  POST: async (ctx) => json(await createCourse(dbOf(ctx), await body(ctx, COURSE_BODY_BYTES), unixNow()), 201),
 });
 
 /** GET · PUT · DELETE /api/admin/courses/:id */
 export const courseRoute = adminRoute({
   GET: async (ctx) => json(await getCourse(dbOf(ctx), pathId(ctx.params.id))),
-  PUT: async (ctx) => json(await updateCourse(dbOf(ctx), pathId(ctx.params.id), await body(ctx), unixNow())),
+  PUT: async (ctx) => json(await updateCourse(dbOf(ctx), pathId(ctx.params.id), await body(ctx, COURSE_BODY_BYTES), unixNow())),
   DELETE: async (ctx) => {
     await deleteCourse(dbOf(ctx), pathId(ctx.params.id), unixNow());
     return noContent();
@@ -133,7 +133,7 @@ export const courseRoute = adminRoute({
 
 /** PUT /api/admin/courses/:id/outline */
 export const outlineRoute = adminRoute({
-  PUT: async (ctx) => json(await replaceOutline(dbOf(ctx), pathId(ctx.params.id), await body(ctx), unixNow())),
+  PUT: async (ctx) => json(await replaceOutline(dbOf(ctx), pathId(ctx.params.id), await body(ctx, OUTLINE_BODY_BYTES), unixNow())),
 });
 
 function statusRoute(action: StatusAction) {
