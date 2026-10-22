@@ -403,7 +403,10 @@ async function freeEnrollment(
   input: { studentId: number; courseId: number; courseSlug: string; quote: Extract<Awaited<ReturnType<typeof quote>>, { ok: true }>; now: number },
 ): Promise<Response> {
   const { studentId, courseId, quote: q, now } = input;
-  const course = await db.prepare("SELECT access_days FROM courses WHERE id = ?").bind(courseId).first<{ access_days: number | null }>();
+  const course = await db
+    .prepare("SELECT access_days, format FROM courses WHERE id = ?")
+    .bind(courseId)
+    .first<{ access_days: number | null; format: string }>();
   const expiresAt = course?.access_days ? now + course.access_days * DAY_SECONDS : null;
   const couponId = q.couponId;
   const source = couponId !== null ? "coupon_free" : "manual";
@@ -456,7 +459,8 @@ async function freeEnrollment(
     throw err;
   }
   if (!(await hasActiveEnrollment(db, studentId, courseId, "live", now))) return quoteError("coupon_used_up");
-  const target = `/learn/${input.courseSlug}`;
+  // Recorded lessons open the course area; a studio-only booking has none, so it lands on the account.
+  const target = course?.format === "in_person" ? "/account" : `/learn/${input.courseSlug}`;
   const handoff = await handoffUrl(env, db, studentId, target);
   return json({ mode: "free", redirect: handoff ?? "/thank-you" } satisfies OrderResponse);
 }

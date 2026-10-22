@@ -4,7 +4,7 @@
  *
  * Hosts:
  *   hub      courses.feelingsbeautycare.in (config(env).hubHost): catalog, /learn, /account,
- *            /signin, /admin, /verify, legal pages, media. Served as usual (next()), except:
+ *            /signin, /auth, /receipt, /admin, /verify, the webhook, legal pages, media. Served as usual (next()), except:
  *              /c/<slug>     → 301 https://<slug>.feelingsbeautycare.in/ once that course's domain
  *                              is active (dist/domains.json, written by the build);
  *              /terms …      → the hub's /legal/<page> (LEGAL_PAGES), served in place;
@@ -100,7 +100,7 @@ const SHARED_FILES: readonly string[] = [
 ];
 
 /** Areas that are personal or operational: never framed, never indexed. */
-const PRIVATE_PREFIXES: readonly string[] = ["/admin", "/learn", "/account", "/signin", "/auth", "/api"];
+const PRIVATE_PREFIXES: readonly string[] = ["/admin", "/learn", "/account", "/signin", "/auth", "/api", "/receipt"];
 
 /** True when `pathname` is `prefix` itself or below it (`/admin`, `/admin/x`, `/admin.html`). */
 export function underPath(pathname: string, prefix: string): boolean {
@@ -129,7 +129,7 @@ export function coursePath(pathname: string): { slug: string; rest: string } | n
 // ---------------------------------------------------------------- robots.txt
 
 /** Lines every indexable host disallows (personal areas and the API). */
-const ROBOTS_DISALLOW = ["/admin", "/learn", "/account", "/signin", "/auth/", "/api/", "/thank-you", "/payment-failed"];
+const ROBOTS_DISALLOW = ["/admin", "/learn", "/account", "/signin", "/auth/", "/api/", "/receipt/", "/thank-you", "/payment-failed"];
 
 /** robots.txt for a host. Preview and dev hosts disallow everything. */
 export function robotsTxt(info: HostInfo, origin: string): string {
