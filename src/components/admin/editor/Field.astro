@@ -1,0 +1,62 @@
+---
+// One labelled field of the course editor: the control, its hint and an error slot, linked with
+// aria-describedby. `name` is the API's field name: the editor script fills the value and puts the
+// API's errors on it (data-field), and the control's id is fieldId(name) from lib/course-form.ts.
+interface Props {
+  name: string;
+  label: string;
+  hint?: string;
+  optional?: boolean;
+  type?: "text" | "textarea" | "number" | "money" | "select";
+  max?: number;
+  rows?: number;
+  placeholder?: string;
+  inputmode?: "text" | "numeric" | "decimal" | "url";
+  options?: { value: string; label: string }[];
+  class?: string;
+  /** Show a "12/70" counter (needs max). */
+  counter?: boolean;
+}
+
+const { name, label, hint, optional = false, type = "text", max, rows = 3, placeholder, inputmode, options = [], counter = false } = Astro.props;
+const id = `f-${name.replace(/[^A-Za-z0-9]+/g, "-").replace(/-+$/, "")}`;
+const described = [hint || counter ? `${id}-hint` : null, `${id}-err`].filter(Boolean).join(" ");
+---
+
+<div class:list={["field", Astro.props.class]}>
+  <label class="field-label" for={id}>{label}{optional && <span class="opt"> (optional)</span>}</label>
+  {
+    type === "textarea" ? (
+      <textarea class="textarea" id={id} rows={rows} maxlength={max} placeholder={placeholder} aria-describedby={described} data-field={name} data-counter={counter ? "" : undefined} />
+    ) : type === "select" ? (
+      <select class="select" id={id} aria-describedby={described} data-field={name}>
+        {options.map((o) => <option value={o.value}>{o.label}</option>)}
+      </select>
+    ) : type === "money" ? (
+      <div class="input-affix">
+        <span class="affix" aria-hidden="true">₹</span>
+        <input class="input num" id={id} type="text" inputmode="decimal" autocomplete="off" placeholder={placeholder} aria-describedby={described} data-field={name} />
+      </div>
+    ) : (
+      <input
+        class="input"
+        id={id}
+        type="text"
+        inputmode={type === "number" ? "numeric" : inputmode}
+        maxlength={max}
+        autocomplete="off"
+        placeholder={placeholder}
+        aria-describedby={described}
+        data-field={name}
+        data-counter={counter ? "" : undefined}
+      />
+    )
+  }
+  {(hint || counter) && (
+    <p class="field-hint" id={`${id}-hint`}>
+      {hint}
+      {counter && max && <span class="counter" data-count-for={id}>0/{max}</span>}
+    </p>
+  )}
+  <p class="field-error" id={`${id}-err`}></p>
+</div>
