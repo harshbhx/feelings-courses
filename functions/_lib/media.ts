@@ -13,10 +13,11 @@
  *   (functions/_lib/media-serve.ts checks the cookie on every request), so a copied link is useless
  *   on another device or after signing out.
  */
-import { MEDIA_URL_TTL, PUBLIC_SESSION_TAG, SESSION_COOKIE, requireSecret } from "./config.ts";
+import { MEDIA_URL_TTL, PUBLIC_SESSION_TAG, requireSecret } from "./config.ts";
 import { hmacSha256Hex, sha256Hex, timingSafeEqual } from "./crypto.ts";
 import { unixNow } from "./db/d1.ts";
 import type { Env } from "./env.ts";
+import { sessionToken } from "./session.ts";
 
 export type MediaUrlKind = "v" | "c";
 
@@ -28,8 +29,6 @@ const CLOCK_SKEW = 300;
 
 const SESSION_TAG_RE = /^[0-9a-f]{16}$/;
 const SIG_RE = /^[0-9a-f]{64}$/;
-/** The session cookie's token: base64url (W3 issues 32 random bytes = 43 characters). */
-const SESSION_TOKEN_RE = /^[A-Za-z0-9_-]{16,128}$/;
 
 /** True for a 16-hex session tag or "public". */
 export function isSessionTag(value: unknown): value is string {
@@ -100,23 +99,11 @@ export async function verifyMediaLink(
   return { ok: true, kind, lessonId, exp, sidTag: s };
 }
 
-/** The value of cookie `name` in a Cookie header, or null (the first one wins). */
-export function cookieValue(header: string | null, name: string): string | null {
-  if (!header) return null;
-  for (const pair of header.split(";")) {
-    const at = pair.indexOf("=");
-    if (at === -1) continue;
-    if (pair.slice(0, at).trim() === name) return pair.slice(at + 1).trim();
-  }
-  return null;
-}
-
 /**
  * sha256Hex of the request's student session cookie, or null when there is no well-formed cookie.
  * Its first 16 characters are the session tag signed into the student's media URLs.
  */
 export async function sessionTokenHash(request: Request): Promise<string | null> {
-  const token = cookieValue(request.headers.get("Cookie"), SESSION_COOKIE);
-  if (!token || !SESSION_TOKEN_RE.test(token)) return null;
-  return sha256Hex(token);
+  const token = sessionToken(request); // W3's parser and token shape (one definition of the cookie)
+  return token ? sha256Hex(token) : null;
 }

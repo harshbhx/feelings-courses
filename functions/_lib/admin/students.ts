@@ -10,7 +10,7 @@
  * - Erase keeps orders (amounts are business records) but removes the student's name, phone and
  *   email everywhere they are stored, ends their sessions and access, and withdraws certificates.
  */
-import type { AdminAccessLinkResponse, Page } from "../../../src/shared/api.ts";
+import type { Page } from "../../../src/shared/api.ts";
 import type {
   AdminStudent,
   AdminStudentRow,
@@ -18,13 +18,13 @@ import type {
   EnrollmentSummary,
   StudentSession,
 } from "../../../src/shared/types.ts";
-import { DAY, LOGIN_TOKEN_TTL } from "../config.ts";
+import { DAY } from "../config.ts";
 import { auditStatement } from "../db/audit.ts";
 import type { Db, DbValue } from "../db/d1.ts";
 import { ConflictError, ValidationError, isUniqueViolation } from "../db/errors.ts";
 import { batch } from "../db/tx.ts";
 import * as v from "../db/validate.ts";
-import { issueLoginToken } from "../session.ts";
+import { enrollmentActive } from "../session.ts";
 import { ADMIN_ACTOR } from "./auth.ts";
 import { courseRow, takesBatches } from "./courses.ts";
 import { rupees, toCsv } from "./csv.ts";
@@ -33,8 +33,6 @@ import { NotFoundError, istDateTime, maskPhone } from "./request.ts";
 
 export const STUDENTS_PAGE_SIZE = 25;
 export const STUDENTS_CSV_MAX_ROWS = 20_000;
-/** Where an access link lands after sign-in. */
-export const ACCESS_LINK_LANDING = "/account";
 
 // ---------------------------------------------------------------- list and search
 
@@ -184,13 +182,6 @@ const ENROLLMENT_SELECT =
   " WHERE l.course_id = e.course_id AND p.completed_at IS NOT NULL) AS completed_lessons " +
   "FROM enrollments e JOIN courses c ON c.id = e.course_id LEFT JOIN batches b ON b.id = e.batch_id";
 
-/** Same rule as W3's session.ts enrollmentActive: not revoked, not expired, not test-mode on a live site. */
-export function enrollmentActive(row: { revoked_at: number | null; expires_at: number | null; mode: string }, now: number, live: boolean): boolean {
-  if (row.revoked_at !== null) return false;
-  if (row.expires_at !== null && row.expires_at <= now) return false;
-  return !(live && row.mode === "test");
-}
-
 function mapEnrollment(row: EnrollmentRow, now: number, live: boolean): EnrollmentSummary {
   return {
     id: row.id,
@@ -336,9 +327,9 @@ export async function grantAccess(
   if (student.erased_at !== null) throw new ConflictError("conflict", "This student's details were erased.");
   const plan = await planGrant(db, input, now);
   const existing = await db
-    .prepare("SELECT id, revoked_at, expires_at, mode, batch_id FROM enrollments WHERE student_id = ? AND course_id = ?")
+    .prepare("SELECT id, revoked_at, starts_at, expires_at, mode, batch_id FROM enrollments WHERE student_id = ? AND course_id = ?")
     .bind(studentId, plan.courseId)
-    .first<{ id: number; revoked_at: number | null; expires_at: number | null; mode: string; batch_id: number | null }>();
+    .first<{ id: number; revoked_at: number | null; starts_at: number; expires_at: number | null; mode: EnrollmentSummary["mode"]; batch_id: number | null }>();
   if (existing && enrollmentActive(existing, now, live)) {
     throw new ConflictError("already_enrolled", "This student already has access to this course.");
   }
@@ -497,35 +488,6 @@ export async function eraseStudent(db: Db, id: number, opts: { now: number; live
     ]);
   }
   return getStudent(db, id, opts);
-}
-
-// ---------------------------------------------------------------- access link (no email: WhatsApp)
-
-/** The message the admin sends on WhatsApp with the link. */
-export function accessLinkMessage(name: string | null, url: string): string {
-  const hello = name ? `Hi ${name.split(" ")[0]},` : "Hi,";
-  return (
-    `${hello} here is your link to open your Feelings Beauty Care course on this phone:\n${url}\n\n` +
-    "It works once and expires in 24 hours. Please don't share it."
-  );
-}
-
-/**
- * A one-time sign-in link for a student, sent by the admin on WhatsApp (plan 1.4). W3's
- * issueLoginToken makes the token (single use, 24 h). Until W3 lands it is a stub (501).
- */
-export async function createAccessLink(db: Db, id: number, opts: { now: number; hubOrigin: string }): Promise<AdminAccessLinkResponse> {
-  const student = await studentRow(db, id);
-  if (student.erased_at !== null) throw new ConflictError("conflict", "This student's details were erased.");
-  const token = await issueLoginToken(db, id, "admin_link", ACCESS_LINK_LANDING);
-  await auditStatement(db, { actor: ADMIN_ACTOR, action: "student.access_link", entity: "student", entityId: id, now: opts.now }).run();
-  const url = `${opts.hubOrigin}/auth/continue?t=${encodeURIComponent(token)}`;
-  const digits = student.phone?.replace(/\D/g, "") ?? "";
-  return {
-    url,
-    whatsappUrl: `https://wa.me/${digits}?text=${encodeURIComponent(accessLinkMessage(student.name, url))}`,
-    expiresAt: opts.now + LOGIN_TOKEN_TTL.admin_link,
-  };
 }
 
 /** The student must exist and not be erased (certificate issue). */

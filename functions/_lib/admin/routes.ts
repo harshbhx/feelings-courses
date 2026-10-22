@@ -5,6 +5,7 @@
  *
  * All of them run behind functions/api/admin/_middleware.ts (session, Origin, JSON, headers).
  */
+import { createAccessLink } from "../access-link.ts";
 import { issueCertificate } from "../certificates.ts";
 import { config } from "../config.ts";
 import { auditStatement } from "../db/audit.ts";
@@ -34,7 +35,6 @@ import { COURSE_BODY_BYTES, OUTLINE_BODY_BYTES, adminRoute, body, dbOf, noConten
 import { getAdminSettings, getStats, listAudit, updateAdminSettings } from "./settings.ts";
 import {
   addStudent,
-  createAccessLink,
   eraseStudent,
   getStudent,
   grantAccess,
@@ -224,8 +224,11 @@ export const enrollmentRoute = adminRoute({
 /** POST /api/admin/students/:id/access-link */
 export const accessLinkRoute = adminRoute({
   POST: async (ctx) => {
-    const { now, hubOrigin } = studentOpts(ctx);
-    return json(await createAccessLink(dbOf(ctx), pathId(ctx.params.id), { now, hubOrigin }));
+    // W3's access-link.ts makes the link (one place for the token, the message and the audit row).
+    // requireStudent first, so a missing student is a 404 and an erased one a 409.
+    const id = pathId(ctx.params.id);
+    await requireStudent(dbOf(ctx), id);
+    return json(await createAccessLink(ctx.env, id, { actor: ADMIN_ACTOR, now: unixNow() }));
   },
 });
 
@@ -254,15 +257,7 @@ export const certificateRoute = adminRoute({
     const courseId = v.id(input.courseId, "courseId");
     const name = v.text(input.name, "name", { min: 2, max: 80 });
     await requireStudent(dbOf(ctx), studentId);
-    const certificate = await issueCertificate(ctx.env, { studentId, courseId, name });
-    await auditStatement(dbOf(ctx), {
-      actor: ADMIN_ACTOR,
-      action: "certificate.issue",
-      entity: "student",
-      entityId: studentId,
-      data: { courseId, code: certificate.code },
-      now: unixNow(),
-    }).run();
+    const certificate = await issueCertificate(ctx.env, { studentId, courseId, name, actor: ADMIN_ACTOR });
     return json(certificate, 201);
   },
 });

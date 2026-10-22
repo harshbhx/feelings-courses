@@ -4,7 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { signMediaUrl, verifyMediaLink, mediaUrlExpiry, sessionTokenHash, cookieValue, isSessionTag } from "../../functions/_lib/media.ts";
+import { signMediaUrl, verifyMediaLink, mediaUrlExpiry, sessionTokenHash, isSessionTag } from "../../functions/_lib/media.ts";
+import { readCookie } from "../../functions/_lib/session.ts";
 import { planUpload, expectedPartSize, mediaKey, safeBaseName, sniffMismatch, MEDIA_KEY_RE, formatBytes } from "../../functions/_lib/media-rules.ts";
 import { ConfigError } from "../../functions/_lib/config.ts";
 import { ValidationError } from "../../functions/_lib/db/errors.ts";
@@ -93,12 +94,15 @@ test("verifyMediaLink: malformed and far-future links", async () => {
 });
 
 test("session cookie hash and tags", async () => {
-  assert.equal(cookieValue("a=1; __Host-fbc_s=xyz; b=2", "__Host-fbc_s"), "xyz");
-  assert.equal(cookieValue(null, "a"), null);
+  // Integration: media.ts reads the cookie through W3's session.ts (one parser, one token shape).
+  assert.equal(readCookie("a=1; __Host-fbc_s=xyz; b=2", "__Host-fbc_s"), "xyz");
+  assert.equal(readCookie(null, "a"), null);
   const request = new Request("https://x.test/", { headers: { Cookie: `other=1; __Host-fbc_s=${TOKEN}` } });
   assert.equal(await sessionTokenHash(request), sha256(TOKEN));
   const bad = new Request("https://x.test/", { headers: { Cookie: "__Host-fbc_s=not valid!" } });
   assert.equal(await sessionTokenHash(bad), null);
+  const short = new Request("https://x.test/", { headers: { Cookie: `__Host-fbc_s=${"A".repeat(20)}` } });
+  assert.equal(await sessionTokenHash(short), null, "only W3's 43-character tokens");
   assert.equal(isSessionTag("public"), true);
   assert.equal(isSessionTag(tagOf(TOKEN)), true);
   assert.equal(isSessionTag("0123"), false);
