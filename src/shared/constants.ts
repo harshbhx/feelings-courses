@@ -2,6 +2,7 @@
  * Constants shared by the browser, the build and the Pages Functions. Plain values only, so this
  * file runs everywhere (Astro, Workers, Node tests).
  */
+import type { MediaKind } from "./types.ts";
 
 /** The hub: catalog, /learn, /account, /signin, /admin, /verify, legal pages, media. */
 export const DEFAULT_HUB_HOST = "courses.feelingsbeautycare.in";
@@ -70,3 +71,49 @@ export const MAX_DEVICES_PER_STUDENT = 2;
 
 /** Razorpay's minimum charge: ₹1. */
 export const MIN_CHARGE_PAISE = 100;
+
+// ---------------------------------------------------------------- input rules (W8: one definition each)
+// The browser checks these before sending and the server checks them again, so both import them
+// from here instead of keeping their own copies.
+
+/**
+ * A phone number as E.164, or null. Indian mobiles may be typed as 10 digits, with 0, 91 or +91 in
+ * front, with spaces, dots, dashes or brackets; other countries need + and the country code.
+ * Used by checkout (W2), the data layer's phone() (W0), and the admin's forms (W6).
+ */
+export function normalizePhone(value: string): string | null {
+  const compact = value.replace(/[\s().-]/g, "");
+  const indian = /^(?:\+91|91|0)?([6-9]\d{9})$/.exec(compact);
+  if (indian) return `+91${indian[1]}`;
+  if (/^\+[1-9]\d{7,14}$/.test(compact) && !compact.startsWith("+91")) return compact;
+  return null;
+}
+
+/** A 15-character GSTIN, uppercase. Kept for the owner's records only (no GSTIN is ever shown). */
+export const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+
+const MiB = 1024 * 1024;
+
+/**
+ * What the admin may upload (W4's rules, functions/_lib/media-rules.ts): content type → allowed
+ * file extensions, and the largest file, per media kind. The admin's file picker (W6) checks them
+ * before a byte is sent.
+ */
+export const MEDIA_FILE_TYPES: Readonly<Record<MediaKind, Readonly<Record<string, readonly string[]>>>> = {
+  video: { "video/mp4": ["mp4", "m4v"], "video/webm": ["webm"] },
+  image: { "image/jpeg": ["jpg", "jpeg"], "image/png": ["png"], "image/webp": ["webp"] },
+  captions: { "text/vtt": ["vtt"] },
+  file: { "application/pdf": ["pdf"] },
+};
+export const MEDIA_MAX_BYTES: Readonly<Record<MediaKind, number>> = {
+  video: 4 * 1024 * MiB,
+  image: 10 * MiB,
+  captions: 1 * MiB,
+  file: 50 * MiB,
+};
+
+/** The file extension of a name, lowercase, without the dot, or "". */
+export function extensionOf(filename: string): string {
+  const m = /\.([A-Za-z0-9]{1,8})$/.exec(filename.trim());
+  return m ? m[1]!.toLowerCase() : "";
+}

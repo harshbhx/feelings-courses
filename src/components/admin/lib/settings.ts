@@ -1,6 +1,5 @@
 /** Settings checks that match the API: the GSTIN format and the admin password rules. */
-
-const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+import { GSTIN_RE } from "../../../shared/constants.ts";
 
 /** null when the GSTIN is empty (it's optional) or valid. */
 export function gstinProblem(value: string): string | null {

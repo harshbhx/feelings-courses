@@ -1,35 +1,30 @@
 /**
- * Upload checks and progress wording for the admin. The rules mirror W4's (functions/_lib/media-rules.ts)
- * so a wrong file is refused before a single byte is sent; the server checks everything again.
+ * Upload checks and progress wording for the admin. The types and sizes are W4's own
+ * (MEDIA_FILE_TYPES and MEDIA_MAX_BYTES in src/shared/constants.ts, which functions/_lib/media-rules.ts
+ * also reads), so a wrong file is refused before a single byte is sent; the server checks everything again.
  */
+import { extensionOf, MEDIA_FILE_TYPES, MEDIA_MAX_BYTES } from "../../../shared/constants.ts";
 import type { MediaKind } from "../../../shared/types.ts";
 import { roughDuration } from "./time.ts";
 
+export { extensionOf };
+
 const MiB = 1024 * 1024;
 
-export const UPLOAD_RULES: Record<MediaKind, { types: Record<string, string[]>; maxBytes: number; accept: string; hint: string }> = {
-  video: {
-    types: { "video/mp4": ["mp4", "m4v"], "video/webm": ["webm"] },
-    maxBytes: 4 * 1024 * MiB,
-    accept: "video/mp4,video/webm,.mp4,.m4v,.webm",
-    hint: "MP4 or WebM, up to 4 GB.",
-  },
-  image: {
-    types: { "image/jpeg": ["jpg", "jpeg"], "image/png": ["png"], "image/webp": ["webp"] },
-    maxBytes: 10 * MiB,
-    accept: "image/jpeg,image/png,image/webp",
-    hint: "JPEG, PNG or WebP, up to 10 MB.",
-  },
-  captions: {
-    types: { "text/vtt": ["vtt"] },
-    maxBytes: 1 * MiB,
-    accept: "text/vtt,.vtt",
-    hint: "A WebVTT (.vtt) file, up to 1 MB.",
-  },
-  file: { types: { "application/pdf": ["pdf"] }, maxBytes: 50 * MiB, accept: "application/pdf,.pdf", hint: "A PDF, up to 50 MB." },
+/** The file picker's `accept` and the hint under it. Types and sizes come from W4's rules. */
+const PICKER: Record<MediaKind, { accept: string; hint: string }> = {
+  video: { accept: "video/mp4,video/webm,.mp4,.m4v,.webm", hint: "MP4 or WebM, up to 4 GB." },
+  image: { accept: "image/jpeg,image/png,image/webp", hint: "JPEG, PNG or WebP, up to 10 MB." },
+  captions: { accept: "text/vtt,.vtt", hint: "A WebVTT (.vtt) file, up to 1 MB." },
+  file: { accept: "application/pdf,.pdf", hint: "A PDF, up to 50 MB." },
 };
 
-export const extensionOf = (name: string) => (/\.([A-Za-z0-9]{1,8})$/.exec(name.trim())?.[1] ?? "").toLowerCase();
+export const UPLOAD_RULES: Record<MediaKind, { types: Readonly<Record<string, readonly string[]>>; maxBytes: number; accept: string; hint: string }> = {
+  video: { types: MEDIA_FILE_TYPES.video, maxBytes: MEDIA_MAX_BYTES.video, ...PICKER.video },
+  image: { types: MEDIA_FILE_TYPES.image, maxBytes: MEDIA_MAX_BYTES.image, ...PICKER.image },
+  captions: { types: MEDIA_FILE_TYPES.captions, maxBytes: MEDIA_MAX_BYTES.captions, ...PICKER.captions },
+  file: { types: MEDIA_FILE_TYPES.file, maxBytes: MEDIA_MAX_BYTES.file, ...PICKER.file },
+};
 
 /**
  * The content type to declare for a file. Browsers leave `type` empty for some files (.vtt on

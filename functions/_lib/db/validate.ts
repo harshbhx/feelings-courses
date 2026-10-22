@@ -2,6 +2,7 @@
  * Input checks shared by the data-access functions. Each one returns the tidy value or throws a
  * ValidationError naming the field. Inputs come from requests, so nothing trusts TypeScript types.
  */
+import { normalizePhone } from "../../../src/shared/constants.ts";
 import { ValidationError } from "./errors.ts";
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -117,14 +118,12 @@ export function flag(value: unknown, field: string): 0 | 1 {
 
 /**
  * A phone number as E.164. Indian mobiles may be typed as 10 digits, with 0, 91 or +91 in front;
- * other countries need + and the country code. Same rule as checkout's normalisePhone().
+ * other countries need + and the country code (normalizePhone in src/shared/constants.ts).
  */
 export function phone(value: unknown, field = "phone"): string {
   if (typeof value !== "string") throw new ValidationError(field, `${field} must be text.`);
-  const compact = value.replace(/[\s().-]/g, "");
-  const indian = /^(?:\+91|91|0)?([6-9]\d{9})$/.exec(compact);
-  if (indian) return `+91${indian[1]}`;
-  if (/^\+[1-9]\d{7,14}$/.test(compact) && !compact.startsWith("+91")) return compact;
+  const e164 = normalizePhone(value);
+  if (e164) return e164;
   throw new ValidationError(field, "Enter a 10-digit mobile number, or an international number starting with +.");
 }
 

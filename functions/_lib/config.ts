@@ -2,7 +2,7 @@
  * Runtime configuration: env values read safely, plus the platform's fixed numbers (cookie names,
  * lifetimes, rate limits). Every workstream reads these from here instead of retyping them.
  */
-import { DEFAULT_APEX_DOMAIN, DEFAULT_HUB_HOST, MAX_DEVICES_PER_STUDENT } from "../../src/shared/constants.ts";
+import { DEFAULT_APEX_DOMAIN, DEFAULT_HUB_HOST, MAX_DEVICES_PER_STUDENT, MEDIA_MAX_BYTES } from "../../src/shared/constants.ts";
 import type { AppEnv, PaymentMode } from "../../src/shared/types.ts";
 import type { Env } from "./env.ts";
 
@@ -97,7 +97,8 @@ export const MEDIA_URL_TTL = 2 * HOUR;
 /** sidTag for free-preview URLs (no cookie check). */
 export const PUBLIC_SESSION_TAG = "public";
 export const UPLOAD_PART_SIZE = 10 * 1024 * 1024;
-export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024 * 1024;
+/** The largest upload (a video). One definition: src/shared/constants.ts MEDIA_MAX_BYTES. */
+export const MAX_UPLOAD_BYTES = MEDIA_MAX_BYTES.video;
 
 /** Default JSON body cap (http.ts readJson). */
 export const MAX_JSON_BYTES = 16 * 1024;

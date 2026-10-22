@@ -28,6 +28,7 @@
 import { course } from "../../src/data/course.ts";
 import { IN_APP_BROWSER, RAZORPAY_TEST_KEY_ID, USE_COMMITTED_TEST_KEY } from "../../src/data/payments.ts";
 import { site } from "../../src/data/site.ts";
+import { normalizePhone } from "../../src/shared/constants.ts";
 import { randomHex } from "./crypto.ts";
 import { error, json, methodNotAllowed, readForm, readJson, redirect, sameOrigin } from "./http.ts";
 import { issueEnrollment, newEnrollment } from "./enrollment.ts";
@@ -186,13 +187,7 @@ function prefillFor({ name, phone, email }: Buyer): Record<string, string> {
 }
 
 /** Indian mobiles become +91XXXXXXXXXX; other numbers must already start with + and a country code. */
-export function normalisePhone(value: string): string | null {
-  const compact = value.replace(/[\s().-]/g, "");
-  const indian = /^(?:\+91|91|0)?([6-9]\d{9})$/.exec(compact);
-  if (indian) return `+91${indian[1]}`;
-  if (/^\+[1-9]\d{7,14}$/.test(compact) && !compact.startsWith("+91")) return compact;
-  return null;
-}
+export const normalisePhone: (value: string) => string | null = normalizePhone; // one definition: src/shared/constants.ts
 
 // ---------- POST /api/order ----------
 

@@ -2,6 +2,7 @@
  * Students: access wording, phone checks for "Add student" (same rule as the API), and the erase
  * confirmation (the owner types the student's name).
  */
+import { normalizePhone } from "../../../shared/constants.ts";
 import type { EnrollmentSummary, Unix } from "../../../shared/types.ts";
 
 export type AccessState = "active" | "expired" | "revoked" | "test";
@@ -22,16 +23,9 @@ export const ACCESS_LABELS: Record<AccessState, string> = {
 
 /**
  * A phone as the API stores it (E.164), or null when it isn't one: a 10-digit Indian mobile with or
- * without +91, 0 or spaces, or +<country><number>.
+ * without +91, 0 or spaces, or +<country><number>. The API's own rule (src/shared/constants.ts).
  */
-export function normalizePhone(input: string): string | null {
-  // Same rule as functions/_lib/db/validate.ts phone().
-  const compact = input.replace(/[\s().-]/g, "");
-  const indian = /^(?:\+91|91|0)?([6-9]\d{9})$/.exec(compact);
-  if (indian) return `+91${indian[1]}`;
-  if (/^\+[1-9]\d{7,14}$/.test(compact) && !compact.startsWith("+91")) return compact;
-  return null;
-}
+export { normalizePhone };
 
 /** Light email check (the API checks again). */
 export const looksLikeEmail = (s: string) => {

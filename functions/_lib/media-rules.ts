@@ -11,7 +11,8 @@
  * - captions: WebVTT, the only format <track> reads.
  * - file: PDF (lesson notes).
  */
-import { MAX_UPLOAD_BYTES, UPLOAD_PART_SIZE } from "./config.ts";
+import { UPLOAD_PART_SIZE } from "./config.ts";
+import { extensionOf, MEDIA_FILE_TYPES, MEDIA_MAX_BYTES } from "../../src/shared/constants.ts";
 import { ValidationError } from "./db/errors.ts";
 import type { MediaKind } from "../../src/shared/types.ts";
 
@@ -29,26 +30,26 @@ export interface KindRule {
 
 export const MEDIA_RULES: Readonly<Record<MediaKind, KindRule>> = {
   video: {
-    types: { "video/mp4": ["mp4", "m4v"], "video/webm": ["webm"] },
-    maxBytes: MAX_UPLOAD_BYTES,
+    types: MEDIA_FILE_TYPES.video,
+    maxBytes: MEDIA_MAX_BYTES.video,
     prefix: "videos",
     hint: "Upload an MP4 or WebM video. iPhone .mov files: export or share them as MP4 first.",
   },
   image: {
-    types: { "image/jpeg": ["jpg", "jpeg"], "image/png": ["png"], "image/webp": ["webp"] },
-    maxBytes: 10 * MiB,
+    types: MEDIA_FILE_TYPES.image,
+    maxBytes: MEDIA_MAX_BYTES.image,
     prefix: "images",
     hint: "Upload a JPEG, PNG or WebP image.",
   },
   captions: {
-    types: { "text/vtt": ["vtt"] },
-    maxBytes: 1 * MiB,
+    types: MEDIA_FILE_TYPES.captions,
+    maxBytes: MEDIA_MAX_BYTES.captions,
     prefix: "captions",
     hint: "Upload captions as a WebVTT (.vtt) file.",
   },
   file: {
-    types: { "application/pdf": ["pdf"] },
-    maxBytes: 50 * MiB,
+    types: MEDIA_FILE_TYPES.file,
+    maxBytes: MEDIA_MAX_BYTES.file,
     prefix: "files",
     hint: "Upload a PDF.",
   },
@@ -64,11 +65,8 @@ export function baseContentType(value: string): string {
   return value.split(";")[0]!.trim().toLowerCase();
 }
 
-/** The file extension of a name, lowercase, or "". */
-export function extensionOf(filename: string): string {
-  const m = /\.([A-Za-z0-9]{1,8})$/.exec(filename.trim());
-  return m ? m[1]!.toLowerCase() : "";
-}
+/** The file extension of a name, lowercase, or "" (one definition in src/shared/constants.ts). */
+export { extensionOf };
 
 /** A filename made safe for a key: ascii letters, digits and dashes, at most 60 characters. */
 export function safeBaseName(filename: string): string {

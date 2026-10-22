@@ -2,6 +2,7 @@
  * Money for the admin. The API counts integer paise (₹1 = 100); people type rupees. Parsing is
  * done on the digits, never with floats, so "2999.10" is exactly 299910 paise.
  */
+import { formatInr } from "../../../lib/course-view.ts";
 import type { Paise } from "../../../shared/types.ts";
 
 export type RupeeParse = { ok: true; paise: Paise | null } | { ok: false; error: string };
@@ -34,12 +35,12 @@ export function paiseToInput(paise: Paise | null | undefined): string {
   return rest ? `${rupees}.${String(rest).padStart(2, "0")}` : String(rupees);
 }
 
-const whole = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0, minimumFractionDigits: 0 });
-const exact = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2, minimumFractionDigits: 2 });
-
-/** ₹2,999 or ₹2,999.50 (paise only when there are some). */
+/**
+ * ₹2,999 or ₹2,999.50 (paise only when there are some): the public pages' formatInr (W1), except
+ * that an amount of zero is "₹0" here (revenue totals), not "Free".
+ */
 export function formatPaise(paise: Paise): string {
-  return paise % 100 === 0 ? whole.format(paise / 100) : exact.format(paise / 100);
+  return paise === 0 ? "₹0" : formatInr(paise);
 }
 
 /** A course fee for lists: "₹2,999", "Free", "No fee yet". */

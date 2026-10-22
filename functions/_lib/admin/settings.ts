@@ -6,6 +6,7 @@
  * it, and the audit log records that it changed, never its value.
  */
 import type { AdminAuditResponse } from "../../../src/shared/api.ts";
+import { GSTIN_RE } from "../../../src/shared/constants.ts";
 import type { AdminSettings, BusinessSettings, DailyStat, Stats } from "../../../src/shared/types.ts";
 import { config } from "../config.ts";
 import { auditStatement } from "../db/audit.ts";
@@ -17,8 +18,6 @@ import * as v from "../db/validate.ts";
 import type { Env } from "../env.ts";
 import { ADMIN_ACTOR } from "./auth.ts";
 import { istDay } from "./request.ts";
-
-const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
 /** Checks settings.business. Every field is required except gstin. */
 export function validateBusiness(value: unknown): BusinessSettings {
