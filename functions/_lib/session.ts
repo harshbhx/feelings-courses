@@ -2,7 +2,7 @@
  * Student sessions and single-use login tokens (plan 1.4). STUB: signatures frozen by W0, bodies by W3.
  *
  * - Session cookie `__Host-fbc_s` (config.ts SESSION_COOKIE): 32 random bytes, base64url; D1 stores
- *   only sha256Hex(token) in `sessions.token_hash`. 180 days, sliding, max 3 per student.
+ *   only sha256Hex(token) in `sessions.token_hash`. 180 days, sliding, max 2 per student (config.ts MAX_SESSIONS_PER_STUDENT).
  * - Login tokens (`login_tokens`): "handoff" (10 min) after payment, "admin_link" (24 h) sent by
  *   the admin on WhatsApp. Single use. redirect_path must start with "/" and not "//".
  */
@@ -27,7 +27,7 @@ export interface EnrollmentRef {
 }
 
 /**
- * Creates a session for the student (revoking the oldest beyond 3) and returns the Set-Cookie
+ * Creates a session for the student (revoking the oldest beyond MAX_SESSIONS_PER_STUDENT = 2) and returns the Set-Cookie
  * header value. `request` supplies the User-Agent.
  */
 export async function createSession(db: Db, studentId: number, request: Request): Promise<{ cookie: string }> {

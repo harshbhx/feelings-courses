@@ -29,6 +29,14 @@ When the client confirms a value, change it in `course.ts`, never in a page. Onl
 
 The site is becoming the production course platform (8 workstreams, W0 to W7). **The full list of shared types, tables, helpers and stubs, and which workstream owns each, is in `docs/platform/CONTRACTS.md`.** Read it before touching a shared file.
 
+- **Owner decisions (plan section 10), already in the contracts:**
+  - the admin picks every course's subdomain (no hard-coded slugs);
+  - academy courses are `hybrid` (batches and recorded lessons);
+  - fees come from the admin;
+  - refunds within 24 hours of purchase;
+  - **no GSTIN and no tax lines anywhere** (invoice numbers stay);
+  - 365 days of access;
+  - 2 devices per student.
 - **Shared contracts:** `src/shared/types.ts` (data), `src/shared/api.ts` (one request and one response type per endpoint, plus the `Endpoints` map) and `src/shared/constants.ts`. Change them only through a coordinator-approved PR.
 - **Database:** Cloudflare D1. The schema is in `migrations/*.sql` (wrangler's format), and the runtime migrates itself on the first request (`functions/_lib/migrate.ts`, statements embedded by `scripts/embed-migrations.mjs`). Migrations are additive only. Only the coordinator adds new ones.
 - **Data access:** code takes the `Db` interface (`functions/_lib/db/d1.ts`). Writes that belong together go in one `batch()` (`db/tx.ts`). Every admin write is logged with `db/audit.ts`. Settings go through `db/settings.ts`.

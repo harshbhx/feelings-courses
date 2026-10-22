@@ -25,6 +25,10 @@ export type Unix = number;
 export type IsoDate = string;
 
 export type AppEnv = "production" | "preview" | "development";
+/**
+ * online: recorded video lessons. in_person: academy batches booked online. hybrid: both, the
+ * owner's choice for the academy courses (plan 10.2). Set per course in the admin.
+ */
 export type CourseFormat = "online" | "in_person" | "hybrid";
 export type CourseStatus = "draft" | "published" | "archived";
 export type DomainStatus = "none" | "pending" | "active";
@@ -138,9 +142,8 @@ export interface PublicBusiness {
   legalName: string;
   /** One line, as printed on receipts. */
   address: string;
-  /** GST state code, two digits ("24" = Gujarat). */
+  /** State code, two digits ("24" = Gujarat). */
   stateCode: string;
-  gstin: string | null;
   /** E.164, "+918000661578". */
   phone: string;
   /** wa.me number, digits only, "918000661578". */
@@ -181,14 +184,16 @@ export interface DomainsManifest {
 
 // ---------------------------------------------------------------- settings (D1 `settings`, JSON values)
 
-/** settings.business. Business facts printed on receipts and invoices. */
+/**
+ * settings.business. Business facts printed on receipts.
+ *
+ * Owner decision (plan 10.5): the salon has a GSTIN but does NOT want it shown. No GSTIN and no
+ * tax lines on any receipt, invoice or page. `gstin` may be stored for the owner's records only:
+ * it is admin-only and never rendered or sent to the public snapshot. Invoice numbering stays.
+ */
 export interface BusinessSettings extends PublicBusiness {
-  /** SAC code for the service. 999293 (commercial training and coaching): confirm with the accountant. */
-  sac: string;
-  /** GST rate in basis points (1800 = 18%). */
-  gstRateBp: number;
-  /** true: prices already include GST. */
-  pricesIncludeTax: boolean;
+  /** Stored for records only. NEVER displayed anywhere (owner decision). */
+  gstin: string | null;
 }
 
 /** Every key of the `settings` table and the type of its JSON value. */
@@ -399,6 +404,8 @@ export interface OrderSummary {
   invoiceNo: string | null;
   createdAt: Unix;
   paidAt: Unix | null;
+  /** paidAt + 24 h (REFUND_WINDOW_SECONDS): refund requests are accepted until then. null if unpaid. */
+  refundableUntil: Unix | null;
 }
 
 export interface Refund {
@@ -418,23 +425,20 @@ export interface ReceiptLine {
   amountPaise: Paise;
 }
 
-/** GET /api/me/orders/:id. "Payment receipt" without a GSTIN, "Tax invoice" with one. */
+/**
+ * GET /api/me/orders/:id. Always a plain "Payment receipt" with its invoice number: no GSTIN and
+ * no tax lines (owner decision, plan 10.5). The orders table's tax columns stay 0 / NULL.
+ */
 export interface Receipt {
-  kind: "receipt" | "tax_invoice";
+  kind: "receipt";
   order: OrderSummary;
-  business: BusinessSettings;
+  /** Public business facts only (no GSTIN). */
+  business: PublicBusiness;
   buyer: { name: string | null; phone: string | null; email: string | null; stateCode: string | null };
   method: string | null;
   couponCode: string | null;
   listPaise: Paise;
   discountPaise: Paise;
-  /** Only for a tax invoice; otherwise null and the tax fields are 0. */
-  taxablePaise: Paise | null;
-  cgstPaise: Paise;
-  sgstPaise: Paise;
-  igstPaise: Paise;
-  /** "Gujarat (24)". Only for a tax invoice. */
-  placeOfSupply: string | null;
   lines: ReceiptLine[];
   refunds: Refund[];
 }

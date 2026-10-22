@@ -54,11 +54,12 @@ test("the demo course's modules and lessons match course.ts and lessons.ts, in o
   });
 });
 
-test("the academy courses are in-person drafts with no price and their real outlines", () => {
-  const drafts = db.rows("SELECT id, slug, title, format, status, price_paise, is_demo, duration_text FROM courses WHERE id <> ? ORDER BY sort_order", SEED_COURSE_ID);
+test("the academy courses are hybrid drafts (batches and recorded) with no price, 1 year access and their real outlines", () => {
+  const drafts = db.rows("SELECT id, slug, title, format, status, price_paise, is_demo, duration_text, access_days FROM courses WHERE id <> ? ORDER BY sort_order", SEED_COURSE_ID);
   assert.deepEqual(drafts.map((c) => c.slug), ["diploma", "crashcourse", "combo"]);
   for (const c of drafts) {
-    assert.equal(c.format, "in_person");
+    assert.equal(c.format, "hybrid", "owner: in-person batches and recorded lessons (plan 10.2)");
+    assert.equal(c.access_days, 365);
     assert.equal(c.status, "draft");
     assert.equal(c.price_paise, null, `${c.slug} must wait for the owner's fee`);
     assert.equal(c.is_demo, 0);
@@ -74,8 +75,8 @@ test("settings: business facts from site.ts, legal not confirmed, content versio
   assert.equal(business.phone, site.phone.tel);
   assert.equal(business.whatsapp, site.whatsappNumber);
   assert.equal(business.stateCode, "24");
-  assert.equal(business.gstin, null);
-  assert.equal(business.gstRateBp, 1800);
+  assert.equal(business.gstin, null, "never displayed; stored only if the owner enters it");
+  for (const gone of ["sac", "gstRateBp", "pricesIncludeTax"]) assert.ok(!(gone in business), `${gone}: no tax display (plan 10.5)`);
   assert.equal(await getSetting(db, "legal_confirmed"), false);
   assert.equal(await getSetting(db, "content_version"), 1);
 });

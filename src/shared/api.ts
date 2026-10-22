@@ -137,7 +137,7 @@ export interface OrderRequest {
   name: string;
   phone: string;
   email?: string;
-  /** GST state code, asked only when the business has a GSTIN. */
+  /** Optional state code. Not asked by checkout: no tax is shown (owner decision, plan 10.5). */
   state?: string;
   /** The terms and privacy checkbox. Must be true. */
   consent: true;

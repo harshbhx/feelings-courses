@@ -3,8 +3,8 @@
 -- money integer paise. booleans 0 or 1. Business rows are never hard deleted.
 
 -- ---------------------------------------------------------------- settings
--- Key-value JSON. Keys: business (legal name, address, state_code, gstin, sac, gst_rate_bp,
--- prices_include_tax), legal_confirmed, admin_password_hash, content_version, published_version,
+-- Key-value JSON. Keys: business (name, legal name, address, state code, phone, whatsapp, and a
+-- gstin kept for records only and never displayed), legal_confirmed, admin_password_hash, content_version, published_version,
 -- last_rebuild_at, last_backup_at, last_cleanup_at.
 CREATE TABLE settings (
   key        TEXT    PRIMARY KEY CHECK (length(key) BETWEEN 1 AND 60),
@@ -194,7 +194,7 @@ CREATE TABLE orders (
   -- What the buyer typed in Razorpay's form (may differ from our form). Used by restore.
   payer_contact       TEXT    CHECK (payer_contact IS NULL OR length(payer_contact) <= 20),
   payer_email         TEXT    CHECK (payer_email IS NULL OR length(payer_email) <= 254),
-  -- GST-ready. Snapshot of the tax split at payment time (0 when no GSTIN).
+  -- Tax split columns. Unused by owner decision (no GSTIN or tax lines shown): they stay NULL / 0.
   invoice_no          TEXT    UNIQUE CHECK (invoice_no IS NULL OR length(invoice_no) <= 40),
   taxable_paise       INTEGER CHECK (taxable_paise IS NULL OR taxable_paise >= 0),
   cgst_paise          INTEGER NOT NULL DEFAULT 0,

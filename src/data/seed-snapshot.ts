@@ -38,7 +38,6 @@ export function seedSettings(): PublicSettings {
       legalName: site.name,
       address: `${a.street}, ${a.landmark}, ${a.city}, ${a.region} ${a.postalCode}`,
       stateCode: "24",
-      gstin: null,
       phone: site.phone.tel,
       whatsapp: site.whatsappNumber,
     },

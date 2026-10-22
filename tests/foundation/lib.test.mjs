@@ -24,7 +24,8 @@ import { maybeRunDaily } from "../../functions/_lib/daily.ts";
 import { buildSnapshot } from "../../functions/_lib/snapshot.ts";
 import { playLesson } from "../../functions/_lib/play.ts";
 import { hostRouting } from "../../functions/_lib/hosts.ts";
-import { COURSE_SLUG_RE, isValidCourseSlug } from "../../src/shared/constants.ts";
+import { COURSE_SLUG_RE, DEFAULT_ACCESS_DAYS, MAX_DEVICES_PER_STUDENT, REFUND_WINDOW_SECONDS, isValidCourseSlug } from "../../src/shared/constants.ts";
+import { MAX_SESSIONS_PER_STUDENT } from "../../functions/_lib/config.ts";
 
 // ---------- http ----------
 
@@ -108,6 +109,13 @@ test("constants: course slugs follow the CHECK and the reserved list", () => {
   for (const ok of ["selfmakeup", "ab", "soft-glam", "x".repeat(40)]) assert.ok(isValidCourseSlug(ok), ok);
   for (const bad of ["a", "-x", "x-", "a--b", "Up", "x".repeat(41), "www", "courses", "admin"]) assert.ok(!isValidCourseSlug(bad), bad);
   assert.ok(COURSE_SLUG_RE.test("www"), "reserved names are format-valid, refused by the list");
+});
+
+test("owner decisions (plan section 10) are the configured values", () => {
+  assert.equal(REFUND_WINDOW_SECONDS, 24 * 3600);
+  assert.equal(DEFAULT_ACCESS_DAYS, 365);
+  assert.equal(MAX_DEVICES_PER_STUDENT, 2);
+  assert.equal(MAX_SESSIONS_PER_STUDENT, 2);
 });
 
 // ---------- crypto ----------

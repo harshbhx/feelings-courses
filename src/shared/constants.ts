@@ -56,5 +56,17 @@ export function isValidCourseSlug(slug: string): boolean {
 export const LEGAL_PAGES = ["terms", "refunds", "privacy", "delivery"] as const;
 export type LegalPage = (typeof LEGAL_PAGES)[number];
 
+// ---------------------------------------------------------------- owner decisions (plan section 10)
+
+/** Refund requests are accepted within 24 hours of purchase (plan 10.4). */
+export const REFUND_WINDOW_HOURS = 24;
+export const REFUND_WINDOW_SECONDS = REFUND_WINDOW_HOURS * 3600;
+
+/** Access to recorded lessons: 1 year from purchase (plan 10.6). The admin form's default for access_days. */
+export const DEFAULT_ACCESS_DAYS = 365;
+
+/** Signed-in devices per student; a new sign-in beyond this revokes the oldest (plan 10.7). */
+export const MAX_DEVICES_PER_STUDENT = 2;
+
 /** Razorpay's minimum charge: ₹1. */
 export const MIN_CHARGE_PAISE = 100;

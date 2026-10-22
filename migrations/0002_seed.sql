@@ -6,11 +6,16 @@
 --    confirmed (course.toConfirm). is_demo = 1 shows the demo ribbon, keeps the page noindexed and
 --    refuses live payments. Edit it in the admin once confirmed, never here.
 --    tests/db/seed.test.mjs checks that this seed still matches course.ts and lessons.ts.
--- 2. The academy's three in-person courses as DRAFTS with no price (price_paise NULL, so they can't
---    be published until the owner enters a fee). Outlines are the main site's `covers` lists, from
+-- 2. The academy's three courses as DRAFTS with no price (price_paise NULL, so they can't be
+--    published until the owner enters a fee). format 'hybrid': in-person batch booking AND recorded
+--    lessons, the owner's answer (plan 10.2), changeable per course in the admin. access_days 365
+--    (plan 10.6). Outlines are the main site's `covers` lists, from
 --    feelings-beauty-care/src/data/services.ts (makeup-academy-jamnagar), 2026-10-23.
--- 3. settings: business facts from src/data/site.ts (no GSTIN), legal_confirmed false,
---    content_version 1.
+-- 3. settings: business facts from src/data/site.ts, legal_confirmed false, content_version 1.
+--    No GSTIN and no tax fields: the owner does not want tax shown anywhere (plan 10.5).
+--
+-- SLUGS ARE PROVISIONAL. The owner picks each course's subdomain in the admin (plan 10.1): every
+-- slug below can be renamed there until its domain is active. No code depends on these values.
 --
 -- Ids are fixed, so the build's seed snapshot (src/data/snapshot.ts) and this seed agree.
 -- No lesson has a video yet (video_provider 'none') and none is a free preview.
@@ -94,10 +99,10 @@ WHERE c.id = 1;
 -- ---------------------------------------------------------------- 2. academy drafts (no price)
 
 INSERT INTO courses (
-  id, slug, title, subtitle, format, price_paise, duration_text, details,
+  id, slug, title, subtitle, format, price_paise, duration_text, access_days, details,
   is_demo, status, domain_status, sort_order, created_at, updated_at
 )
-SELECT a.id, a.slug, a.title, a.subtitle, 'in_person', NULL, a.duration_text,
+SELECT a.id, a.slug, a.title, a.subtitle, 'hybrid', NULL, a.duration_text, 365,
        json('{"outcomes":[],"forWho":[],"faqs":[],"glimpses":[],"highlights":[]}'),
        0, 'draft', 'none', a.sort_order,
        CAST(strftime('%s', 'now') AS INTEGER), CAST(strftime('%s', 'now') AS INTEGER)
@@ -152,10 +157,7 @@ INSERT INTO settings (key, value, updated_at) VALUES
     "stateCode": "24",
     "gstin": null,
     "phone": "+918000661578",
-    "whatsapp": "918000661578",
-    "sac": "999293",
-    "gstRateBp": 1800,
-    "pricesIncludeTax": true
+    "whatsapp": "918000661578"
   }'), CAST(strftime('%s', 'now') AS INTEGER)),
   ('legal_confirmed', 'false', CAST(strftime('%s', 'now') AS INTEGER)),
   ('content_version', '1', CAST(strftime('%s', 'now') AS INTEGER));

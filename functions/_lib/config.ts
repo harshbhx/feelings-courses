@@ -2,7 +2,7 @@
  * Runtime configuration: env values read safely, plus the platform's fixed numbers (cookie names,
  * lifetimes, rate limits). Every workstream reads these from here instead of retyping them.
  */
-import { DEFAULT_APEX_DOMAIN, DEFAULT_HUB_HOST } from "../../src/shared/constants.ts";
+import { DEFAULT_APEX_DOMAIN, DEFAULT_HUB_HOST, MAX_DEVICES_PER_STUDENT } from "../../src/shared/constants.ts";
 import type { AppEnv, PaymentMode } from "../../src/shared/types.ts";
 import type { Env } from "./env.ts";
 
@@ -75,7 +75,8 @@ export const SESSION_COOKIE = "__Host-fbc_s";
 export const SESSION_TTL = 180 * DAY;
 /** last_seen_at is refreshed at most this often (saves writes). */
 export const SESSION_TOUCH_INTERVAL = DAY;
-export const MAX_SESSIONS_PER_STUDENT = 3;
+/** 2 devices (owner decision, plan 10.7): the 3rd sign-in revokes the oldest session. */
+export const MAX_SESSIONS_PER_STUDENT = MAX_DEVICES_PER_STUDENT;
 
 /** Admin session cookie (hub only). */
 export const ADMIN_COOKIE = "__Host-fbc_admin";

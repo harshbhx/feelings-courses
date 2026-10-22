@@ -4,6 +4,18 @@ The foundation's shared interfaces, and which workstream produces (P) or uses (U
 
 W1 hosts and SEO · W2 payments · W3 students and learning · W4 media · W5 admin API · W6 admin UI · W7 legal, analytics, ops
 
+## Owner decisions (plan section 10), built into the contracts
+
+| Decision | Where it lives |
+|---|---|
+| **Subdomains chosen by the admin.** No course slug is hard-coded. | Slugs come only from D1 (`courses.slug`), checked by `isValidCourseSlug()`. The seed's slugs (`selfmakeup`, `diploma`, `crashcourse`, `combo`) are provisional; the admin can rename them until the domain is active. No code may branch on a specific slug. |
+| **Academy courses: in-person batch booking AND recorded lessons**, set per course | `courses.format` (`online` / `in_person` / `hybrid`); the academy drafts are seeded as `hybrid`. Batches live in `batches`, lessons in `lessons`. |
+| **Fees entered by the admin** | `price_paise NULL` on the drafts. The only price in code is the demo seed's, which is marked `is_demo`. |
+| **Refunds: requests within 24 hours of purchase** | `REFUND_WINDOW_HOURS` and `REFUND_WINDOW_SECONDS` in `src/shared/constants.ts`; `OrderSummary.refundableUntil = paidAt + 24 h`. W7 writes the refund page from the constant; W2, W5 and W6 show and enforce the window. |
+| **No GSTIN and no tax lines anywhere**; invoice numbering kept | `Receipt.kind` is always `"receipt"` and has no tax fields. `PublicBusiness` has no `gstin`. `BusinessSettings.gstin` is admin-only, stored for records, and **never rendered**. The `orders` tax columns stay NULL / 0. `invoice_counters` and `orders.invoice_no` stay. Checkout doesn't ask for the state. |
+| **Access: 1 year** for recorded courses | `DEFAULT_ACCESS_DAYS = 365`; `access_days = 365` on every seeded course. |
+| **2 devices per student** | `MAX_DEVICES_PER_STUDENT = 2` (shared), `MAX_SESSIONS_PER_STUDENT` (config.ts). The 3rd sign-in revokes the oldest session. |
+
 ## Ground rules
 
 - **Units.** Money is integer paise (`Paise`). Time is integer unix seconds, UTC (`Unix`). Calendar days are `"YYYY-MM-DD"` (`IsoDate`). `daily_stats` days are India time (`statDay()`).
@@ -21,7 +33,7 @@ W1 hosts and SEO · W2 payments · W3 students and learning · W4 media · W5 ad
 | `CourseDetails`, `CourseFaq`, `CourseGlimpse` | The `courses.details` JSON | W0 | W1, W5, W6 |
 | `PublicLesson`, `PublicModule`, `PublicBatch`, `PublicCourse`, `PublicBusiness`, `PublicSettings`, `Snapshot` | Content of the build-time snapshot | W1 (`buildSnapshot`) | W1 pages, W2 checkout, W3 learn pages, W7 legal |
 | `BuildInfo`, `DomainsManifest` | `dist/build.json`, `dist/domains.json` | W1 | W5 (publish status), W1 middleware |
-| `BusinessSettings`, `SettingsMap`, `SettingKey` | Typed `settings` keys | W0 | W2 (invoices, legal gate), W5, W7 |
+| `BusinessSettings`, `SettingsMap`, `SettingKey` | Typed `settings` keys (`gstin` is admin-only, never displayed) | W0 | W2 (receipts, legal gate), W5, W7 |
 | `Student`, `StudentSession`, `EnrollmentSummary`, `EnrollmentBatch` | Student account | W3 | W5, W6 |
 | `LessonProgress`, `LearnLesson`, `LearnModule` | Course area | W3 | W3 UI |
 | `Certificate`, `CertificateCheck` | Certificates | W3 | W5, W6 |
@@ -52,6 +64,9 @@ W1 hosts and SEO · W2 payments · W3 students and learning · W4 media · W5 ad
 | `LESSON_SLUG_RE`, `RESERVED_LESSON_SLUGS` | Lesson slugs | W3, W5, W6 |
 | `LEGAL_PAGES` | `/terms` and the like on course hosts | W1, W7 |
 | `MIN_CHARGE_PAISE` | ₹1 minimum | W2 |
+| `REFUND_WINDOW_HOURS`, `REFUND_WINDOW_SECONDS` | 24-hour refund window | W2, W5, W6, W7 |
+| `DEFAULT_ACCESS_DAYS` | 365 | W2 (enrollment expiry), W5, W6 |
+| `MAX_DEVICES_PER_STUDENT` | 2 | W3, W7 (terms) |
 
 ## Browser: `src/lib/api-client.ts`
 
@@ -72,7 +87,7 @@ W1 hosts and SEO · W2 payments · W3 students and learning · W4 media · W5 ad
 | File | What |
 |---|---|
 | `0001_init.sql` | The schema from plan section 2, exactly. |
-| `0002_seed.sql` | **DEMO** `selfmakeup` course (`is_demo = 1`, published, ids 1 / modules 1–3 / lessons 1–9). The academy drafts `diploma`, `crashcourse` and `combo` are in person, with `price_paise NULL` (ids 2–4, modules 4–6, lessons 10–26). Settings: `business`, `legal_confirmed = false`, `content_version = 1`. |
+| `0002_seed.sql` | **DEMO** `selfmakeup` course (`is_demo = 1`, published, ids 1 / modules 1–3 / lessons 1–9). The academy drafts `diploma`, `crashcourse` and `combo` are `hybrid`, with `price_paise NULL` and `access_days = 365` (ids 2–4, modules 4–6, lessons 10–26). All four slugs are provisional. Settings: `business`, `legal_confirmed = false`, `content_version = 1`. |
 
 Tables, and the workstream that writes them (others only read):
 
