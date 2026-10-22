@@ -28,7 +28,9 @@
 import { course } from "../../src/data/course.ts";
 import { IN_APP_BROWSER, RAZORPAY_TEST_KEY_ID, USE_COMMITTED_TEST_KEY } from "../../src/data/payments.ts";
 import { site } from "../../src/data/site.ts";
+import { normalizePhone } from "../../src/shared/constants.ts";
 import { randomHex } from "./crypto.ts";
+import { error, json, methodNotAllowed, readForm, readJson, redirect, sameOrigin } from "./http.ts";
 import { issueEnrollment, newEnrollment } from "./enrollment.ts";
 import type { EnrollEnv } from "./enrollment.ts";
 import {
@@ -185,13 +187,7 @@ function prefillFor({ name, phone, email }: Buyer): Record<string, string> {
 }
 
 /** Indian mobiles become +91XXXXXXXXXX; other numbers must already start with + and a country code. */
-export function normalisePhone(value: string): string | null {
-  const compact = value.replace(/[\s().-]/g, "");
-  const indian = /^(?:\+91|91|0)?([6-9]\d{9})$/.exec(compact);
-  if (indian) return `+91${indian[1]}`;
-  if (/^\+[1-9]\d{7,14}$/.test(compact) && !compact.startsWith("+91")) return compact;
-  return null;
-}
+export const normalisePhone: (value: string) => string | null = normalizePhone; // one definition: src/shared/constants.ts
 
 // ---------- POST /api/order ----------
 
@@ -205,7 +201,7 @@ export async function handleOrder(request: Request, env: CheckoutEnv, options: C
     return error(mode.status, mode.code, mode.message);
   }
 
-  const body = await readJson(request);
+  const body = await readJson(request, MAX_BODY_BYTES);
   if (!body.ok) return body.response;
   const parsed = parseBuyer(body.value);
   if (!parsed.ok) return json({ error: "invalid_details", message: "Please check your details.", fields: parsed.errors }, 400);
@@ -276,7 +272,7 @@ export async function handleVerify(request: Request, env: CheckoutEnv, options: 
   // "razorpay" mode only: "razorpay-test" sends in-app browsers to the demo sheet instead.
   if (contentType.startsWith("application/x-www-form-urlencoded")) {
     if (mode.kind !== "razorpay") return redirect(request, "/payment-failed");
-    const form = await readForm(request);
+    const form = await readForm(request, MAX_BODY_BYTES);
     if (!form) return redirect(request, "/payment-failed");
     const result = await confirmRazorpay(env, mode.keys, {
       orderId: form.get("razorpay_order_id") ?? "",
@@ -288,7 +284,7 @@ export async function handleVerify(request: Request, env: CheckoutEnv, options: 
   }
 
   if (!sameOrigin(request)) return error(403, "cross_origin", "This request must come from the course site.");
-  const body = await readJson(request);
+  const body = await readJson(request, MAX_BODY_BYTES);
   if (!body.ok) return body.response;
   const input = body.value;
 
@@ -400,63 +396,4 @@ async function confirmRazorpay(
     console.error(`verify: ${err instanceof Error ? err.message : "unknown error"}`);
     return { ok: false, status: 503, code: "enroll_unavailable", message: "We couldn't open your course yet. Please message us on WhatsApp." };
   }
-}
-
-// ---------- HTTP helpers ----------
-
-function json(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers },
-  });
-}
-
-function error(status: number, code: string, message: string): Response {
-  return json({ error: code, message }, status);
-}
-
-function methodNotAllowed(): Response {
-  return new Response(JSON.stringify({ error: "method_not_allowed", message: "Use POST." }), {
-    status: 405,
-    headers: { Allow: "POST", "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
-  });
-}
-
-function redirect(request: Request, path: string, cookie?: string): Response {
-  const headers = new Headers({ Location: new URL(path, request.url).href, "Cache-Control": "no-store" });
-  if (cookie) headers.set("Set-Cookie", cookie);
-  return new Response(null, { status: 303, headers });
-}
-
-/** A browser always sends Origin on a cross-site POST; when it's there it must be this site. */
-function sameOrigin(request: Request): boolean {
-  const origin = request.headers.get("Origin");
-  return !origin || origin === new URL(request.url).origin;
-}
-
-async function readBody(request: Request): Promise<string | null> {
-  const declared = Number(request.headers.get("Content-Length") ?? "0");
-  if (declared > MAX_BODY_BYTES) return null;
-  const text = await request.text();
-  return new TextEncoder().encode(text).length > MAX_BODY_BYTES ? null : text;
-}
-
-type JsonBody = { ok: true; value: Record<string, unknown> } | { ok: false; response: Response };
-
-async function readJson(request: Request): Promise<JsonBody> {
-  const text = await readBody(request);
-  if (text === null) return { ok: false, response: error(413, "too_large", "That request is too large.") };
-  if (text.trim() === "") return { ok: true, value: {} };
-  try {
-    const value = JSON.parse(text);
-    if (value && typeof value === "object" && !Array.isArray(value)) return { ok: true, value };
-  } catch {
-    /* falls through */
-  }
-  return { ok: false, response: error(400, "invalid_json", "The request body must be a JSON object.") };
-}
-
-async function readForm(request: Request): Promise<URLSearchParams | null> {
-  const text = await readBody(request);
-  return text === null ? null : new URLSearchParams(text);
 }

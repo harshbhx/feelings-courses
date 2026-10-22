@@ -9,10 +9,10 @@
 // only yields `/learn/*`. Method-specific exports stay separate entries and add `/learn` itself.
 //
 // The middleware has usually checked the cookie already; gate() then skips straight to the page.
-import type { EnrollEnv } from "./_lib/enrollment";
+import type { Env } from "./_lib/env.ts";
 import { gate } from "./learn/_gate";
 
-const handler: PagesFunction<EnrollEnv> = (context) => gate(context);
+const handler: PagesFunction<Env> = (context) => gate(context);
 
 export const onRequestGet = handler;
 export const onRequestHead = handler;

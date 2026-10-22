@@ -5,10 +5,20 @@
  * Each module shows its lessons and minutes; the header shows the totals.
  */
 import Icon from "../Icon.astro";
-import { course } from "../../data/course";
-import { lessonsLabel, minutesLabel, moduleMinutes, plural } from "./facts";
+import { moduleMinutes, plural, type CourseView } from "../../lib/course-view";
 
+interface Props {
+  view: CourseView;
+}
+
+const { view } = Astro.props;
+const { course } = view;
+const { lessonsLabel, minutesLabel } = view;
+const outcomes = course.details.outcomes;
+const modules = course.modules.filter((m) => m.lessons.length > 0);
 const pad = (n: number) => String(n).padStart(2, "0");
+// A studio course lists its syllabus without minutes (they are classes, not videos).
+const recorded = view.hasLessons;
 ---
 
 <section class="section learn" id="learn" aria-labelledby="learn-title">
@@ -17,7 +27,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
       <h2 id="learn-title">What you’ll learn<span class="bindi" aria-hidden="true"></span></h2>
       <ul class="outcomes">
         {
-          course.outcomes.map((outcome) => (
+          outcomes.map((outcome) => (
             <li>
               <Icon name="check-circle" />
               <span>{outcome}</span>
@@ -29,17 +39,17 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
     <div class="curriculum" id="curriculum">
       <div class="curriculum-head" data-reveal>
-        <h2 id="curriculum-title">The lessons</h2>
+        <h2 id="curriculum-title">{recorded ? "The lessons" : "The syllabus"}</h2>
         <p class="totals">
-          <span>{plural(course.modules.length, "module")}</span>
-          <span>{lessonsLabel}</span>
-          <span>{minutesLabel} in all</span>
+          <span>{plural(modules.length, "module")}</span>
+          <span>{recorded ? lessonsLabel : plural(view.lessonCount, "topic")}</span>
+          {recorded && view.totalMinutes > 0 && <span>{minutesLabel} in all</span>}
         </p>
       </div>
 
       <div class="modules" data-reveal="stagger">
         {
-          course.modules.map((m, i) => (
+          modules.map((m, i) => (
             <details class="module" open={i === 0} style={`--i: ${i}`}>
               <summary>
                 <span class="module-num" aria-hidden="true">{pad(i + 1)}</span>
@@ -49,7 +59,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
                     {m.title}
                   </h3>
                   <span class="module-meta">
-                    {plural(m.lessons.length, "lesson")} · {moduleMinutes(m)} min
+                    {recorded ? `${plural(m.lessons.length, "lesson")} · ${moduleMinutes(m)} min` : plural(m.lessons.length, "topic")}
                   </span>
                 </span>
                 <span class="toggle" aria-hidden="true" />
@@ -61,10 +71,14 @@ const pad = (n: number) => String(n).padStart(2, "0");
                       {i + 1}.{j + 1}
                     </span>
                     <span class="lesson-title">{lesson.title}</span>
-                    <span class="lesson-min">
-                      <Icon name="clock" />
-                      {lesson.minutes} min
-                    </span>
+                    {
+                      recorded && lesson.minutes > 0 && (
+                        <span class="lesson-min">
+                          <Icon name="clock" />
+                          {lesson.minutes} min
+                        </span>
+                      )
+                    }
                   </li>
                 ))}
               </ol>

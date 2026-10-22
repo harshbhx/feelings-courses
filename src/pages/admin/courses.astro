@@ -1,26 +1,30 @@
 ---
-// Courses (DEMO): every course in the store, with its cover, price, status and students.
-// "New course" and "Edit" open the editor (/admin/courses/edit).
+// Courses: every course (drafts, published, archived) from GET /api/admin/courses, with its web
+// address, format, fee, status and students. "New course" asks for a title, web address and format,
+// creates a draft (POST /api/admin/courses) and opens the editor.
 import Admin from "../../layouts/Admin.astro";
 import Icon from "../../components/Icon.astro";
-import CoverData from "../../components/admin/CoverData.astro";
 ---
 
-<Admin title="Courses" active="courses" icons={["pencil-simple", "eye", "users-three", "book-open-text", "plus"]}>
+<Admin
+  title="Courses"
+  active="courses"
+  icons={["pencil-simple", "eye", "users-three", "book-open-text", "plus", "link-simple", "calendar-blank", "video-camera", "image"]}
+>
   <header class="page-head">
     <div>
       <h1 class="page-title">Courses</h1>
-      <p class="page-sub">Make a course, add its lessons, then publish it to your catalog.</p>
+      <p class="page-sub">Make a course, choose its web address, add lessons or batches, set the fee, then publish it.</p>
     </div>
     <div class="page-actions">
       <a class="btn btn-secondary" href="/catalog">
         <Icon name="storefront" />
         View catalog
       </a>
-      <a class="btn btn-primary" href="/admin/courses/edit">
+      <button class="btn btn-primary" type="button" data-new-course>
         <Icon name="plus" />
         New course
-      </a>
+      </button>
     </div>
   </header>
 
@@ -29,13 +33,14 @@ import CoverData from "../../components/admin/CoverData.astro";
       <button type="button" aria-pressed="true" data-filter="all">All <span data-count="all"></span></button>
       <button type="button" aria-pressed="false" data-filter="published">Published <span data-count="published"></span></button>
       <button type="button" aria-pressed="false" data-filter="draft">Drafts <span data-count="draft"></span></button>
+      <button type="button" aria-pressed="false" data-filter="archived">Archived <span data-count="archived"></span></button>
     </div>
   </div>
 
-  <section class="crs" aria-label="Your courses">
+  <section class="crs" aria-label="Your courses" data-region>
     <div class="crs-head" aria-hidden="true">
       <span>Course</span>
-      <span>Price</span>
+      <span>Fee</span>
       <span>Status</span>
       <span>Students</span>
       <span></span>
@@ -43,11 +48,6 @@ import CoverData from "../../components/admin/CoverData.astro";
     <ul class="crs-list" data-list></ul>
   </section>
   <p class="visually-hidden" aria-live="polite" data-list-live></p>
-  <p class="crs-foot demo-note">
-    <Icon name="info" />
-    Demo: courses are saved in this browser only. Student numbers are example data.
-  </p>
-  <CoverData />
 </Admin>
 
 <script>
@@ -83,6 +83,40 @@ import CoverData from "../../components/admin/CoverData.astro";
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
+  }
+
+  .crs-cover-empty {
+    display: grid;
+    place-items: center;
+    color: var(--maroon-800);
+  }
+
+  .crs-cover-empty .icon {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  .crs-host {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+    overflow-wrap: anywhere;
+  }
+
+  .crs-host .icon {
+    flex: none;
+    width: 0.9rem;
+    height: 0.9rem;
+  }
+
+  .crs-list > .state-li,
+  .crs-region-state {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
   }
 
   .crs-cover {
@@ -195,7 +229,7 @@ import CoverData from "../../components/admin/CoverData.astro";
     .crs-head,
     .crs-item {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 7rem 8rem 7rem 13rem;
+      grid-template-columns: minmax(0, 1fr) 7rem 8rem 6rem 13rem;
       grid-template-areas: none;
       align-items: center;
       gap: var(--space-4);

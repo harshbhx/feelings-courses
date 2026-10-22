@@ -1,0 +1,24 @@
+---
+// /legal/terms, /legal/refunds, /legal/privacy, /legal/delivery (W7). Course hosts serve the same
+// pages at /terms and friends (functions/_lib/hosts.ts). Wording: src/data/legal.ts.
+import LegalPage from "../../components/legal/LegalPage.astro";
+import { legalDocs, type LegalDoc } from "../../data/legal";
+import { snapshot } from "../../data/snapshot";
+import { buildEnv } from "../../lib/build-env";
+import { hubIndexable, hubOrigin } from "../../lib/seo";
+import { LEGAL_PAGES } from "../../shared/constants";
+
+export function getStaticPaths() {
+  const origin = hubOrigin(buildEnv);
+  const docs = legalDocs(snapshot.settings, new URL(origin).host);
+  return LEGAL_PAGES.map((page) => ({ params: { page }, props: { doc: docs[page] } }));
+}
+
+interface Props {
+  doc: LegalDoc;
+}
+
+const { doc } = Astro.props;
+---
+
+<LegalPage doc={doc} confirmed={snapshot.settings.legalConfirmed} hubOrigin={hubOrigin(buildEnv)} noindex={!hubIndexable(snapshot, buildEnv)} />

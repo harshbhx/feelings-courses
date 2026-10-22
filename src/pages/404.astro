@@ -1,0 +1,47 @@
+---
+// Not found. Its presence also tells Cloudflare Pages this is not a single-page app: without a
+// 404.html, Pages answers unknown paths with the home page and a 200, and the course-host router
+// (functions/_lib/hosts.ts) could not tell a missing course from a real one.
+import Base from "../layouts/Base.astro";
+import Icon from "../components/Icon.astro";
+import Header from "../components/landing/Header.astro";
+import Footer from "../components/landing/Footer.astro";
+import { site } from "../data/site";
+import { buildEnv } from "../lib/build-env";
+import { hubOrigin } from "../lib/seo";
+import { whatsappLink } from "../lib/whatsapp";
+
+const hub = hubOrigin(buildEnv);
+---
+
+<Base title={`Page not found | ${site.name}`} description="This page doesn't exist." canonical={`${hub}/404`} noindex demo={false}>
+  <Header />
+  <main id="main" class="nf">
+    <div class="container-narrow">
+      <h1>This page isn’t here<span class="bindi" aria-hidden="true"></span></h1>
+      <p class="lead">The link may be old or incomplete.</p>
+      <div class="btn-row">
+        <a class="btn btn-primary" href={`${hub}/`}>
+          See the courses
+          <Icon name="arrow-right" />
+        </a>
+        <a class="btn btn-secondary" href={whatsappLink()} target="_blank" rel="noopener">
+          <Icon name="whatsapp" />
+          Ask on WhatsApp
+        </a>
+      </div>
+    </div>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .nf {
+    padding-block: var(--section-y);
+  }
+
+  .nf .container-narrow {
+    display: grid;
+    gap: var(--space-4);
+  }
+</style>
