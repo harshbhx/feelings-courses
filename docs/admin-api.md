@@ -8,7 +8,7 @@ Code: `functions/_lib/admin/` (logic, one module per area; `routes.ts` has every
 
 | | |
 |---|---|
-| Host | Production answers only on the hub host (`HUB_HOST`). Other hosts get 404. Preview and development answer on any host. |
+| Host | Production answers only on the hub host (`HUB_HOST`). Other hosts get 404. Preview and development answer on any host. A missing `APP_ENV` counts as production, so set `APP_ENV=development` in `.dev.vars` for `npm run dev:full`. |
 | Auth | Every route except `POST /api/admin/login` needs the admin session cookie. Without it: **401 `unauthorized`** (and the dead cookie is cleared). On 401, show the sign-in form. |
 | Writes | `POST`, `PUT` and `DELETE` must send `Origin` equal to the site's origin (browsers do this for `fetch`), else **403 `cross_origin`**. A body must be `Content-Type: application/json`, else **415**. `call()` does both. Exception: W4's upload parts under `/api/admin/uploads/` are binary. |
 | Bodies | JSON objects, at most 16 KB. Course create/edit allows 128 KB and the outline 512 KB (the schema's long texts). Over the cap: **413 `too_large`**. Not an object: **400 `invalid_json`**. |
