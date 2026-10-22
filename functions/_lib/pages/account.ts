@@ -4,12 +4,14 @@
  */
 import { MAX_DEVICES_PER_STUDENT } from "../../../src/shared/constants.ts";
 import type { EnrollmentSummary, OrderSummary, Student, StudentSession } from "../../../src/shared/types.ts";
+import { ConfigError } from "../config.ts";
 import { unixNow } from "../db/d1.ts";
 import { ValidationError } from "../db/errors.ts";
 import { hasDb, type Env } from "../env.ts";
 import { readForm } from "../http.ts";
 import { notSetUp } from "./auth.ts";
 import { listEnrollments } from "../learn.ts";
+import { receiptPath } from "../receipts.ts";
 import { clearSessionCookie, readSession, revokeSession } from "../session.ts";
 import { deviceLabel, getStudent, listOrders, listSessions, updateStudent } from "../students.ts";
 import {
@@ -82,7 +84,21 @@ const STATUS_LABEL: Record<OrderSummary["status"], string> = {
   refunded: "Refunded",
 };
 
-function orderRow(o: OrderSummary): Raw {
+/** Each order's on-screen receipt link (W2's receiptPath), or none without APP_SECRET. */
+async function receiptLinks(env: Env, orders: OrderSummary[]): Promise<Map<number, string>> {
+  const links = new Map<number, string>();
+  for (const o of orders) {
+    try {
+      links.set(o.id, await receiptPath(env, o.id));
+    } catch (err) {
+      if (err instanceof ConfigError) break; // no APP_SECRET yet: no receipt links at all
+      throw err;
+    }
+  }
+  return links;
+}
+
+function orderRow(o: OrderSummary, receipt: string | undefined): Raw {
   return html`<li class="item">
   <div class="item-main">
     <h3 class="item-title">${o.courseTitle}</h3>
@@ -90,6 +106,7 @@ function orderRow(o: OrderSummary): Raw {
     <p class="muted">Payment ID <code>${o.razorpayPaymentId ?? "none"}</code>${o.invoiceNo ? html` · Receipt no. ${o.invoiceNo}` : ""}</p>
     ${o.refundedPaise > 0 ? html`<p class="muted">Refunded ${formatRupees(o.refundedPaise)}</p>` : ""}
   </div>
+  ${receipt ? html`<a class="btn btn-quiet" href="${receipt}">Receipt</a>` : ""}
 </li>`;
 }
 
@@ -104,6 +121,7 @@ function accountPage(
   enrollments: EnrollmentSummary[],
   sessions: StudentSession[],
   orders: OrderSummary[],
+  receipts: Map<number, string>,
   now: number,
   notice: string | null,
   formError: string | null,
@@ -133,7 +151,7 @@ ${formError ? html`<p class="alert" role="alert">${formError}</p>` : ""}
 </section>
 <section class="card" aria-labelledby="payments-h">
   <h2 id="payments-h">Payments</h2>
-  ${orders.length ? html`<ul class="list">${orders.map(orderRow)}</ul>` : html`<p class="muted">No payments yet.</p>`}
+  ${orders.length ? html`<ul class="list">${orders.map((o) => orderRow(o, receipts.get(o.id)))}</ul>` : html`<p class="muted">No payments yet.</p>`}
 </section>
 <section class="card" aria-labelledby="profile-h">
   <h2 id="profile-h">Your details</h2>
@@ -198,9 +216,10 @@ export async function handleAccount(request: Request, env: Env, now = unixNow())
     listSessions(env.DB, session.studentId, session.sessionId, now),
     listOrders(env.DB, session.studentId),
   ]);
+  const receipts = await receiptLinks(env, orders);
   const notice = NOTICES[new URL(request.url).searchParams.get("done") ?? ""] ?? null;
   return page(
-    accountPage(business, student, enrollments, sessions, orders, now, notice, formError),
+    accountPage(business, student, enrollments, sessions, orders, receipts, now, notice, formError),
     formError ? 400 : 200,
     [],
     request.method,

@@ -7,6 +7,7 @@
  *   GET    /api/me                PUT /api/me        profile and enrollments
  *   GET    /api/me/sessions       DELETE /api/me/sessions/:id
  *   GET    /api/me/orders
+ *   GET    /api/me/orders/:id                         one of the student's own receipts (W2's buildReceipt)
  *   GET    /api/learn/:slug                          outline + progress + certificate
  *   GET    /api/learn/:slug/lessons/:lessonId/play   W4's signed playback, after the enrollment check
  *   PUT    /api/learn/progress
@@ -17,7 +18,7 @@
  * a same-origin Origin; errors are { error, message }. "Not enrolled" and "no such course" give the
  * same 404, so the API doesn't tell anyone which courses exist as drafts.
  */
-import type { MeResponse, RestoreResponse } from "../../src/shared/api.ts";
+import type { MeResponse, MyReceiptResponse, RestoreResponse } from "../../src/shared/api.ts";
 import { checkCertificate, publicCheck } from "./certificates.ts";
 import { writeAudit } from "./db/audit.ts";
 import { unixNow } from "./db/d1.ts";
@@ -25,6 +26,7 @@ import { hasDb, type Env } from "./env.ts";
 import { clientIp, error, errorResponse, isJson, json, methodNotAllowed, readJson, sameOrigin } from "./http.ts";
 import { claimCertificate, listEnrollments, loadLearnCourse, parseProgress, saveProgress } from "./learn.ts";
 import { playLesson } from "./play.ts";
+import { buildReceipt } from "./receipts.ts";
 import { hit } from "./ratelimit.ts";
 import { restoreAccess } from "./restore.ts";
 import {
@@ -154,6 +156,23 @@ export const handleMyOrders = endpoint(["GET"], async (request, env, now) => {
   if (!session) return notSignedIn();
   return json(await listOrders(env.DB, session.studentId));
 });
+
+/**
+ * GET /api/me/orders/:id: one receipt (W2's buildReceipt), only the student's own. Someone else's
+ * order, an unpaid one and a missing one all give the same 404.
+ */
+export function handleMyReceipt(orderId: string) {
+  return endpoint(["GET"], async (request, env, now) => {
+    const session = await signedIn(request, env, now);
+    if (!session) return notSignedIn();
+    const id = /^\d{1,12}$/.test(orderId) ? Number(orderId) : 0;
+    const owner = id ? await env.DB.prepare("SELECT student_id FROM orders WHERE id = ?").bind(id).first<{ student_id: number }>() : null;
+    const receipt = owner?.student_id === session.studentId ? await buildReceipt(env.DB, id) : null;
+    if (!receipt) return error(404, "not_found", "No such payment in your account.");
+    const { extras: _extras, ...plain } = receipt;
+    return json(plain satisfies MyReceiptResponse);
+  });
+}
 
 // ---------------------------------------------------------------- learn
 
