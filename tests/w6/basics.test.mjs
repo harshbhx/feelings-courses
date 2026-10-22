@@ -171,6 +171,11 @@ test("course addresses and the Cloudflare helper", () => {
   assert.equal(domainView("active", "x1").tone, "live");
   assert.equal(domainView("pending", "x1").tone, "wait");
   assert.equal(domainView("none", "x1").tone, "off");
+  // W8: the hosts come from GET /api/admin/me (the server's config), production's by default.
+  const staging = { hubHost: "courses.example.in", apexDomain: "example.in" };
+  assert.deepEqual(courseAddresses("glow", staging), { host: "glow.example.in", subdomainUrl: "https://glow.example.in/", hubUrl: "https://courses.example.in/c/glow" });
+  assert.equal(domainSteps("glow", staging).find((s) => s.copy).copy, "glow.example.in");
+  assert.match(domainView("none", "glow", staging).help, /glow\.example\.in.*courses\.example\.in\/c\//);
   assert.match(probeText("timeout", "pending"), /5 seconds/);
   assert.match(probeText("unreachable", "pending"), /doesn't exist/);
   assert.match(probeText(522, "pending"), /522/);
