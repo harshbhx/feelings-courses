@@ -3,12 +3,12 @@
  * student id from the session, never from the request.
  */
 import type { OrderSummary, Student, StudentSession } from "../../src/shared/types.ts";
-import { REFUND_WINDOW_SECONDS } from "../../src/shared/constants.ts";
 import { auditStatement } from "./db/audit.ts";
 import { unixNow, type Db } from "./db/d1.ts";
 import { ConflictError, isUniqueViolation, ValidationError } from "./db/errors.ts";
 import { batch } from "./db/tx.ts";
 import * as v from "./db/validate.ts";
+import { refundableUntil } from "./orders.ts"; // W2: paidAt + 24 h, one definition
 
 interface StudentRow {
   id: number;
@@ -140,10 +140,6 @@ interface OrderRow {
   paid_at: number | null;
 }
 
-/** paidAt + 24 h (the owner's refund window), or null when unpaid. */
-export function refundableUntil(paidAt: number | null): number | null {
-  return paidAt === null ? null : paidAt + REFUND_WINDOW_SECONDS;
-}
 
 /** The student's payments (paid or refunded; unfinished checkouts are left out), newest first. */
 export async function listOrders(db: Db, studentId: number): Promise<OrderSummary[]> {

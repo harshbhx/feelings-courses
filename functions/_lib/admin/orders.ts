@@ -7,7 +7,7 @@
  * are shown as W2 assigns them; refundableUntil = paidAt + 24 h (REFUND_WINDOW_SECONDS).
  */
 import type { Page } from "../../../src/shared/api.ts";
-import { REFUND_WINDOW_SECONDS } from "../../../src/shared/constants.ts";
+import { refundableUntil } from "../orders.ts"; // W2: paidAt + 24 h
 import type { AdminOrder, OrderStatus, OrderSummary, Refund, WebhookEventRow } from "../../../src/shared/types.ts";
 import type { Db, DbValue } from "../db/d1.ts";
 import { ValidationError } from "../db/errors.ts";
@@ -82,7 +82,7 @@ export function orderSummary(row: OrderRow): OrderSummary {
     invoiceNo: row.invoice_no,
     createdAt: row.created_at,
     paidAt: row.paid_at,
-    refundableUntil: row.paid_at === null ? null : row.paid_at + REFUND_WINDOW_SECONDS,
+    refundableUntil: refundableUntil(row.paid_at),
   };
 }
 
