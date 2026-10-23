@@ -1,6 +1,8 @@
 # How setup talks to Cloudflare (API behaviour, checked 23 Oct 2026)
 
-`scripts/setup.mjs` uses Cloudflare's v4 API with the owner's token. This page records what each call does on Cloudflare's side, the hub's open questions, and where the answer comes from, so the script can be trusted before its first real run. It has still **not been run against the real account**: run `--dry-run` first, then preview, then production.
+`scripts/setup.mjs` uses Cloudflare's v4 API with the owner's token. This page records what each call does on Cloudflare's side, the hub's open questions, and where the answer comes from, so the script can be trusted before its first real run. It has still **not made a change on the real account**: run `--dry-run` first, then preview, then production.
+
+`--dry-run` against the real account (DualMind Labs, 23 Oct 2026, placeholder Razorpay test keys) exited 0 and planned: create D1 `fbc-courses` and `fbc-courses-preview`, R2 `fbc-media` and `fbc-media-preview` (each with the 35-day backup rule), and the `fbc-courses-mailer` Worker; then `add` for the DB, MEDIA and MAILER bindings and all ten variables and secrets in both environments. The project's only other variable, `NODE_VERSION`, is kept. Nothing showed CHANGE or STOP.
 
 | Question | Answer | Source | What setup does |
 |---|---|---|---|
