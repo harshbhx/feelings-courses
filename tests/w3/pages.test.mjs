@@ -24,7 +24,7 @@ function assertPageHeaders(res) {
   assert.equal(res.headers.get("Cache-Control"), "private, no-store");
   assert.match(res.headers.get("Content-Security-Policy"), /script-src 'self'; style-src 'self'/);
   assert.match(res.headers.get("Content-Security-Policy"), /frame-ancestors 'none'/);
-  assert.equal(res.headers.get("Referrer-Policy"), "no-referrer");
+  assert.equal(res.headers.get("Referrer-Policy"), "same-origin");
   assert.equal(res.headers.get("X-Frame-Options"), "DENY");
   assert.match(res.headers.get("X-Robots-Tag"), /noindex/);
 }
@@ -140,7 +140,7 @@ test("/auth/continue: the payment handoff signs in at once and lands on its path
   const res = await handleContinue(req(`/auth/continue?t=${token}`), env(db), NOW + 5);
   assert.equal(res.status, 303);
   assert.equal(res.headers.get("Location"), "/account?paid=1");
-  assert.equal(res.headers.get("Referrer-Policy"), "no-referrer");
+  assert.equal(res.headers.get("Referrer-Policy"), "same-origin");
   assert.ok(cookieOf(res));
   const again = await handleContinue(req(`/auth/continue?t=${token}`), env(db), NOW + 6);
   assert.equal(again.status, 410, "single use");

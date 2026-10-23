@@ -278,6 +278,27 @@ export async function fulfilOrderDb(
           now,
         )
       : null,
+    // Two buyers can start checkout for the last seat; both payments are real, so the second one
+    // still books (the money was taken) but is flagged for the admin, before the seat count passes
+    // the limit. A flagged order can be refunded after the 24-hour window (isFlaggedForRefund).
+    // Found by the e2e journeys (tests/e2e/02-batches.spec.mjs).
+    order.batch_id !== null
+      ? auditStatementWhen(
+          db,
+          {
+            actor,
+            action: "order.batch_overbooked",
+            entity: "order",
+            entityId: orderId,
+            data: { batch: order.batch_id, note: "The batch was already full when this payment arrived. Move the student to another batch or refund this payment." },
+            now,
+          },
+          {
+            sql: `${unpaid.sql} AND EXISTS (SELECT 1 FROM batches WHERE id = ? AND seats IS NOT NULL AND seats_taken >= seats)`,
+            params: [...unpaid.params, order.batch_id],
+          },
+        )
+      : null,
     order.batch_id !== null
       ? guard(`UPDATE batches SET seats_taken = seats_taken + 1, updated_at = ? WHERE id = ? AND ${unpaid.sql}`, now, order.batch_id)
       : null,
@@ -419,7 +440,7 @@ export async function refundOrderDb(
   if (order.mode !== keys.mode) {
     throw new ConflictError("mode_mismatch", `This is a ${order.mode}-mode order, but the site runs on ${keys.mode}-mode keys.`);
   }
-  if (now > order.paid_at + REFUND_WINDOW_SECONDS && !(await isFlaggedDuplicate(db, orderId))) {
+  if (now > order.paid_at + REFUND_WINDOW_SECONDS && !(await isFlaggedForRefund(db, orderId))) {
     // The owner's policy: refund requests within 24 hours of purchase. A second payment for a
     // course the student already had (flagged by fulfilOrder) is not a purchase, so it can always
     // be returned.
@@ -475,9 +496,12 @@ export async function refundOrderDb(
   return toRefund((await getRefundRow(db, refundId))!);
 }
 
-async function isFlaggedDuplicate(db: Db, orderId: number): Promise<boolean> {
+/** A payment the platform itself flagged (a second payment, a seat that wasn't there): refundable any time. */
+async function isFlaggedForRefund(db: Db, orderId: number): Promise<boolean> {
   const row = await db
-    .prepare("SELECT 1 AS flagged FROM audit_log WHERE entity = 'order' AND entity_id = ? AND action = 'order.duplicate_payment' LIMIT 1")
+    .prepare(
+      "SELECT 1 AS flagged FROM audit_log WHERE entity = 'order' AND entity_id = ? AND action IN ('order.duplicate_payment', 'order.batch_overbooked') LIMIT 1",
+    )
     .bind(String(orderId))
     .first();
   return Boolean(row);

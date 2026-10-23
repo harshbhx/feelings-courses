@@ -17,7 +17,7 @@ How a course is bought, paid, refunded and receipted on the platform. Code: `fun
    - the stats;
    - the audit row.
 
-   A paid second order for a course the student already has active is flagged in the audit log (`order.duplicate_payment`) for a refund. It never enrolls the student twice.
+   A paid second order for a course the student already has active is flagged in the audit log (`order.duplicate_payment`) for a refund. It never enrolls the student twice. Seats are checked when the order is created, so two buyers can both pay for a batch's last seat: the later payment still books (the money was taken) and is flagged `order.batch_overbooked` for the admin to move the student or refund. Both flags allow a refund after the 24-hour window.
 
 ## Owner decisions in the code
 

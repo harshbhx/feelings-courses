@@ -20,6 +20,7 @@
     "test:unit": "node --experimental-strip-types --no-warnings --import ./tests/helpers/register.mjs --test \"tests/**/*.test.mjs\"",
     "test:checkout": "node --experimental-strip-types --no-warnings --test-reporter=spec scripts/test-checkout.mjs",
     "test:learn": "node scripts/test-learn.mjs",
+    "test:e2e": "playwright test -c tests/e2e/playwright.config.mjs",
     "setup": "node scripts/setup.mjs",
     "go-live": "node scripts/setup.mjs --live"
   },
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
     "@cloudflare/workers-types": "^5.20261016.1",
+    "@playwright/test": "1.48.2",
     "typescript": "^5.9.2",
     "wrangler": "^4.152.0"
   },
