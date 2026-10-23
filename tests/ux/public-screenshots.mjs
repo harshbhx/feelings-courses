@@ -133,25 +133,6 @@ try {
             .filter(Boolean),
         );
         for (const b of broken) problems.push(`${p.name} @${viewport.name}: image not shown: ${b}`);
-        // The teacher's cut-out: where it is and what it shows (it must stand inside its band).
-        const portrait = await page.evaluate(() => {
-          const img = document.querySelector(".teacher-portrait img");
-          if (!img) return null;
-          const band = img.closest("section")?.getBoundingClientRect();
-          const box = img.getBoundingClientRect();
-          const style = getComputedStyle(img);
-          const holder = getComputedStyle(img.closest(".teacher-portrait"));
-          return {
-            src: img.currentSrc.split("/").pop(),
-            natural: `${img.naturalWidth}x${img.naturalHeight}`,
-            box: `${Math.round(box.left)},${Math.round(box.top)} ${Math.round(box.width)}x${Math.round(box.height)}`,
-            band: band ? `${Math.round(band.top)}..${Math.round(band.bottom)}` : null,
-            opacity: `${style.opacity}/${holder.opacity}`,
-            transform: style.transform,
-            visible: img.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }),
-          };
-        });
-        if (portrait) console.log(`${p.name} @${viewport.name}: teacher portrait ${JSON.stringify(portrait)}`);
         await page.screenshot({ path: shot(`${p.name}-${viewport.name}`), fullPage: true });
 
         // Accessibility: axe-core on the rendered page (once per page, at the phone width).

@@ -25,10 +25,10 @@ const firstName = teacher.split(" ")[0];
 
 const sizes = "(min-width: 56rem) min(36vw, 28rem), min(80vw, 20rem)";
 const widths = [320, 480, 640, 960];
-const [avif, webp] = await Promise.all([
-  getImage({ src: urmi, widths, sizes, format: "avif", quality: 45 }),
-  getImage({ src: urmi, widths, sizes, format: "webp", quality: 72 }),
-]);
+// WebP only: the AVIF that sharp made of this cut-out (alpha, quality 45) decoded to nothing in
+// Chromium at the 960w size, so the desktop band showed an empty half (seen in the public-pages
+// screenshots, 2026-10-23). WebP keeps the transparency everywhere for a few KB more.
+const webp = await getImage({ src: urmi, widths, sizes, format: "webp", quality: 72 });
 ---
 
 <section class="section band-deep teacher" id="teacher" aria-labelledby="teacher-title">
@@ -69,19 +69,16 @@ const [avif, webp] = await Promise.all([
     </div>
 
     <div class="teacher-portrait" data-reveal="image">
-      <picture>
-        <source type="image/avif" srcset={avif.srcSet.attribute} sizes={sizes} />
-        <img
-          src={webp.src}
-          srcset={webp.srcSet.attribute}
-          sizes={sizes}
-          width={urmi.width}
-          height={urmi.height}
-          alt={`${teacher}, founder of ${site.name}`}
-          loading="lazy"
-          decoding="async"
-        />
-      </picture>
+      <img
+        src={webp.src}
+        srcset={webp.srcSet.attribute}
+        sizes={sizes}
+        width={urmi.width}
+        height={urmi.height}
+        alt={`${teacher}, founder of ${site.name}`}
+        loading="lazy"
+        decoding="async"
+      />
     </div>
   </div>
 </section>
