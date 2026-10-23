@@ -42,6 +42,11 @@ export type EnrollmentSource = "payment" | "manual" | "coupon_free";
 export type RefundStatus = "pending" | "processed" | "failed";
 export type MediaKind = "video" | "image" | "captions" | "file";
 export type MediaStatus = "uploading" | "ready" | "aborted" | "deleted";
+/**
+ * login_tokens.purpose. "handoff": right after checkout, on the paying device. "admin_link": a link
+ * opened with a Continue button, emailed to the student (15 min) or made by the admin (24 h);
+ * opening one proves the student's email (functions/_lib/claim.ts).
+ */
 export type LoginTokenPurpose = "handoff" | "admin_link";
 /** Counters in daily_stats that bump() can increment. */
 export type StatField = "views" | "checkouts_started" | "paid_orders" | "revenue_paise" | "refunds_paise";
@@ -217,8 +222,9 @@ export type SettingKey = keyof SettingsMap;
 export interface Student {
   id: number;
   name: string | null;
-  /** E.164. null only after an erase, or when the student signed up with email. */
+  /** E.164. An optional contact detail (owner decision, 23 Oct 2026): never finds or opens an account. */
   phone: string | null;
+  /** The account: the student signs in with links sent here. null only after an erase (or an account from before email identity). */
   email: string | null;
   stateCode: string | null;
   createdAt: Unix;

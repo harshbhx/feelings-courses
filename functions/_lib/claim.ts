@@ -1,52 +1,79 @@
 /**
- * Who may open a student's account by proving one purchase (security review F1,
- * docs/SECURITY-REVIEW.md).
+ * Who may open a student's account (security review F1, with email identity since 23 Oct 2026;
+ * docs/SECURITY-REVIEW.md, "Email identity").
  *
- * A student is found by phone number at checkout (payments.ts upsertStudent), and nothing checks
- * that the buyer owns that number (no OTP: the owner chose no SMS or email service). Without this
- * rule, anyone who knows a customer's phone number could buy any cheap course (or take a free one)
- * with it and receive a sign-in link, or restore with their own payment ID, straight into the
- * customer's existing account: every course in it, the profile, receipts and devices.
+ * A student IS their email address. The only proof that someone owns an account is a sign-in link
+ * sent to that address and opened (or one the admin made for them): email_verifications records
+ * that proof. Checkout finds the account by the email the buyer types, and typing an address
+ * proves nothing, so a purchase alone opens an account only in the one case where nothing can be
+ * taken from it:
  *
- * The rule: a purchase proves the account only when nothing of value was in it before. A sign-in
- * by proof of an order (the handoff after checkout, restore with a payment ID) or of a free
- * enrollment is allowed when the student had no other enrollment that still gives access before
- * that purchase started. A returning customer who buys again on a new device signs in with the payment ID of
- * their first purchase, or gets a one-time link from the admin on WhatsApp; on a device that is
- * already signed in nothing changes.
+ *   the account's email has never been proven, AND it holds no enrollment besides this purchase.
  *
- * Not covered (an owner decision, see the review): someone who uses a phone number before its
- * owner ever buys holds that account first. Only verifying the phone number closes that.
+ * Then the paying device is handed a session at once (the common case: a first purchase). In every
+ * other case the buyer gets the receipt on screen and the receipt and a sign-in link by email; the
+ * owner of the address opens the course from their inbox.
+ *
+ * Email squatting (someone buys first with an address that isn't theirs, gets the handoff session,
+ * and waits for the real owner to buy into "their" account) is closed by markEmailVerified(): the
+ * first proof of an address signs out every session that existed before it, once.
  */
 import type { Db } from "./db/d1.ts";
+import { changes } from "./db/tx.ts";
 
 export interface PurchaseProof {
   /** The order proven (orders.id), or null for a free enrollment (no order row). */
   orderId: number | null;
-  /** The course the proof is for (its own enrollment doesn't count as earlier access). */
+  /** The course the proof is for (its own enrollment doesn't count as something else in the account). */
   courseId: number;
   /** When the proven purchase started: the order's created_at, or the free enrollment's time. */
   since: number;
 }
 
-/**
- * True when proving this purchase may sign in to the student's account: before it started, the
- * student had no other enrollment that still gives access (not revoked, not expired). Expired or
- * revoked ones don't count: they open nothing, and counting them would lock out a customer whose
- * old access ran out. `now` decides "still gives access".
- */
-export async function purchaseOpensAccount(db: Db, studentId: number, proof: PurchaseProof, now: number): Promise<boolean> {
-  // Leave out the proof's own enrollment: the order's (a renewal keeps the old row's created_at),
-  // or, for a free enrollment (no order), the course's.
-  const notOwn = proof.orderId !== null ? "(order_id IS NULL OR order_id <> ?)" : "course_id <> ?";
-  const earlier = await db
+/** True when the student's CURRENT email has been proven by an opened sign-in link. */
+export async function emailVerified(db: Db, studentId: number): Promise<boolean> {
+  const row = await db
     .prepare(
-      `SELECT 1 AS earlier FROM enrollments
-       WHERE student_id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
-         AND created_at < ? AND ${notOwn}
-       LIMIT 1`,
+      "SELECT 1 AS proven FROM email_verifications v JOIN students s ON s.id = v.student_id " +
+        "WHERE v.student_id = ? AND s.email IS NOT NULL AND v.email = s.email",
     )
-    .bind(studentId, now, proof.since, proof.orderId ?? proof.courseId)
+    .bind(studentId)
     .first();
-  return !earlier;
+  return Boolean(row);
+}
+
+/**
+ * Records that the student just proved their current email. Returns true the first time this
+ * address is proven for the account (then the caller signs out every earlier session), false when
+ * it already was (or the student has no email).
+ */
+export async function markEmailVerified(db: Db, studentId: number, now: number): Promise<boolean> {
+  const result = await db
+    .prepare(
+      "INSERT INTO email_verifications (student_id, email, verified_at) " +
+        "SELECT id, email, ? FROM students WHERE id = ? AND email IS NOT NULL AND erased_at IS NULL " +
+        "ON CONFLICT (student_id) DO UPDATE SET email = excluded.email, verified_at = excluded.verified_at " +
+        "WHERE email_verifications.email <> excluded.email",
+    )
+    .bind(now, studentId)
+    .run();
+  return changes(result) === 1;
+}
+
+/**
+ * True when proving this purchase may sign the paying device in: the account's email was never
+ * proven, and the account holds nothing from before this purchase: no other enrollment in any
+ * state (an expired or refunded course still shows its history, receipts, certificate and the
+ * name), and its own enrollment row wasn't there before the purchase started (a renewal keeps the
+ * old row, with its progress and certificate). The proof's own enrollment is the order's, or for a
+ * free enrollment (no order) the course's.
+ */
+export async function purchaseOpensAccount(db: Db, studentId: number, proof: PurchaseProof): Promise<boolean> {
+  if (await emailVerified(db, studentId)) return false;
+  const notOwn = proof.orderId !== null ? "(order_id IS NULL OR order_id <> ?)" : "course_id <> ?";
+  const other = await db
+    .prepare(`SELECT 1 AS other FROM enrollments WHERE student_id = ? AND (created_at < ? OR ${notOwn}) LIMIT 1`)
+    .bind(studentId, proof.since, proof.orderId ?? proof.courseId)
+    .first();
+  return !other;
 }

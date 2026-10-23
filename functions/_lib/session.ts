@@ -7,8 +7,9 @@
  *   (MAX_SESSIONS_PER_STUDENT, owner decision): the 3rd sign-in revokes the oldest.
  * - Signing in again on a device that already has a session replaces that session instead of
  *   pushing out the student's other device.
- * - Login tokens (`login_tokens`): "handoff" (10 min) after payment, "admin_link" (24 h) sent by
- *   the admin on WhatsApp. Single use: consumed by one guarded UPDATE … RETURNING, so two racing
+ * - Login tokens (`login_tokens`): "handoff" (10 min) after payment, on the paying device only;
+ *   "admin_link", a link opened with a Continue button: emailed to the student (15 min) or made
+ *   by the admin (24 h). Single use: consumed by one guarded UPDATE … RETURNING, so two racing
  *   requests can't both use a token. redirect_path must be a same-site path ("/…", never "//…").
  * - Session lookups go by the token's hash through the UNIQUE index; the raw token is never
  *   compared, stored or logged.
@@ -200,7 +201,8 @@ export function safeRedirectPath(value: unknown): string | null {
 
 /**
  * Creates a single-use login token and returns the raw token (only its hash is stored). A new
- * admin link replaces the student's unused older ones, so only the latest link Urmi sent works.
+ * link ("admin_link": emailed or made by the admin) replaces the student's unused older links, so
+ * only the newest one works. `ttl` shortens the purpose's lifetime (an emailed link: 15 minutes).
  */
 export async function issueLoginToken(
   db: Db,
@@ -208,9 +210,12 @@ export async function issueLoginToken(
   purpose: LoginTokenPurpose,
   redirectPath: string,
   now: number = unixNow(),
+  options: { ttl?: number } = {},
 ): Promise<string> {
-  const ttl = (LOGIN_TOKEN_TTL as Record<string, number>)[purpose];
-  if (!ttl) throw new ValidationError("purpose", "Unknown login token purpose.");
+  const longest = (LOGIN_TOKEN_TTL as Record<string, number>)[purpose];
+  if (!longest) throw new ValidationError("purpose", "Unknown login token purpose.");
+  const ttl = options.ttl === undefined ? longest : Math.min(longest, options.ttl);
+  if (!Number.isSafeInteger(ttl) || ttl < 60) throw new ValidationError("ttl", "A login token lasts at least a minute.");
   const path = safeRedirectPath(redirectPath);
   if (!path) throw new ValidationError("redirectPath", "The redirect must be a path on this site.");
   if (!Number.isSafeInteger(studentId) || studentId < 1) throw new ValidationError("studentId", "studentId must be an id.");

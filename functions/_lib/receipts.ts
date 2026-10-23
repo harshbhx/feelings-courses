@@ -1,12 +1,13 @@
 /**
- * On-screen receipts (owner decision: no email service, so the receipt lives on a page the buyer
- * can keep, print or share on WhatsApp).
+ * Receipts: a page the buyer can keep, print or share on WhatsApp, and (since 23 Oct 2026) the same
+ * link in the receipt email (signin-links.ts sendReceiptEmail).
  *
  * - buildReceipt(db, orderId): the Receipt data (src/shared/types.ts). W3's GET /api/me/orders/:id
  *   returns it for a signed-in student.
  * - receiptKey / receiptPath: a capability link, /receipt/<orderId>?k=<key>, where key is an HMAC
  *   of the order id with APP_SECRET. Whoever has the link sees the receipt; nobody can guess one
- *   for another order. The page masks the phone number and leaves out the email.
+ *   for another order. The page shows the buyer's name only: no phone, no email (someone who
+ *   paid with another person's address must learn nothing more from it).
  * - renderReceiptPage(): the HTML, rendered by functions/receipt/[id].ts.
  *
  * Owner decision (plan 10.5): a plain "Payment receipt" with its invoice number. No GSTIN, no tax
@@ -19,7 +20,7 @@ import { hmacSha256Hex, timingSafeEqual } from "./crypto.ts";
 import type { Db } from "./db/d1.ts";
 import { getSetting } from "./db/settings.ts";
 import type { Env } from "./env.ts";
-import { listRefunds, maskPhone, toOrderSummary } from "./orders.ts";
+import { listRefunds, toOrderSummary } from "./orders.ts";
 import { formatRupees } from "./pricing.ts";
 import { batchLine, icon, layout, markup, messagePage, raw, type Business } from "./pages/html.ts";
 import { MAX_DEVICES_PER_STUDENT } from "../../src/shared/constants.ts";
@@ -294,7 +295,6 @@ ${nextStep}
 <dt>Receipt no.</dt><dd>${escapeHtml(number)}</dd>
 <dt>Date</dt><dd>${order.paidAt ? escapeHtml(formatIst(order.paidAt)) : ""}</dd>
 <dt>Name</dt><dd>${escapeHtml(receipt.buyer.name ?? "")}</dd>
-${receipt.buyer.phone ? `<dt>Phone</dt><dd>${escapeHtml(maskPhone(receipt.buyer.phone))}</dd>` : ""}
 <dt>Course</dt><dd>${escapeHtml(order.courseTitle)}</dd>
 ${extras.batch ? `<dt>Batch</dt><dd>${batch}</dd>` : ""}
 ${receipt.method ? `<dt>Paid by</dt><dd>${escapeHtml(METHODS[receipt.method] ?? receipt.method)}</dd>` : ""}

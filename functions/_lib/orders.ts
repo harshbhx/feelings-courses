@@ -642,7 +642,7 @@ export async function syncOrderDb(db: Db, keys: PaymentKeys, orderId: number, no
 // ---------------------------------------------------------------- webhooks
 
 /** Processes a stored webhook_events row (also the admin's replay). Errors go to webhook_events.error. */
-export async function processWebhookEvent(env: Env, eventId: string): Promise<void> {
+export async function processWebhookEvent(env: Env, eventId: string): Promise<WebhookOutcome> {
   let keys: PaymentKeys | null = null;
   try {
     keys = paymentKeys(env);
@@ -661,7 +661,12 @@ interface WebhookPayload {
   };
 }
 
-export async function processWebhookEventDb(db: Db, keys: PaymentKeys | null, eventId: string, now = unixNow()): Promise<void> {
+/** What processing an event did that the caller acts on: the order it newly marked paid (the receipt email goes out once). */
+export interface WebhookOutcome {
+  paidOrderId: number | null;
+}
+
+export async function processWebhookEventDb(db: Db, keys: PaymentKeys | null, eventId: string, now = unixNow()): Promise<WebhookOutcome> {
   const row = await db
     .prepare("SELECT event_id, type, payload, processed_at FROM webhook_events WHERE event_id = ?")
     .bind(eventId)
@@ -677,8 +682,10 @@ export async function processWebhookEventDb(db: Db, keys: PaymentKeys | null, ev
 
   try {
     const body = JSON.parse(row.payload) as WebhookPayload;
-    const note = await handleEvent(db, keys, row.type, body, now);
+    const outcome: WebhookOutcome = { paidOrderId: null };
+    const note = await handleEvent(db, keys, row.type, body, now, outcome);
     await finish(note);
+    return outcome;
   } catch (err) {
     // Left unprocessed: Razorpay retries (the endpoint answers 500) and the admin can replay it.
     const message = err instanceof Error ? err.message : "unknown error";
@@ -691,7 +698,14 @@ export async function processWebhookEventDb(db: Db, keys: PaymentKeys | null, ev
 }
 
 /** Returns a note for the admin's webhook log (null when all went well). Throws on a transient error. */
-async function handleEvent(db: Db, keys: PaymentKeys | null, type: string, body: WebhookPayload, now: number): Promise<string | null> {
+async function handleEvent(
+  db: Db,
+  keys: PaymentKeys | null,
+  type: string,
+  body: WebhookPayload,
+  now: number,
+  outcome: WebhookOutcome,
+): Promise<string | null> {
   const paymentEntity = body.payload?.payment?.entity;
   switch (type) {
     case "payment.captured":
@@ -710,6 +724,7 @@ async function handleEvent(db: Db, keys: PaymentKeys | null, type: string, body:
         payment = toPayment(await captureOrFetchPayment(keys, payment.id, order.amount_paise, order.currency));
       }
       const result = await fulfilOrderDb(db, { orderId: order.id, payment, actor: "razorpay", now });
+      if (result.ok && !result.alreadyPaid) outcome.paidOrderId = order.id;
       return result.ok ? null : `Not fulfilled: ${result.reason}.`;
     }
     case "payment.failed": {

@@ -7,7 +7,8 @@
  * drift from what the platform enforces. tests/w7/legal.test.mjs checks that.
  *
  * Owner decisions honoured here: refunds within REFUND_WINDOW_HOURS of purchase; 12 months of
- * access; MAX_DEVICES_PER_STUDENT devices; no email service (on-screen receipts and WhatsApp);
+ * access; MAX_DEVICES_PER_STUDENT devices; the student's email is their account (sign-in links and
+ * receipts by email, sent through Cloudflare; 23 Oct 2026), the phone number is optional;
  * NO GSTIN and no tax lines anywhere.
  *
  * Until the owner confirms the wording in the admin (settings.legal_confirmed), every page shows a
@@ -98,7 +99,7 @@ export function legalDocs(settings: PublicSettings, hubHost: string = DEFAULT_HU
         items: [
           "Prices are in Indian rupees. The amount shown at checkout is the full amount you pay: nothing is added after it.",
           "Payments are processed by Razorpay. We never see or store your card number, UPI PIN or bank password.",
-          "After a successful payment your receipt is shown on screen, and we can send it to you on WhatsApp. We don't send emails.",
+          "After a successful payment your receipt is shown on screen and sent to your email, with a link to open your course.",
           "A studio batch may be booked with a booking amount shown on the course page. The rest of the fee is paid at the studio before the batch starts.",
           "A coupon applies only as described on it, and only once per student unless it says otherwise.",
         ],
@@ -109,7 +110,7 @@ export function legalDocs(settings: PublicSettings, hubHost: string = DEFAULT_HU
           `Access lasts ${access} from the date of purchase, unless the course page says otherwise.`,
           `Your access is for you alone. You can be signed in on up to ${devices} devices at a time; signing in on another device signs out the one used longest ago.`,
           "Please don't share your sign-in, or download, record, re-upload, sell or show the lessons to others. If we see misuse we may end the access after telling you why, without a refund.",
-          "To sign in on a new device, use the phone number or email you paid with and your Razorpay payment ID, or ask us on WhatsApp for a one-time access link.",
+          "Your account is the email you give when you buy. To sign in on a device, enter that email and open the one-time link we send to it. If you can't reach that email, ask us on WhatsApp.",
         ],
       },
       {
@@ -225,7 +226,7 @@ export function legalDocs(settings: PublicSettings, hubHost: string = DEFAULT_HU
       {
         heading: "What we collect",
         items: [
-          "When you buy: your name, phone number and, if you give it, your email.",
+          "When you buy: your name and your email (your account: we send your receipt and sign-in links to it), and your phone number if you give it.",
           "From Razorpay about your payment: the payment ID, amount, the kind of method (for example UPI or card) and its status. Never your card number, UPI PIN or bank password.",
           "When you study: which lessons you watched, how far, your certificates, and the name you want printed on them.",
           "To keep your account safe: the type of browser and the times of your sign-ins, so you can see and sign out your devices.",
@@ -236,8 +237,9 @@ export function legalDocs(settings: PublicSettings, hubHost: string = DEFAULT_HU
       {
         heading: "Why we use it",
         items: [
-          "To sell you the course, take the payment and show your receipt.",
-          "To give you access, keep your place in the lessons and issue certificates.",
+          "To sell you the course, take the payment and show and email your receipt.",
+          "To give you access: we email you one-time sign-in links when you or we ask for one. We don't send marketing emails.",
+          "To keep your place in the lessons and issue certificates.",
           "To answer you on WhatsApp and tell you about changes to a batch you booked.",
           "To prevent fraud and misuse of accounts.",
           "To keep the payment and accounting records the law requires.",
@@ -254,7 +256,7 @@ export function legalDocs(settings: PublicSettings, hubHost: string = DEFAULT_HU
         heading: "Who else sees it",
         items: [
           "Razorpay, to process payments and refunds.",
-          "Cloudflare, which hosts the site, the database and the lesson videos. Its servers may be outside India.",
+          "Cloudflare, which hosts the site, the database and the lesson videos, and sends our emails (receipts and sign-in links). Its servers may be outside India.",
           "WhatsApp (Meta), only for the messages you send us or we send you.",
           "Government authorities, only when the law requires it.",
         ],
@@ -281,7 +283,7 @@ export function legalDocs(settings: PublicSettings, hubHost: string = DEFAULT_HU
       },
       {
         heading: "How to use your rights",
-        paragraphs: [`Send a WhatsApp message to ${phone} from the number you paid with. We reply within 7 days and act within 30 days.`],
+        paragraphs: [`Send a WhatsApp message to ${phone} with the email your account uses. We reply within 7 days and act within 30 days.`],
       },
       {
         heading: "Children",
@@ -312,8 +314,8 @@ export function legalDocs(settings: PublicSettings, hubHost: string = DEFAULT_HU
       {
         heading: "Recorded lessons",
         items: [
-          "Access starts right after a successful payment: the confirmation screen takes you into the course.",
-          `On another device, sign in with the phone number or email you paid with and your Razorpay payment ID. You can be signed in on up to ${devices} devices at a time.`,
+          "Access starts right after a successful payment: the course opens on the device you paid on (a first purchase), and a link to open it is sent to your email.",
+          `On another device, sign in with your email: we send you a one-time link. You can be signed in on up to ${devices} devices at a time.`,
           `Access lasts ${access} from the date of purchase, unless the course page says otherwise.`,
         ],
       },
@@ -327,7 +329,7 @@ export function legalDocs(settings: PublicSettings, hubHost: string = DEFAULT_HU
       },
       {
         heading: "Receipts",
-        paragraphs: ["Your receipt is shown on screen after payment and stays in your account. We can also send it to you on WhatsApp. We don't send emails."],
+        paragraphs: ["Your receipt is shown on screen after payment, sent to your email, and stays in your account."],
       },
       {
         heading: "Certificates",

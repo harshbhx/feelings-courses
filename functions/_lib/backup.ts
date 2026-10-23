@@ -32,6 +32,8 @@ export const BACKUP_TABLES = [
   "lessons",
   "media",
   "students",
+  /** Which emails were proven (claim.ts): a restore must not make proven accounts look new. */
+  "email_verifications",
   "coupons",
   "orders",
   "refunds",

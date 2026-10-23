@@ -55,7 +55,14 @@ export class ConfigError extends Error {
   }
 }
 
-type SecretName = "APP_SECRET" | "ADMIN_PASSWORD_HASH" | "DEPLOY_HOOK_URL" | "RAZORPAY_KEY_ID" | "RAZORPAY_KEY_SECRET" | "RAZORPAY_WEBHOOK_SECRET";
+type SecretName =
+  | "APP_SECRET"
+  | "ADMIN_PASSWORD_HASH"
+  | "DEPLOY_HOOK_URL"
+  | "RAZORPAY_KEY_ID"
+  | "RAZORPAY_KEY_SECRET"
+  | "RAZORPAY_WEBHOOK_SECRET"
+  | "MAILER_KEY";
 
 /** A secret's value, trimmed. Throws ConfigError when missing or shorter than `minLength`. */
 export function requireSecret(env: Partial<Env>, name: SecretName, minLength = 16): string {
@@ -87,10 +94,18 @@ export const ADMIN_PASSWORD_MIN_LENGTH = 14;
 /** The demo's HMAC enrollment cookie, ignored and cleared once D1 sessions exist. */
 export const LEGACY_ENROLL_COOKIE = "fbc_enroll";
 
+/**
+ * Longest life of a login token per purpose (login_tokens.purpose):
+ * - handoff: right after checkout, on the paying device (10 min);
+ * - admin_link: a link opened with a Continue button. The admin's link (WhatsApp or email) lasts
+ *   24 h; an emailed sign-in link lasts EMAIL_LINK_TTL (15 min), set per row in expires_at.
+ */
 export const LOGIN_TOKEN_TTL: Record<"handoff" | "admin_link", number> = {
   handoff: 10 * MINUTE,
   admin_link: DAY,
 };
+/** An emailed sign-in link (requested at /signin, or in a receipt or enrollment email): 15 minutes. */
+export const EMAIL_LINK_TTL = 15 * MINUTE;
 
 /** Signed media URLs. */
 export const MEDIA_URL_TTL = 2 * HOUR;
@@ -115,15 +130,19 @@ export interface RateLimitRule {
 
 /**
  * Plan 1.13. Bucket keys are built by ratelimit.ts as `<name>:<subject>:<windowStart>`, for example
- * "restore_ip:203.0.113.9:1761200000".
+ * "signin_ip:203.0.113.9:1761200000".
  */
 export const RATE_LIMITS = {
   admin_login_ip: { limit: 5, window: 15 * MINUTE },
   admin_login_global: { limit: 20, window: DAY },
-  restore_ip: { limit: 5, window: 15 * MINUTE },
-  restore_contact: { limit: 5, window: DAY },
+  /** Sign-in link requests per IP (IPv6 per /64), counted before any lookup. */
+  signin_ip: { limit: 10, window: 15 * MINUTE },
+  /** Sign-in link requests per email (hashed), counted whether or not the email has an account. */
+  signin_email: { limit: 3, window: 15 * MINUTE },
+  signin_email_day: { limit: 10, window: DAY },
   order_ip: { limit: 10, window: 10 * MINUTE },
-  order_phone: { limit: 20, window: DAY },
+  /** Orders per buyer email (hashed), so one address can't be flooded with orders and emails. */
+  order_email: { limit: 20, window: DAY },
   coupon_quote_ip: { limit: 20, window: 10 * MINUTE },
   track_ip: { limit: 60, window: MINUTE },
   certificate_ip: { limit: 30, window: MINUTE },

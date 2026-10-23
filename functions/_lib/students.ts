@@ -5,7 +5,7 @@
 import type { OrderSummary, Student, StudentSession } from "../../src/shared/types.ts";
 import { auditStatement } from "./db/audit.ts";
 import { unixNow, type Db } from "./db/d1.ts";
-import { ConflictError, isUniqueViolation, ValidationError } from "./db/errors.ts";
+import { ValidationError } from "./db/errors.ts";
 import { batch } from "./db/tx.ts";
 import * as v from "./db/validate.ts";
 import { refundableUntil } from "./orders.ts"; // W2: paidAt + 24 h, one definition
@@ -33,9 +33,9 @@ export async function getStudent(db: Db, studentId: number): Promise<Student | n
 }
 
 /**
- * Updates the student's own name and email. The phone number can't be changed here: it is how
- * the student signs back in, so only the admin changes it. An email that belongs to another
- * student gets one generic answer (409), which never says whose it is.
+ * Updates the student's own name. The email can't be changed here: it is who the student is and
+ * how they sign in, so a change goes through the admin (Urmi checks it's really them). The phone
+ * number is a contact detail the admin keeps.
  */
 export async function updateStudent(
   db: Db,
@@ -45,30 +45,22 @@ export async function updateStudent(
 ): Promise<Student> {
   const current = await getStudent(db, studentId);
   if (!current) throw new ValidationError("student", "No such student.");
-  const name = "name" in body ? v.text(body.name, "name", { min: 1, max: 80 }) : current.name;
-  const email = "email" in body ? v.optionalEmail(body.email) : current.email;
-  if (email === null && current.phone === null) throw new ValidationError("email", "Keep an email or a phone number on your account.");
-  if (name === current.name && email === current.email) return current;
-  try {
-    await batch(db, [
-      db
-        .prepare("UPDATE students SET name = ?, email = ?, updated_at = ? WHERE id = ? AND erased_at IS NULL")
-        .bind(name, email, now, studentId),
-      auditStatement(db, {
-        actor: `student:${studentId}`,
-        action: "student.update_profile",
-        entity: "student",
-        entityId: studentId,
-        data: { name: name !== current.name, email: email !== current.email },
-        now,
-      }),
-    ]);
-  } catch (err) {
-    if (isUniqueViolation(err, "students.email")) {
-      throw new ConflictError("conflict", "That email can't be used on this account. Message us on WhatsApp if it's yours.");
-    }
-    throw err;
+  if ("email" in body && body.email !== current.email) {
+    throw new ValidationError("email", "To change your email, message us on WhatsApp.");
   }
+  const name = "name" in body ? v.text(body.name, "name", { min: 1, max: 80 }) : current.name;
+  if (name === current.name) return current;
+  await batch(db, [
+    db.prepare("UPDATE students SET name = ?, updated_at = ? WHERE id = ? AND erased_at IS NULL").bind(name, now, studentId),
+    auditStatement(db, {
+      actor: `student:${studentId}`,
+      action: "student.update_profile",
+      entity: "student",
+      entityId: studentId,
+      data: { name: true },
+      now,
+    }),
+  ]);
   return (await getStudent(db, studentId)) ?? current;
 }
 

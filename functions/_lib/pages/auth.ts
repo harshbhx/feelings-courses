@@ -1,30 +1,37 @@
 /**
- * Sign-in pages (W3), rendered by Functions on the hub:
+ * Sign-in pages (W3; email identity since 23 Oct 2026), rendered by Functions on the hub:
  *
- *   /signin          restore access on a new device: phone or email + payment ID. A plain HTML
- *                    form (works without JavaScript); the same checks as POST /api/auth/restore.
- *   /auth/continue   a one-time link: "handoff" (right after payment, 10 min) signs in at once;
- *                    "admin_link" (sent by Urmi on WhatsApp, 24 h) first shows a Continue button,
- *                    because WhatsApp's link preview opens links and would use the token up.
+ *   /signin          the student types their email; a single-use link (15 minutes) is emailed to
+ *                    it when it has an account. The same answer either way (no enumeration). A
+ *                    plain HTML form (works without JavaScript); the same checks as
+ *                    POST /api/auth/email-link. /signin?sent=1 is the "check your email" state.
+ *   /auth/continue   a one-time link: "handoff" (right after payment, on the paying device, 10 min)
+ *                    signs in at once; an emailed or admin link first shows a Continue button,
+ *                    because mail scanners and WhatsApp's link preview open links and would use
+ *                    the token up. Opening an emailed or admin link proves the email (claim.ts):
+ *                    the first proof signs out every earlier session once.
  *   /learn/logout    POST signs this device out; GET only offers the button (no state change on GET).
  */
-import { LEGACY_ENROLL_COOKIE } from "../config.ts";
+import { EMAIL_LINK_TTL, LEGACY_ENROLL_COOKIE } from "../config.ts";
+import { markEmailVerified } from "../claim.ts";
 import { writeAudit } from "../db/audit.ts";
 import { unixNow } from "../db/d1.ts";
 import { ValidationError } from "../db/errors.ts";
 import { hasDb, type Env } from "../env.ts";
 import { readForm } from "../http.ts";
-import { restoreAccess } from "../restore.ts";
+import { requestSignInLink } from "../signin-links.ts";
 import {
   clearSessionCookie,
   consumeLoginToken,
   createSession,
   peekLoginToken,
   readSession,
+  revokeAllSessions,
   revokeSession,
   safeRedirectPath,
   sessionToken,
 } from "../session.ts";
+import type { WaitUntil } from "../stub.ts";
 import { MAX_DEVICES_PER_STUDENT } from "../../../src/shared/constants.ts";
 import {
   callout,
@@ -36,7 +43,6 @@ import {
   messagePage,
   page,
   pageRedirect,
-  raw,
   whatsappHref,
   type Business,
   type Raw,
@@ -71,24 +77,26 @@ export function nextPath(value: unknown, fallback = "/account"): string {
 // ---------------------------------------------------------------- /signin
 
 interface SigninState {
-  contact?: string;
-  paymentId?: string;
+  email?: string;
   next: string;
   error?: string;
-  field?: "contact" | "paymentId";
   /** This browser still had a session cookie, but the session has ended (signed out elsewhere, or by the 2-device limit). */
   ended?: boolean;
+  /** Arrived from a link that had expired or was used. */
+  expired?: boolean;
 }
 
+const LINK_MINUTES = Math.round(EMAIL_LINK_TTL / 60);
+
 function signinForm(business: Business, state: SigninState): Raw {
-  const help = whatsappHref(business, "Hi Urmi, I bought a course and need a sign-in link for my new phone.");
-  const invalid = (field: SigninState["field"]) => (state.field === field ? html` aria-invalid="true" aria-describedby="form-error"` : "");
+  const help = whatsappHref(business, "Hi Urmi, I can't sign in to my course. Can you help?");
+  const invalid = state.error ? html` aria-invalid="true" aria-describedby="email-hint form-error"` : html` aria-describedby="email-hint"`;
   return layout(
     { title: "Open your course", business },
     html`<section class="card narrow">
   <span class="state-icon">${icon("lock-simple")}</span>
   <h1>Open your course on this device</h1>
-  <p class="lead">Enter the phone number or email you paid with, and the payment ID from your receipt.</p>
+  <p class="lead">Enter the email you used for your course. We'll send you a link to sign in.</p>
   ${
     state.ended && !state.error
       ? callout(
@@ -97,21 +105,34 @@ function signinForm(business: Business, state: SigninState): Raw {
         )
       : ""
   }
+  ${state.expired && !state.error ? callout("info", "That sign-in link has expired or was already used. Enter your email for a new one.") : ""}
   ${state.error ? callout("alert", state.error, "form-error") : ""}
   <form method="post" action="/signin" class="form" novalidate>
     <input type="hidden" name="next" value="${state.next}">
-    <label for="contact">Phone number or email</label>
-    <input id="contact" name="contact" type="text" inputmode="email" autocomplete="username" required maxlength="254"
-      value="${state.contact ?? ""}"${invalid("contact")}>
-    <label for="paymentId">Payment ID</label>
-    <input id="paymentId" name="paymentId" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" required
-      maxlength="44" placeholder="pay_…" value="${state.paymentId ?? ""}" aria-describedby="paymentId-hint${state.field === "paymentId" ? " form-error" : ""}"${state.field === "paymentId" ? raw(` aria-invalid="true"`) : ""}>
-    <p class="hint" id="paymentId-hint">It starts with <code>pay_</code>. You'll find it on your receipt page and in the SMS or email Razorpay sent after you paid.</p>
-    <button type="submit" class="btn">Continue${icon("arrow-right")}</button>
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" required maxlength="254"
+      value="${state.email ?? ""}"${invalid}>
+    <p class="hint" id="email-hint">The one you gave when you paid or enrolled. The link works once, for ${LINK_MINUTES} minutes.</p>
+    <button type="submit" class="btn">Email me a sign-in link${icon("arrow-right")}</button>
   </form>
   <hr class="divider">
   <p class="help-line">${icon("device-mobile")}<span>You can be signed in on ${MAX_DEVICES_PER_STUDENT} devices. Signing in here signs out the device you used least recently if you're already on ${MAX_DEVICES_PER_STUDENT}.</span></p>
-  ${help ? html`<p class="help-line">${icon("whatsapp")}<span>Lost your payment ID? <a href="${help}" target="_blank" rel="noopener noreferrer">Message us on WhatsApp</a> and we'll send you a one-time sign-in link.</span></p>` : ""}
+  ${help ? html`<p class="help-line">${icon("whatsapp")}<span>Changed your email, or no email arrives? <a href="${help}" target="_blank" rel="noopener noreferrer">Message us on WhatsApp</a> and we'll help.</span></p>` : ""}
+</section>`,
+  );
+}
+
+/** "Check your email": the same page whether or not the address has an account. */
+function checkEmailPage(business: Business, email: string | null): Raw {
+  const help = whatsappHref(business, "Hi Urmi, my sign-in email hasn't arrived. Can you help?");
+  return layout(
+    { title: "Check your email", business },
+    html`<section class="card narrow state tone-ok">
+  <span class="state-icon">${icon("check-circle")}</span>
+  <h1>Check your email</h1>
+  <p>${email ? html`If <strong>${email}</strong> has a course with us, a sign-in link is on its way.` : "If that email has a course with us, a sign-in link is on its way."} Open it on this device. It works once, for ${LINK_MINUTES} minutes.</p>
+  <p class="muted small">Nothing after a few minutes? Look in Spam or Promotions, check the address, or <a href="/signin">try again</a>.</p>
+  ${help ? html`<p class="help-line">${icon("whatsapp")}<span><a href="${help}" target="_blank" rel="noopener noreferrer">Message us on WhatsApp</a> if it still doesn't come.</span></p>` : ""}
 </section>`,
   );
 }
@@ -124,100 +145,57 @@ export function notSetUp(business: Business): Response {
   );
 }
 
-export async function handleSignin(request: Request, env: Env, now = unixNow()): Promise<Response> {
+export async function handleSignin(request: Request, env: Env, now = unixNow(), ctx?: WaitUntil): Promise<Response> {
   const business = await loadBusiness(env.DB ?? null);
   if (!hasDb(env)) return notSetUp(business);
   const url = new URL(request.url);
   if (request.method === "GET" || request.method === "HEAD") {
     const next = nextPath(url.searchParams.get("next"));
     if (await readSession(env, request, now)) return pageRedirect(next, [], 302);
+    // After checkout or a free enrollment the receipt and a link went to the buyer's email.
+    if (url.searchParams.get("sent") === "1") return page(checkEmailPage(business, null), 200, [], request.method);
     // A session cookie that no longer opens a session: say why this device has to sign in again.
-    return page(signinForm(business, { next, ended: sessionToken(request) !== null }), 200, [], request.method);
+    return page(
+      signinForm(business, { next, ended: sessionToken(request) !== null, expired: url.searchParams.get("expired") === "1" }),
+      200,
+      [],
+      request.method,
+    );
   }
   if (request.method !== "POST") return methodNotAllowedPage(business);
   if (!formFromSameSite(request)) return crossSite(business);
 
   const form = await readForm(request);
   if (!form) return page(signinForm(business, { next: "/account", error: "That was too much text. Please try again." }), 413);
-  const state: SigninState = {
-    contact: (form.get("contact") ?? "").slice(0, 254),
-    paymentId: (form.get("paymentId") ?? "").slice(0, 44),
-    next: nextPath(form.get("next")),
-  };
+  const state: SigninState = { email: (form.get("email") ?? "").slice(0, 254), next: nextPath(form.get("next")) };
   let result;
   try {
-    result = await restoreAccess(env, request, { contact: state.contact, paymentId: state.paymentId }, now);
+    result = await requestSignInLink(env, request, { email: state.email, next: state.next }, { now, ctx });
   } catch (err) {
-    if (err instanceof ValidationError) {
-      return page(signinForm(business, { ...state, error: err.message, field: err.field === "paymentId" ? "paymentId" : "contact" }), 400);
-    }
+    if (err instanceof ValidationError) return page(signinForm(business, { ...state, error: err.message }), 400);
     throw err;
   }
   if (!result.ok) {
-    if (result.reason === "rate_limited") {
-      const minutes = Math.max(1, Math.ceil(result.retryAfter / 60));
-      const response = page(
-        signinForm(business, {
-          ...state,
-          error: `Too many tries. Please wait about ${minutes} minute${minutes === 1 ? "" : "s"}, or message us on WhatsApp for a sign-in link.`,
-        }),
-        429,
-      );
-      response.headers.set("Retry-After", String(result.retryAfter));
-      return response;
-    }
-    if (result.reason === "use_first_payment") {
-      return page(
-        signinForm(business, {
-          ...state,
-          paymentId: "",
-          error:
-            "This account has an earlier purchase. Enter the payment ID of your first purchase, or message us on WhatsApp for a sign-in link.",
-          field: "paymentId",
-        }),
-        409,
-      );
-    }
-    return page(
+    const minutes = Math.max(1, Math.ceil(result.retryAfter / 60));
+    const response = page(
       signinForm(business, {
         ...state,
-        error: "We couldn't find a payment with those details. Check the payment ID and the phone number or email you paid with.",
+        error: `Too many tries. Please wait about ${minutes} minute${minutes === 1 ? "" : "s"}, then ask for a new link. Use the newest email we sent.`,
       }),
-      400,
+      429,
     );
+    response.headers.set("Retry-After", String(result.retryAfter));
+    return response;
   }
-  const { cookie } = await createSession(env.DB, result.studentId, request, now);
-  await writeAudit(env.DB, {
-    actor: `student:${result.studentId}`,
-    action: "student.restore",
-    entity: "student",
-    entityId: result.studentId,
-    data: { orderId: result.orderId, via: result.via },
-    now,
-  });
-  return pageRedirect(state.next, [cookie, CLEAR_LEGACY_COOKIE]);
+  return page(checkEmailPage(business, result.email), 200);
 }
 
 // ---------------------------------------------------------------- /auth/continue
 
+/** An expired, used or unknown link: straight to the form for a new one. */
 function expiredLink(business: Business): Response {
-  return page(
-    messagePage(
-      { title: "Link expired", business },
-      "This link has expired",
-      "Sign-in links work once, for a short time. You can sign in with your phone number or email and payment ID, or ask us on WhatsApp for a new link.",
-      { href: "/signin", label: "Sign in" },
-      {
-        icon: "clock",
-        tone: "warn",
-        secondary: (() => {
-          const href = whatsappHref(business, "Hi Urmi, my sign-in link has expired. Can you send a new one?");
-          return href ? { href, label: "Ask for a new link", external: true } : undefined;
-        })(),
-      },
-    ),
-    410,
-  );
+  const response = page(signinForm(business, { next: "/account", expired: true }), 410);
+  return response;
 }
 
 function confirmPage(business: Business, token: string): Raw {
@@ -240,12 +218,21 @@ function confirmPage(business: Business, token: string): Raw {
 async function signInWithToken(request: Request, env: Env, token: unknown, now: number, business: Business): Promise<Response> {
   const used = await consumeLoginToken(env.DB, token, now);
   if (!used) return expiredLink(business);
+  // An emailed or admin link proves the email. The first proof of this address signs out every
+  // session from before it (a handoff session someone got by paying with an address that isn't
+  // theirs), once; then this device signs in.
+  let firstProof = false;
+  if (used.purpose === "admin_link") {
+    firstProof = await markEmailVerified(env.DB, used.studentId, now);
+    if (firstProof) await revokeAllSessions(env.DB, used.studentId, now);
+  }
   const { cookie } = await createSession(env.DB, used.studentId, request, now);
   await writeAudit(env.DB, {
     actor: `student:${used.studentId}`,
     action: used.purpose === "handoff" ? "student.handoff_signin" : "student.link_signin",
     entity: "student",
     entityId: used.studentId,
+    ...(firstProof ? { data: { firstProof: true } } : {}),
     now,
   });
   return pageRedirect(used.redirectPath, [cookie, CLEAR_LEGACY_COOKIE]);
@@ -287,7 +274,7 @@ export async function handleLogout(request: Request, env: Env, now = unixNow()):
       html`<section class="card narrow state tone-info">
   <span class="state-icon">${icon("sign-out")}</span>
   <h1>Sign out of this device?</h1>
-  <p>You can sign in again any time with your phone number or email and payment ID.</p>
+  <p>You can sign in again any time with a link we email you.</p>
   <form method="post" action="/learn/logout" class="btn-row"><button type="submit" class="btn">Sign out</button>${signedIn ? html`<a class="btn btn-quiet" href="/account">Stay signed in</a>` : ""}</form>
 </section>`,
     ),

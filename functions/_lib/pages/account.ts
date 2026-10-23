@@ -196,7 +196,7 @@ ${formError ? callout("alert", formError) : ""}
 </section>
 <section class="card" aria-labelledby="profile-h">
   <div class="card-head"><h2 id="profile-h">Your details</h2></div>
-  <p class="muted small">Phone ${student.phone ?? "not set"}${student.email ? ` · ${student.email}` : ""}. To change your phone number, message us on WhatsApp.</p>
+  <p class="muted small">You sign in with ${student.email ?? "an email address (none on file yet)"}${student.phone ? ` · Phone ${student.phone}` : ""}. To change your email or phone, message us on WhatsApp.</p>
   <form method="post" action="/account" class="form">
     <input type="hidden" name="action" value="name">
     <label for="name">Your name</label>

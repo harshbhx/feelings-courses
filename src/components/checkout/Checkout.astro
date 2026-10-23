@@ -6,7 +6,9 @@
 // - <Checkout course={course} settings={settings} platform={…} /> (CheckoutProps, W2/W8): a course
 //   from the build's snapshot. The order names the course (OrderRequest), so the server prices it
 //   from D1: batch choice for studio courses, a coupon field, the terms checkbox, free orders, and
-//   after payment a redirect to the hub, which signs the buyer in (W3) and shows the receipt.
+//   after payment a redirect to the hub: the receipt, signed in on this device for a new account
+//   (W3, functions/_lib/claim.ts). The buyer's email is the account: the receipt and sign-in links
+//   go there. The phone is an optional contact field.
 //   `platform` is true when the snapshot came from the live D1 (coupons need it). Without D1 the
 //   server still answers with the demo flow below, so the demo course keeps working.
 // - <Checkout /> (no props): the original demo checkout for src/data/course.ts.
@@ -81,7 +83,7 @@ const hub = hubOrigin(buildEnv);
       <p class="co-summary-price" data-co-amount>{price}</p>
     </div>
 
-    <!-- Step 1: buyer details (name and phone required; that's what Razorpay's prefill wants). -->
+    <!-- Step 1: buyer details (name and email required: the email is the account; phone optional). -->
     <form class="co-step" data-step="details" data-co-form novalidate>
       {
         testMode && (
@@ -107,35 +109,37 @@ const hub = hubOrigin(buildEnv);
         <p class="co-error" id="co-name-error" data-error-for="name" hidden></p>
       </div>
       <div class="co-field">
-        <label for="co-phone">Mobile number</label>
-        <input
-          id="co-phone"
-          name="phone"
-          type="tel"
-          inputmode="tel"
-          autocomplete="tel"
-          enterkeyhint="next"
-          maxlength="20"
-          required
-          aria-describedby="co-phone-hint co-phone-error"
-        />
-        <p class="co-hint" id="co-phone-hint">10 digits, so the payment screen can fill it in for you.</p>
-        <p class="co-error" id="co-phone-error" data-error-for="phone" hidden></p>
-      </div>
-      <div class="co-field">
-        <label for="co-email">Email <span class="co-optional">(optional)</span></label>
+        <label for="co-email">Email</label>
         <input
           id="co-email"
           name="email"
           type="email"
           inputmode="email"
           autocomplete="email"
-          enterkeyhint="go"
+          autocapitalize="off"
+          spellcheck="false"
+          enterkeyhint="next"
           maxlength="254"
+          required
           aria-describedby="co-email-hint co-email-error"
         />
-        <p class="co-hint" id="co-email-hint">{live ? "Another way to find your course on a new phone." : "For your payment receipt."}</p>
+        <p class="co-hint" id="co-email-hint">{live ? "Your receipt and sign-in link go here. You sign in with it on any device." : "For your payment receipt."}</p>
         <p class="co-error" id="co-email-error" data-error-for="email" hidden></p>
+      </div>
+      <div class="co-field">
+        <label for="co-phone">Mobile number <span class="co-optional">(optional)</span></label>
+        <input
+          id="co-phone"
+          name="phone"
+          type="tel"
+          inputmode="tel"
+          autocomplete="tel"
+          enterkeyhint="go"
+          maxlength="20"
+          aria-describedby="co-phone-hint co-phone-error"
+        />
+        <p class="co-hint" id="co-phone-hint">So we can help you on WhatsApp, and the payment screen can fill it in.</p>
+        <p class="co-error" id="co-phone-error" data-error-for="phone" hidden></p>
       </div>
       {
         batches.length > 0 && (
@@ -214,7 +218,7 @@ const hub = hubOrigin(buildEnv);
       <p class="co-note">
         {
           live
-            ? "Next you choose UPI, card or netbanking. Your receipt shows on screen after paying."
+            ? "Next you choose UPI, card or netbanking. Your receipt shows on screen and comes by email."
             : "Next you choose UPI, card or netbanking. This site doesn't save your details."
         }
       </p>
@@ -1061,6 +1065,23 @@ const hub = hubOrigin(buildEnv);
     retryButton.addEventListener("click", () => retry());
 
     // ── Step 1: details ──
+    /** Misspelt mail domains seen often, and what was meant. */
+    const EMAIL_TYPOS: Record<string, string> = {
+      "gmial.com": "gmail.com",
+      "gmai.com": "gmail.com",
+      "gamil.com": "gmail.com",
+      "gmal.com": "gmail.com",
+      "gnail.com": "gmail.com",
+      "gmail.co": "gmail.com",
+      "gmail.con": "gmail.com",
+      "gmail.cm": "gmail.com",
+      "gmail.in": "gmail.com",
+      "hotmial.com": "hotmail.com",
+      "yaho.com": "yahoo.com",
+      "yahoo.con": "yahoo.com",
+      "outlok.com": "outlook.com",
+      "rediffmial.com": "rediffmail.com",
+    };
     function readBuyer(): Buyer {
       const data = new FormData(form);
       const text = (key: string) => String(data.get(key) ?? "").replace(/\s+/g, " ").trim();
@@ -1079,13 +1100,18 @@ const hub = hubOrigin(buildEnv);
       if (batchSelect?.required && !b.batchId) errors.batchId = "Pick one of the open batches.";
       if (!b.name) errors.name = "Enter your name.";
       else if (b.name.length < 2 || !/^[\p{L}\p{M}][\p{L}\p{M} .'’-]*$/u.test(b.name)) errors.name = "Enter your name using letters only.";
-      const phone = b.phone.replace(/[\s().-]/g, "");
-      if (!phone) errors.phone = "Enter your mobile number.";
-      else if (!/^(?:\+91|91|0)?[6-9]\d{9}$/.test(phone) && !/^\+(?!91)[1-9]\d{7,14}$/.test(phone)) {
-        errors.phone = "Enter a 10-digit mobile number.";
+      // The email is the account: required, and checked for the usual typos (a wrong address means
+      // no receipt and no sign-in link on another device).
+      if (!b.email) errors.email = "Enter your email. Your receipt and sign-in link go there.";
+      else if (!/^[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[A-Za-z]{2,}$/.test(b.email)) errors.email = "Enter an email like name@example.com.";
+      else {
+        const [local, domain] = b.email.toLowerCase().split("@");
+        const fix = EMAIL_TYPOS[domain ?? ""];
+        if (fix) errors.email = `Did you mean ${local}@${fix}? Please check your email.`;
       }
-      if (b.email && !/^[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[A-Za-z]{2,}$/.test(b.email)) {
-        errors.email = "Enter an email like name@example.com, or leave it empty.";
+      const phone = b.phone.replace(/[\s().-]/g, "");
+      if (phone && !/^(?:\+91|91|0)?[6-9]\d{9}$/.test(phone) && !/^\+(?!91)[1-9]\d{7,14}$/.test(phone)) {
+        errors.phone = "Enter a 10-digit mobile number, or leave it empty.";
       }
       if (live && !b.consent) errors.consent = "Please accept the terms and the privacy policy.";
       return errors;
@@ -1246,8 +1272,8 @@ const hub = hubOrigin(buildEnv);
               ...(details.coupon && { coupon: details.coupon }),
             }),
             name: details.name,
-            phone: details.phone,
-            ...(details.email && { email: details.email }),
+            email: details.email,
+            ...(details.phone && { phone: details.phone }),
           }),
           signal: AbortSignal.timeout(20_000),
         });
@@ -1436,7 +1462,7 @@ const hub = hubOrigin(buildEnv);
           title.textContent = "Payment confirmed";
           workingText.textContent = "Opening your course…";
           announce("Payment confirmed. Opening your course…");
-          // Live: the hub's one-time sign-in (W3), which lands on the receipt. Demo: /thank-you.
+          // Live: the hub's one-time sign-in (a new account, W3) landing on the receipt, or the receipt itself. Demo: /thank-you.
           location.assign(safeTarget(data.redirect, hub, safeTarget(data.receipt, hub, "/thank-you")));
           return;
         }

@@ -2,11 +2,11 @@
  * Fixed-window rate limits in D1 (plan 1.13). One statement per check:
  *   INSERT … ON CONFLICT (bucket) DO UPDATE SET count = count + 1 … RETURNING count
  *
- * Bucket = "<rule>:<subject>:<windowStart>", for example "restore_ip:203.0.113.9:1761200100".
+ * Bucket = "<rule>:<subject>:<windowStart>", for example "signin_ip:203.0.113.9:1761200100".
  * Each window gets its own row, which expires at the end of the window plus one day; the lazy
  * daily job (W7) deletes expired rows with cleanupRateLimits().
  *
- * Subjects are IPs, phones or "global". A phone or email subject is hashed by the caller's choice:
+ * Subjects are IPs, emails or "global". An email subject is hashed by the caller's choice:
  * pass `await sha256Hex(contact)` so no contact detail sits in the table.
  */
 import { DAY, RATE_LIMITS, type RateLimitName, type RateLimitRule } from "./config.ts";

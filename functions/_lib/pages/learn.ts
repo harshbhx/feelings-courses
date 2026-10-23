@@ -63,9 +63,9 @@ function notInAccount(business: Business): Response {
     messagePage(
       { title: "Course not found", business, signedIn: true },
       "This course isn't in your account",
-      "If you bought it with a different phone number or email, sign in with that one.",
+      "If you bought it with a different email, sign out and sign in with that one.",
       { href: "/account", label: "My courses" },
-      { icon: "magnifying-glass", tone: "info", secondary: { href: "/signin", label: "Sign in with other details" } },
+      { icon: "magnifying-glass", tone: "info", secondary: { href: "/signin", label: "Sign in with another email" } },
     ),
     404,
   );
