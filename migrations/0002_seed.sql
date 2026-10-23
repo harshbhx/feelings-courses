@@ -20,6 +20,8 @@
 -- Ids are fixed, so the build's seed snapshot (src/data/snapshot.ts) and this seed agree.
 -- No lesson has a video yet (video_provider 'none') and none is a free preview.
 -- Comments here avoid semicolons: wrangler splits the file on them.
+-- Row lists are VALUES, never chains of UNION ALL SELECT: D1 allows at most 5 terms in a compound
+-- SELECT (D1 error: too many terms in compound SELECT), and a VALUES list is not limited.
 
 -- ---------------------------------------------------------------- 1. DEMO course
 
@@ -67,37 +69,47 @@ INSERT INTO courses (
   CAST(strftime('%s', 'now') AS INTEGER), CAST(strftime('%s', 'now') AS INTEGER), CAST(strftime('%s', 'now') AS INTEGER)
 );
 
+WITH m (id, position, title) AS (VALUES
+  (1, 1, 'Skin prep and base'),
+  (2, 2, 'Eyes'),
+  (3, 3, 'Complete looks')
+)
 INSERT INTO modules (id, course_id, position, title, created_at, updated_at)
 SELECT m.id, 1, m.position, m.title, c.created_at, c.created_at
 FROM courses c
-JOIN (
-  SELECT 1 AS id, 1 AS position, 'Skin prep and base' AS title
-  UNION ALL SELECT 2, 2, 'Eyes'
-  UNION ALL SELECT 3, 3, 'Complete looks'
-) m
+JOIN m
 WHERE c.id = 1;
 
+WITH l (id, module_id, position, slug, title, minutes) AS (VALUES
+  (1, 1, 1, 'know-your-skin-type', 'Know your skin type', 6),
+  (2, 1, 2, 'prep-and-priming', 'Prep and priming for long wear', 9),
+  (3, 1, 3, 'foundation-shade-matching', 'Foundation shade matching', 11),
+  (4, 2, 1, 'brushes-and-blending', 'Brushes and blending basics', 8),
+  (5, 2, 2, 'everyday-eyes', 'Everyday eyes in 5 minutes', 7),
+  (6, 2, 3, 'party-eyes', 'Party eyes with shimmer', 12),
+  (7, 3, 1, 'soft-glam', 'Soft glam for day functions', 14),
+  (8, 3, 2, 'evening-party-look', 'Evening party look', 15),
+  (9, 3, 3, 'touch-ups', 'Touch-ups that last the night', 6)
+)
 INSERT INTO lessons (
   id, course_id, module_id, position, slug, title, minutes,
   video_provider, video_ref, vertical, notes, free_preview, created_at, updated_at
 )
 SELECT l.id, 1, l.module_id, l.position, l.slug, l.title, l.minutes, 'none', NULL, 0, NULL, 0, c.created_at, c.created_at
 FROM courses c
-JOIN (
-  SELECT 1 AS id, 1 AS module_id, 1 AS position, 'know-your-skin-type' AS slug, 'Know your skin type' AS title, 6 AS minutes
-  UNION ALL SELECT 2, 1, 2, 'prep-and-priming', 'Prep and priming for long wear', 9
-  UNION ALL SELECT 3, 1, 3, 'foundation-shade-matching', 'Foundation shade matching', 11
-  UNION ALL SELECT 4, 2, 1, 'brushes-and-blending', 'Brushes and blending basics', 8
-  UNION ALL SELECT 5, 2, 2, 'everyday-eyes', 'Everyday eyes in 5 minutes', 7
-  UNION ALL SELECT 6, 2, 3, 'party-eyes', 'Party eyes with shimmer', 12
-  UNION ALL SELECT 7, 3, 1, 'soft-glam', 'Soft glam for day functions', 14
-  UNION ALL SELECT 8, 3, 2, 'evening-party-look', 'Evening party look', 15
-  UNION ALL SELECT 9, 3, 3, 'touch-ups', 'Touch-ups that last the night', 6
-) l
+JOIN l
 WHERE c.id = 1;
 
 -- ---------------------------------------------------------------- 2. academy drafts (no price)
 
+WITH a (id, slug, title, subtitle, duration_text, sort_order) AS (VALUES
+  (2, 'diploma', 'Diploma in makeup artistry',
+      'The complete course, from skin basics to a full bridal look.', '3 months', 1),
+  (3, 'crashcourse', '5-day crash course',
+      'A fast, practical week for beginners or self-makeup.', '5 days', 2),
+  (4, 'combo', 'Combo course',
+      'The diploma, plus nail art and mehndi modules.', '4–5 months', 3)
+)
 INSERT INTO courses (
   id, slug, title, subtitle, format, price_paise, duration_text, access_days, details,
   is_demo, status, domain_status, sort_order, created_at, updated_at
@@ -106,46 +118,39 @@ SELECT a.id, a.slug, a.title, a.subtitle, 'hybrid', NULL, a.duration_text, 365,
        json('{"outcomes":[],"forWho":[],"faqs":[],"glimpses":[],"highlights":[]}'),
        0, 'draft', 'none', a.sort_order,
        CAST(strftime('%s', 'now') AS INTEGER), CAST(strftime('%s', 'now') AS INTEGER)
-FROM (
-  SELECT 2 AS id, 'diploma' AS slug, 'Diploma in makeup artistry' AS title,
-         'The complete course, from skin basics to a full bridal look.' AS subtitle,
-         '3 months' AS duration_text, 1 AS sort_order
-  UNION ALL SELECT 3, 'crashcourse', '5-day crash course',
-         'A fast, practical week for beginners or self-makeup.', '5 days', 2
-  UNION ALL SELECT 4, 'combo', 'Combo course',
-         'The diploma, plus nail art and mehndi modules.', '4–5 months', 3
-) a;
+FROM a;
 
 INSERT INTO modules (id, course_id, position, title, created_at, updated_at)
 SELECT c.id + 2, c.id, 1, 'What you''ll learn', c.created_at, c.created_at
 FROM courses c
 WHERE c.id IN (2, 3, 4);
 
+WITH l (id, course_id, position, slug, title) AS (VALUES
+  (10, 2, 1, 'skin-types-and-colour-theory', 'Skin types and colour theory'),
+  (11, 2, 2, 'tools-and-brushes', 'Tools and brushes'),
+  (12, 2, 3, 'everyday-and-party-makeup', 'Everyday and party makeup'),
+  (13, 2, 4, 'traditional-and-modern-bridal-looks', 'Traditional and modern bridal looks'),
+  (14, 2, 5, 'contouring-and-highlighting', 'Contouring and highlighting'),
+  (15, 2, 6, 'airbrush-basics', 'Airbrush basics'),
+  (16, 2, 7, 'portfolio-shoot', 'Portfolio shoot'),
+  (17, 3, 1, 'day-1-skin-prep-and-base', 'Day 1: skin prep and base'),
+  (18, 3, 2, 'day-2-eye-makeup', 'Day 2: eye makeup, natural to dramatic'),
+  (19, 3, 3, 'day-3-lips-and-contour', 'Day 3: lips and contour'),
+  (20, 3, 4, 'day-4-complete-bridal-look', 'Day 4: a complete bridal look'),
+  (21, 3, 5, 'day-5-portfolio-shoot-and-review', 'Day 5: portfolio shoot and review'),
+  (22, 4, 1, 'the-full-diploma', 'The full diploma'),
+  (23, 4, 2, 'nail-art-module', 'Nail art module'),
+  (24, 4, 3, 'mehndi-basics-module', 'Mehndi basics module'),
+  (25, 4, 4, 'three-certificates', 'Three certificates'),
+  (26, 4, 5, 'help-with-starting-work', 'Help with starting work')
+)
 INSERT INTO lessons (
   id, course_id, module_id, position, slug, title, minutes,
   video_provider, video_ref, vertical, notes, free_preview, created_at, updated_at
 )
 SELECT l.id, l.course_id, l.course_id + 2, l.position, l.slug, l.title, 0, 'none', NULL, 0, NULL, 0, c.created_at, c.created_at
 FROM courses c
-JOIN (
-  SELECT 10 AS id, 2 AS course_id, 1 AS position, 'skin-types-and-colour-theory' AS slug, 'Skin types and colour theory' AS title
-  UNION ALL SELECT 11, 2, 2, 'tools-and-brushes', 'Tools and brushes'
-  UNION ALL SELECT 12, 2, 3, 'everyday-and-party-makeup', 'Everyday and party makeup'
-  UNION ALL SELECT 13, 2, 4, 'traditional-and-modern-bridal-looks', 'Traditional and modern bridal looks'
-  UNION ALL SELECT 14, 2, 5, 'contouring-and-highlighting', 'Contouring and highlighting'
-  UNION ALL SELECT 15, 2, 6, 'airbrush-basics', 'Airbrush basics'
-  UNION ALL SELECT 16, 2, 7, 'portfolio-shoot', 'Portfolio shoot'
-  UNION ALL SELECT 17, 3, 1, 'day-1-skin-prep-and-base', 'Day 1: skin prep and base'
-  UNION ALL SELECT 18, 3, 2, 'day-2-eye-makeup', 'Day 2: eye makeup, natural to dramatic'
-  UNION ALL SELECT 19, 3, 3, 'day-3-lips-and-contour', 'Day 3: lips and contour'
-  UNION ALL SELECT 20, 3, 4, 'day-4-complete-bridal-look', 'Day 4: a complete bridal look'
-  UNION ALL SELECT 21, 3, 5, 'day-5-portfolio-shoot-and-review', 'Day 5: portfolio shoot and review'
-  UNION ALL SELECT 22, 4, 1, 'the-full-diploma', 'The full diploma'
-  UNION ALL SELECT 23, 4, 2, 'nail-art-module', 'Nail art module'
-  UNION ALL SELECT 24, 4, 3, 'mehndi-basics-module', 'Mehndi basics module'
-  UNION ALL SELECT 25, 4, 4, 'three-certificates', 'Three certificates'
-  UNION ALL SELECT 26, 4, 5, 'help-with-starting-work', 'Help with starting work'
-) l ON l.course_id = c.id;
+JOIN l ON l.course_id = c.id;
 
 -- ---------------------------------------------------------------- 3. settings
 

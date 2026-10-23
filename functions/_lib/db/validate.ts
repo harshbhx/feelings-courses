@@ -182,9 +182,23 @@ export function page(limit: unknown, offset: unknown, defaultLimit = 25): { limi
   };
 }
 
-/** A search term as a LIKE pattern ("%term%", with % _ and \ escaped), or null for no search. */
+/** D1 refuses a LIKE pattern over 50 bytes ("LIKE or GLOB pattern too complex"). */
+export const MAX_LIKE_PATTERN_BYTES = 50;
+
+/**
+ * A search term as a LIKE pattern ("%term%", with % _ and \ escaped), or null for no search.
+ * A term too long for D1's pattern limit is cut to its longest prefix that fits (a Gujarati name
+ * is 3 bytes a letter): the search then matches a little more, never fails.
+ */
 export function likePattern(value: unknown, field = "search"): string | null {
   const term = optionalText(value, field, { max: 100 });
   if (term === null) return null;
-  return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const encoder = new TextEncoder();
+  let out = "%";
+  for (const ch of term) {
+    const piece = /[\\%_]/.test(ch) ? `\\${ch}` : ch;
+    if (encoder.encode(`${out}${piece}%`).length > MAX_LIKE_PATTERN_BYTES) break;
+    out += piece;
+  }
+  return `${out}%`;
 }
