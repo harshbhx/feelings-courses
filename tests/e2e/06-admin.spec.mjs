@@ -49,13 +49,14 @@ test("admin: create, fill, upload, publish; students, payments, backup", async (
   // Upload the lesson's video: a real multipart upload through the admin API into R2.
   await page.getByRole("button", { name: /Smoky eyes/ }).first().click();
   drawer = page.getByRole("dialog").filter({ hasText: "Edit lesson" });
+  await drawer.getByText("Upload a video").click();
   const bytes = Buffer.concat([Buffer.from(VIDEO), Buffer.alloc(64 * 1024, 7)]);
   await drawer.getByLabel("Upload video").setInputFiles({ name: "smoky-eyes.mp4", mimeType: "video/mp4", buffer: bytes });
   await expect(page.getByText(/Video uploaded/).first()).toBeVisible({ timeout: 15_000 });
   await expect(drawer).toContainText("Current video:");
   await drawer.getByRole("button", { name: "Done" }).click();
   await page.locator("[data-outline-save]").click();
-  await expect(page.getByText("Lessons saved.").first()).toBeVisible();
+  await expect.poll(async () => (await ctl.sql("SELECT video_provider FROM lessons WHERE course_id = ?", [courseId]))[0]?.video_provider).toBe("r2");
   const videos = await ctl.r2Keys("videos/");
   expect(videos.some((k) => k.endsWith("smoky-eyes.mp4"))).toBe(true);
   const [lesson] = await ctl.sql("SELECT video_provider, video_ref FROM lessons WHERE course_id = ?", [courseId]);
