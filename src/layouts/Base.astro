@@ -3,9 +3,6 @@ import "../styles/fonts.css";
 import "../styles/tokens.css";
 import "../styles/global.css";
 import "../styles/motion.css";
-// The Latin web font, preloaded: the CSS that names it is render-blocking, so this saves a round trip
-// before text shows in its own font (the same hashed file fonts.css points at).
-import latinFont from "../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2?url";
 import { site } from "../data/site";
 import { course } from "../data/course";
 import { buildEnv } from "../lib/build-env";
@@ -52,7 +49,6 @@ const imageUrl = new URL(image, site.url).href;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
-    <link rel="preload" href={latinFont} as="font" type="font/woff2" crossorigin />
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
     {/* Demo content and preview builds stay out of search (functions/_lib/hosts.ts adds X-Robots-Tag on previews). */}

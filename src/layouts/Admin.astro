@@ -9,9 +9,6 @@ import "../styles/fonts.css";
 import "../styles/tokens.css";
 import "../styles/global.css";
 import "../styles/motion.css";
-// The Latin web font, preloaded: the CSS that names it is render-blocking, so this saves a round trip
-// before text shows in its own font (the same hashed file fonts.css points at).
-import latinFont from "../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2?url";
 import "../components/admin/admin.css";
 import Icon from "../components/Icon.astro";
 import Logo from "../components/landing/Logo.astro";
@@ -59,7 +56,6 @@ const baseIcons = ["close", "check-circle", "info", "warning-circle", "arrow-cou
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{`${title} · Course admin · ${site.name}`}</title>
-    <link rel="preload" href={latinFont} as="font" type="font/woff2" crossorigin />
     <meta name="description" content={`${title}: the course admin of ${site.name}, for courses, students, payments and settings.`} />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="referrer" content="same-origin" />

@@ -2,14 +2,15 @@
    Fontsource's wght.css and wght-italic.css also declare Cyrillic and Vietnamese, which no page
    uses (checked on 2026-10-20): those four rules were inlined into every page for nothing.
    Latin Extended stays for the rupee sign (₹) in the blog. The rules and unicode ranges are
-   Fontsource's own; the files come from the package, so Vite fingerprints them as before and the
-   preload in Base.astro and Admin.astro (an import of the same file with ?url) points at the same
-   hashed Latin file.
+   Fontsource's own; the files come from the package, so Vite fingerprints them as before.
 
    "Plus Jakarta Sans Fallback" (last rule) is the system font shown until the web font arrives
    (font-display: swap), resized to Plus Jakarta Sans' width and line metrics, so the swap
    doesn't reflow the text (layout shift). Measured on 2026-10-23 against Arial's metrics
-   (Liberation Sans): average advance 0.5033 vs 0.4945 em, ascent 1.038 em, descent 0.222 em. */
+   (Liberation Sans): average advance 0.5033 vs 0.4945 em, ascent 1.038 em, descent 0.222 em.
+   The Latin file is deliberately not preloaded: on a slow phone connection the preload competed
+   with the render-blocking CSS and made the first paint about 150 ms later in Lighthouse, while
+   the matched fallback already keeps the swap from moving anything (docs/QUALITY.md). */
 
 @font-face {
   font-family: "Plus Jakarta Sans Variable";
