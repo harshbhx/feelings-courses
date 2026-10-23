@@ -501,13 +501,6 @@ const studioLinks = [
       grid-column: auto;
     }
 
-    .compact {
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      align-items: center;
-      gap: var(--space-5);
-      justify-items: stretch;
-    }
-
     .is-compact {
       padding-top: var(--space-6);
     }
@@ -518,6 +511,12 @@ const studioLinks = [
   }
 
   @media (min-width: 64rem) {
+    .compact {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      column-gap: var(--space-5);
+    }
+
     .cols {
       grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
       gap: var(--space-6);

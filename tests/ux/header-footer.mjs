@@ -270,6 +270,8 @@ try {
           await footer.scrollIntoViewIfNeeded();
           await page.waitForTimeout(200);
           if (motion === "reduce") {
+            // The sticky header would sit over the top of the footer in the picture.
+            await page.addStyleTag({ content: "header.site-header, header.learn-header { visibility: hidden !important; }" });
             await footer.screenshot({ path: shot(`${p.name}-${viewport.name}-footer${tag}`) });
             if (viewport.name === "390") await axe(page, "footer.site-footer", `${label} footer`);
           }

@@ -88,10 +88,7 @@ const ask = whatsappLink();
                   <Icon name={l.icon} />
                 </span>
                 <span class="p-text">
-                  <span class="p-name">
-                    {l.label}
-                    {current === l.id && <span class="bindi" aria-hidden="true" />}
-                  </span>
+                  <span class="p-name">{l.label}{current === l.id && <span class="bindi" aria-hidden="true" />}</span>
                   <span class="p-line">{l.line}</span>
                 </span>
               </a>
@@ -110,8 +107,7 @@ const ask = whatsappLink();
 
       <div class="panel-visit p-in" style="--i: 4">
         <p class="panel-address">
-          {site.name}, {site.address.street},<br />
-          {site.address.landmark}, {site.address.city}
+          {site.address.street}, {site.address.landmark}, {site.address.city}
         </p>
         <div class="panel-quick">
           <a href={`tel:${site.phone.tel}`}>

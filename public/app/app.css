@@ -462,16 +462,6 @@ main.wrap {
   color: inherit;
   font-weight: var(--weight-body);
 }
-@media (min-width: 48rem) {
-  .foot-row {
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    column-gap: var(--space-6);
-  }
-  .foot-links {
-    justify-content: flex-end;
-  }
-}
 @media (forced-colors: active) {
   .brand-logo,
   .foot .brand-logo {
