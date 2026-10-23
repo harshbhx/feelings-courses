@@ -251,14 +251,14 @@ test("sync: finds a captured payment the browser never reported, or marks all-fa
   const env = envFor(db);
   const keys = paymentKeys(env);
   const a = await newOrder(t, db, env);
-  const b = await newOrder(t, db, env, orderBody({ phone: "9811111111", email: "" }));
+  const b = await newOrder(t, db, env, orderBody({ phone: "9811111111", email: "bina@example.com" }));
   const synced = await syncOrderDb(db, keys, a.ref, NOW + 60);
   assert.deepEqual([synced.status, synced.razorpayPaymentId, synced.studentPhoneMasked], ["paid", "pay_Late00000001", "+91 ••••• •3210"]);
   const failed = await syncOrderDb(db, keys, b.ref, NOW + 60);
   assert.deepEqual([failed.status, failed.failureReason], ["failed", "Bank declined"]);
 });
 
-test("receipts: on-screen receipt behind an HMAC link, no GSTIN, phone masked, escaped", async (t) => {
+test("receipts: on-screen receipt behind an HMAC link, no GSTIN, no phone or email, escaped", async (t) => {
   const db = await setupDb();
   // A GSTIN stored for records must never reach a receipt.
   db.sqlite.exec(`UPDATE settings SET value = json_set(value, '$.gstin', '24ABCDE1234F1Z5') WHERE key = 'business'`);
@@ -266,7 +266,7 @@ test("receipts: on-screen receipt behind an HMAC link, no GSTIN, phone masked, e
   razorpay(t);
   const env = envFor(db, LIVE_ENV);
   const order = await paidOrder(t, db, env, { body: orderBody({ name: "Asha Patel", coupon: "SAVE20" }) });
-  db.sqlite.exec(`UPDATE students SET name = '<img src=x onerror=alert(1)>' WHERE phone = '+919876543210'`);
+  db.sqlite.exec(`UPDATE students SET name = '<img src=x onerror=alert(1)>' WHERE email = 'asha@example.com'`);
 
   const receipt = await buildReceipt(db, order.ref);
   assert.equal(receipt.kind, "receipt");
@@ -288,7 +288,8 @@ test("receipts: on-screen receipt behind an HMAC link, no GSTIN, phone masked, e
   assert.equal(res.headers.get("Cache-Control"), "no-store");
   const html = await res.text();
   assert.ok(html.includes("FBC/26-27/00001"));
-  assert.ok(html.includes("+91 ••••• •3210"));
+  // The buyer's name only: someone who paid with another person's address learns nothing more.
+  assert.equal(html.includes("3210"), false, "no phone digits");
   assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;"));
   assert.equal(html.includes("<img src=x"), false);
   assert.equal(html.includes("asha@example.com"), false);
@@ -298,7 +299,7 @@ test("receipts: on-screen receipt behind an HMAC link, no GSTIN, phone masked, e
   assert.equal(html.includes("Test payment"), false);
 
   // Wrong or missing key, another order's key, an unpaid order: the same 404 page.
-  const other = await newOrder(t, db, env, orderBody({ phone: "9811111111", email: "" }));
+  const other = await newOrder(t, db, env, orderBody({ phone: "9811111111", email: "bina@example.com" }));
   for (const [url, id] of [
     [`/receipt/${order.ref}?k=${"0".repeat(32)}`, order.ref],
     [`/receipt/${order.ref}`, order.ref],

@@ -46,6 +46,7 @@ function fakeCloudflare({ r2Enabled = true, projectConfigs } = {}) {
     zone: { id: "z".repeat(32), name: "feelingsbeautycare.in" },
     dns: [],
     tables: null,
+    workers: {},
     calls: [],
   };
   const ok = (result) => new Response(JSON.stringify({ success: true, errors: [], result }), { status: 200 });
@@ -61,7 +62,8 @@ function fakeCloudflare({ r2Enabled = true, projectConfigs } = {}) {
     const u = new URL(url);
     const p = u.pathname.replace("/client/v4", "");
     const method = init.method;
-    const body = init.body ? JSON.parse(init.body) : undefined;
+    const multipart = init.body instanceof FormData;
+    const body = multipart ? init.body : init.body ? JSON.parse(init.body) : undefined;
     state.calls.push(`${method} ${p}`);
     assert.equal(init.headers.Authorization, `Bearer ${"t".repeat(40)}`);
     const acct = `/accounts/${ACCOUNT}`;
@@ -80,6 +82,21 @@ function fakeCloudflare({ r2Enabled = true, projectConfigs } = {}) {
         }
       }
       return ok(visible(state.project));
+    }
+    if (p === `${acct}/workers/scripts` && method === "GET") return ok(Object.keys(state.workers).map((id) => ({ id })));
+    const script = /\/workers\/scripts\/([^/]+)(\/subdomain)?$/.exec(p);
+    if (script && method === "PUT" && !script[2]) {
+      assert.ok(multipart, "a Worker upload is multipart");
+      assert.equal(init.headers["Content-Type"], undefined, "FormData sets its own multipart boundary");
+      const metadata = JSON.parse(await body.get("metadata").text());
+      const code = await body.get(metadata.main_module).text();
+      state.workers[script[1]] = { ...(state.workers[script[1]] ?? {}), metadata, code };
+      return ok({ id: script[1] });
+    }
+    if (script && method === "POST" && script[2]) {
+      if (!state.workers[script[1]]) return fail(404, 10007, "This Worker does not exist on your account.");
+      state.workers[script[1]].subdomain = body;
+      return ok(body);
     }
     if (p === `${acct}/d1/database` && method === "GET") return ok(state.d1.filter((d) => d.name.includes(u.searchParams.get("name"))));
     if (p === `${acct}/d1/database` && method === "POST") {
@@ -298,13 +315,62 @@ test("a full run creates, binds, keeps hand-set variables, backs up, and a rerun
     state.calls.length = 0;
     const second = await run(["--yes"], { root, cf, now: new Date("2026-10-24T10:00:00Z") });
     assert.equal(second.code, 0, second.out);
-    assert.deepEqual(writes(state.calls), [`PATCH /accounts/${ACCOUNT}/pages/projects/feelings-courses`]);
+    assert.deepEqual(writes(state.calls), [
+      `PUT /accounts/${ACCOUNT}/workers/scripts/fbc-courses-mailer`,
+      `POST /accounts/${ACCOUNT}/workers/scripts/fbc-courses-mailer/subdomain`,
+      `PATCH /accounts/${ACCOUNT}/pages/projects/feelings-courses`,
+    ]);
     assert.match(second.out, /secret APP_SECRET: set again/);
     assert.match(second.out, /binding DB → uuid-fbc-courses: keep/);
     const again = JSON.parse(readFileSync(path.join(root, "setup.local.out.json"), "utf8"));
     assert.deepEqual(again, out, "generated secrets are reused");
     const latest = readdirSync(root).filter((f) => f.startsWith("setup.local.backup-")).sort().at(-1);
     assert.match(readFileSync(path.join(root, latest), "utf8"), /bm-uuid-fbc-courses/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("email: the mailer Worker is uploaded with a send_email binding locked to one sender, no public URL, and bound to both environments", async () => {
+  const root = workspace();
+  const cf = fakeCloudflare();
+  try {
+    const dry = await run(["--dry-run"], { root, cf });
+    assert.match(dry.out, /mailer Worker fbc-courses-mailer: add \(sends as courses@feelingsbeautycare\.in; no public URL\)/);
+    assert.deepEqual(writes(cf.state.calls), []);
+
+    const first = await run(["--yes"], { root, cf });
+    assert.equal(first.code, 0, first.out);
+    const worker = cf.state.workers["fbc-courses-mailer"];
+    assert.equal(worker.metadata.main_module, "index.js");
+    assert.deepEqual(worker.metadata.bindings.slice(0, 3), [
+      { type: "send_email", name: "EMAIL", allowed_sender_addresses: ["courses@feelingsbeautycare.in"] },
+      { type: "plain_text", name: "EMAIL_FROM", text: "courses@feelingsbeautycare.in" },
+      { type: "plain_text", name: "EMAIL_FROM_NAME", text: "Feelings Beauty Care" },
+    ]);
+    const out = JSON.parse(readFileSync(path.join(root, "setup.local.out.json"), "utf8"));
+    assert.match(out.mailer.key, /^[0-9a-f]{64}$/);
+    assert.deepEqual(worker.metadata.bindings[3], { type: "secret_text", name: "MAILER_KEY", text: out.mailer.key });
+    assert.match(worker.code, /export default/);
+    assert.deepEqual(worker.subdomain, { enabled: false, previews_enabled: false }, "no workers.dev or preview URL");
+    for (const env of ["production", "preview"]) {
+      const cfg = cf.state.project.deployment_configs[env];
+      assert.deepEqual(cfg.services, { MAILER: { service: "fbc-courses-mailer", environment: "production" } });
+      assert.equal(cfg.env_vars.EMAIL_PROVIDER.value, "cloudflare");
+      assert.equal(cfg.env_vars.MAILER_KEY.type, "secret_text");
+      assert.equal(cfg.env_vars.MAILER_KEY.value, out.mailer.key, "the Pages side holds the same key");
+    }
+    assert.ok(!first.out.includes(out.mailer.key), "the key never reaches the console");
+    assert.match(first.out, /onboarded in Email Service → Email Sending/);
+
+    // A sender on another domain is refused before anything is read or written.
+    const bad = workspace({ email: { from: "noreply@gmail.com" } });
+    cf.state.calls.length = 0;
+    const refused = await run(["--yes"], { root: bad, cf });
+    assert.equal(refused.code, 1);
+    assert.match(refused.out, /email\.from: an address on feelingsbeautycare\.in/);
+    assert.deepEqual(cf.state.calls, []);
+    rmSync(bad, { recursive: true, force: true });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

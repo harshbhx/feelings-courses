@@ -9,9 +9,9 @@ import { fileURLToPath } from "node:url";
 
 import { handleCouponQuote, handleLiveOrder, handleLiveVerify, handleWebhook } from "../../functions/_lib/payments.ts";
 import { fulfilOrderDb } from "../../functions/_lib/orders.ts";
-import { restoreAccess } from "../../functions/_lib/restore.ts";
-import { handleMyReceipt, handleMySession, handleRestore } from "../../functions/_lib/student-api.ts";
+import { handleEmailLink, handleMyReceipt, handleMySession } from "../../functions/_lib/student-api.ts";
 import { handleSignin } from "../../functions/_lib/pages/auth.ts";
+import { fakeMailer } from "../helpers/mailer.mjs";
 import { handleReceipt } from "../../functions/_lib/receipts-route.ts";
 import { receiptKey } from "../../functions/_lib/receipts.ts";
 import { loginRoute } from "../../functions/_lib/admin/routes.ts";
@@ -23,14 +23,18 @@ import { adminEnv, callRoute, signIn } from "../w5/fixtures.mjs";
 import { createTestDb } from "../helpers/d1.mjs";
 
 const { DAY, NOW } = w2;
-const VICTIM_PHONE = "9876543210";
+const VICTIM_EMAIL = "asha@example.com";
 
-// ---------------------------------------------------------------- F1: account takeover by phone number
+// ---------------------------------------------------------------- F1: account takeover (email identity)
+// Since 23 Oct 2026 an account is its email. Typing an address at checkout proves nothing, so the
+// F1 attack now uses the victim's EMAIL: it must still give no session in the victim's account.
+// More attacks on email identity: tests/security/email-auth.test.mjs.
 
 /** The victim's own first purchase of course 10, verified: their account now holds a live course. */
 async function victimWithCourse(t) {
   const db = await w2.setupDb();
-  const env = w2.envFor(db);
+  const mail = fakeMailer();
+  const env = { ...w2.envFor(db), ...mail.env };
   const fake = w2.razorpay(t, {
     payments: {
       pay_Victim00000001: { order_id: "order_Fake0001", amount: 149999, contact: "+919876543210" },
@@ -40,15 +44,15 @@ async function victimWithCourse(t) {
   const order = await readJson(await handleLiveOrder(w2.orderRequest(w2.orderBody()), env, NOW));
   const verified = await readJson(await handleLiveVerify(postJson("/api/verify", w2.verifyBody(order.orderId, "pay_Victim00000001")), env, NOW + 60));
   assert.match(verified.redirect, /\/auth\/continue\?t=/, "regression: a first purchase still signs the buyer in");
-  return { db, env, fake, victimId: db.get("SELECT student_id FROM orders WHERE id = ?", order.ref).student_id };
+  return { db, env, mail, fake, victimId: db.get("SELECT student_id FROM orders WHERE id = ?", order.ref).student_id };
 }
 
-test("F1: a free course taken with someone else's phone number gives no sign-in link to their account", async (t) => {
-  const { db, env, victimId } = await victimWithCourse(t);
-  const tokensBefore = db.get("SELECT count(*) AS n FROM login_tokens").n;
-  // Mallory knows the victim's number and enrolls in the free course with it.
+test("F1: a free course taken with someone else's email gives no sign-in on the attacker's device", async (t) => {
+  const { db, env, mail, victimId } = await victimWithCourse(t);
+  const handoffsBefore = db.get("SELECT count(*) AS n FROM login_tokens WHERE purpose = 'handoff'").n;
+  // Mallory knows the victim's email and enrolls in the free course with it.
   const res = await handleLiveOrder(
-    w2.orderRequest(w2.orderBody({ course: "free-intro", name: "Mallory", email: "", phone: VICTIM_PHONE }), { ip: "203.0.113.66" }),
+    w2.orderRequest(w2.orderBody({ course: "free-intro", name: "Mallory", email: VICTIM_EMAIL, phone: "9999999999" }), { ip: "203.0.113.66" }),
     env,
     NOW + DAY,
   );
@@ -56,71 +60,65 @@ test("F1: a free course taken with someone else's phone number gives no sign-in 
   const data = await readJson(res);
   assert.equal(data.mode, "free");
   assert.doesNotMatch(data.redirect, /auth\/continue/, "no handoff into the victim's account");
-  assert.match(data.redirect, /^https:\/\/courses\.feelingsbeautycare\.in\/signin\?next=/);
-  assert.equal(db.get("SELECT count(*) AS n FROM login_tokens").n, tokensBefore, "no login token was issued");
-  assert.equal(db.get("SELECT name FROM students WHERE id = ?", victimId).name, "Asha Patel", "the victim's name is untouched");
+  assert.equal(data.redirect, "https://courses.feelingsbeautycare.in/signin?sent=1");
+  assert.equal(db.get("SELECT count(*) AS n FROM login_tokens WHERE purpose = 'handoff'").n, handoffsBefore, "no handoff token");
+  // The only link made went to the victim's own inbox.
+  assert.deepEqual([...new Set(mail.sent.map((m) => m.to))], [VICTIM_EMAIL]);
+  assert.deepEqual({ ...db.get("SELECT name, phone FROM students WHERE id = ?", victimId) }, { name: "Asha Patel", phone: "+919876543210" }, "the victim's details are untouched");
 });
 
-test("F1 regression: a brand-new phone number taking a free course is signed in at once", async (t) => {
+test("F1 regression: a brand-new email taking a free course is signed in at once", async (t) => {
   const db = await w2.setupDb();
   w2.razorpay(t);
-  const res = await handleLiveOrder(w2.orderRequest(w2.orderBody({ course: "free-intro", phone: "9822222222", email: "" })), { DB: db }, NOW);
+  const res = await handleLiveOrder(w2.orderRequest(w2.orderBody({ course: "free-intro", email: "new@example.com" })), { DB: db }, NOW);
   assert.match((await readJson(res)).redirect, /\/auth\/continue\?t=[A-Za-z0-9_-]{43}$/);
 });
 
-test("F1: paying for a cheap course with the victim's number neither hands off nor restores into their account", async (t) => {
-  const { db, env, victimId } = await victimWithCourse(t);
+test("F1: paying for a cheap course with the victim's email hands off nothing; the receipt shows no contact details", async (t) => {
+  const { db, env, mail, victimId } = await victimWithCourse(t);
   const order = await readJson(
     await handleLiveOrder(
-      w2.orderRequest(w2.orderBody({ course: "hybrid-pro", name: "Mallory", email: "", phone: VICTIM_PHONE }), { ip: "203.0.113.66" }),
+      w2.orderRequest(w2.orderBody({ course: "hybrid-pro", name: "Mallory", email: VICTIM_EMAIL, phone: "9999999999" }), { ip: "203.0.113.66" }),
       env,
       NOW + DAY,
     ),
   );
   assert.equal(order.mode, "razorpay");
   assert.equal(db.get("SELECT student_id FROM orders WHERE id = ?", order.ref).student_id, victimId, "the order lands on the victim's account");
-  const tokensBefore = db.get("SELECT count(*) AS n FROM login_tokens").n;
+  const handoffsBefore = db.get("SELECT count(*) AS n FROM login_tokens WHERE purpose = 'handoff'").n;
+  const sentBefore = mail.sent.length;
   const verify = await handleLiveVerify(postJson("/api/verify", w2.verifyBody(order.orderId, "pay_Mallory0000001")), env, NOW + DAY + 60);
   assert.equal(verify.status, 200);
   const verified = await readJson(verify);
-  assert.doesNotMatch(verified.redirect, /auth\/continue/, "verify gives the receipt, not a sign-in link");
+  assert.doesNotMatch(verified.redirect, /auth\/continue/, "verify gives the receipt, not a sign-in");
   assert.equal(verified.redirect, verified.receipt);
-  assert.equal(db.get("SELECT count(*) AS n FROM login_tokens").n, tokensBefore);
-
-  // Restore with Mallory's own payment ID and the victim's number: refused, no session.
-  const ip = "198.51.100.200";
-  const attempt = await restoreAccess(env, req("/api/auth/restore", { method: "POST", ip }), { contact: VICTIM_PHONE, paymentId: "pay_Mallory0000001" }, NOW + DAY + 120);
-  assert.deepEqual(attempt, { ok: false, reason: "use_first_payment" });
-  const api = await handleRestore(postJson("/api/auth/restore", { contact: VICTIM_PHONE, paymentId: "pay_Mallory0000001" }, { ip: "198.51.100.201" }), env, NOW + DAY + 130);
-  assert.equal(api.status, 409);
-  assert.equal(api.headers.get("Set-Cookie"), null);
-  const form = new URLSearchParams({ contact: VICTIM_PHONE, paymentId: "pay_Mallory0000001", next: "/account" });
-  const page = await handleSignin(
-    req("/signin", { method: "POST", body: form.toString(), headers: { "Content-Type": "application/x-www-form-urlencoded" }, ip: "198.51.100.202" }),
-    env,
-    NOW + DAY + 140,
-  );
-  assert.equal(page.status, 409);
-  assert.equal(page.headers.get("Set-Cookie"), null);
-  assert.equal(db.get("SELECT count(*) AS n FROM sessions WHERE student_id = ?", victimId).n, 0);
-
-  // The victim's own (first) payment ID still works.
-  const victim = await restoreAccess(env, req("/api/auth/restore", { method: "POST", ip: "198.51.100.203" }), { contact: VICTIM_PHONE, paymentId: "pay_Victim00000001" }, NOW + DAY + 150);
-  assert.equal(victim.ok, true);
+  assert.equal(db.get("SELECT count(*) AS n FROM login_tokens WHERE purpose = 'handoff'").n, handoffsBefore);
+  assert.equal(verify.headers.get("Set-Cookie"), null);
+  // The receipt and a sign-in link went to the victim's inbox, never to Mallory.
+  assert.deepEqual(mail.sent.slice(sentBefore).map((m) => m.to), [VICTIM_EMAIL]);
+  const receipt = await (await handleReceipt(req(new URL(verified.receipt).pathname + new URL(verified.receipt).search), env, String(order.ref), NOW + DAY + 70)).text();
+  assert.equal(receipt.includes(VICTIM_EMAIL) || receipt.includes("3210"), false, "no email or phone digits on the receipt");
+  // Mallory asking for a link with the victim's email: it goes to the victim, never to her.
+  const link = await handleEmailLink(postJson("/api/auth/email-link", { email: VICTIM_EMAIL }, { ip: "203.0.113.66" }), env, NOW + DAY + 100);
+  assert.equal(link.status, 202);
+  assert.equal(link.headers.get("Set-Cookie"), null);
+  assert.ok(mail.sent.every((m) => m.to === VICTIM_EMAIL));
+  assert.equal(db.get("SELECT count(*) AS n FROM sessions WHERE student_id = ? AND revoked_at IS NULL", victimId).n, 0, "nobody got a session");
 });
 
 // ---------------------------------------------------------------- F2: IPv6 rotation past per-IP limits
 
 const v6 = (i) => `2001:db8:abcd:12::${i.toString(16)}`;
 
-test("F2: rotating IPv6 addresses inside one /64 doesn't reset the restore limit", async () => {
+test("F2: rotating IPv6 addresses inside one /64 doesn't reset the sign-in link limit", async () => {
   const db = await w3.setupDb();
-  for (let i = 1; i <= 5; i++) {
-    const r = await restoreAccess(w3.env(db), req("/api/auth/restore", { method: "POST", ip: v6(i) }), { contact: `98000000${10 + i}`, paymentId: `pay_Guess000000${i}` }, w3.NOW);
-    assert.equal(r.reason, "no_match");
+  const mail = fakeMailer();
+  const statuses = [];
+  for (let i = 1; i <= 11; i++) {
+    const res = await handleEmailLink(postJson("/api/auth/email-link", { email: `guess${i}@example.com` }, { ip: v6(i) }), { ...w3.env(db), ...mail.env }, w3.NOW);
+    statuses.push(res.status);
   }
-  const sixth = await restoreAccess(w3.env(db), req("/api/auth/restore", { method: "POST", ip: v6(99) }), { contact: "9800000099", paymentId: "pay_Guess00000099" }, w3.NOW);
-  assert.equal(sixth.reason, "rate_limited");
+  assert.deepEqual(statuses, [...Array(10).fill(202), 429]);
 });
 
 test("F2: coupon guessing from one /64 is limited like one address", async () => {

@@ -137,7 +137,10 @@ test("sign-in explains a device signed out by the 2-device limit, and only then"
   assert.ok(all["signin-device-ended.html"].body.includes("2 devices at a time"));
   assert.equal(all["signin.html"].body.includes("This device was signed out"), false);
   assert.ok(all["signin-error.html"].body.includes('role="alert"'));
-  assert.ok(all["link-expired.html"].body.includes("Ask for a new link"), "an expired link offers WhatsApp");
+  assert.ok(all["link-expired.html"].body.includes("expired or was already used"), "an expired link says so");
+  assert.ok(all["link-expired.html"].body.includes('action="/signin"'), "an expired link offers a new one by email");
+  assert.ok(all["link-expired.html"].body.includes("wa.me/"), "and WhatsApp help");
+  assert.ok(all["signin-sent.html"].body.includes("Check your email"));
 });
 
 test("account: course cards with progress and the next step; empty state; device slots", async () => {

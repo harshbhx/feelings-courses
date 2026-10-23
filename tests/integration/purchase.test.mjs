@@ -43,7 +43,7 @@ test("buy on the course host → receipt → learn → refund within 24 hours �
   const again = await site.fetch(req(verified.redirect));
   assert.equal(cookiesFrom(again)["__Host-fbc_s"], undefined);
 
-  // The receipt: consecutive invoice number, masked phone, no GSTIN, a way into the course.
+  // The receipt: consecutive invoice number, no phone, no GSTIN, a way into the course.
   const receipt = await site.fetch(req(new URL(location, HUB).href));
   assert.equal(receipt.status, 200);
   assert.equal(receipt.headers.get("X-Robots-Tag"), "noindex, nofollow");
@@ -112,6 +112,37 @@ test("buy on the course host → receipt → learn → refund within 24 hours �
   assert.equal(me.enrollments.find((e) => e.courseSlug === "glow")?.active ?? false, false);
 });
 
+test("email identity end to end: the receipt email, then a second device signs in with an emailed link", async (t) => {
+  const ctx = await setup(t);
+  const { site, mail, db } = ctx;
+  const { verified } = await buy(ctx, {});
+  await signInFromHandoff(site, verified.redirect);
+  await Promise.all(site.waitUntil);
+  const receipt = mail.sent.find((m) => m.subject.startsWith("Payment received"));
+  assert.ok(receipt, "the receipt email went out");
+  assert.equal(receipt.to, BUYER.email);
+  assert.equal(receipt.from.email, "courses@feelingsbeautycare.in");
+
+  // A second phone: /signin on the hub (a course host sends it there), then the emailed link.
+  const fromCourse = await site.fetch(req(`${COURSE_HOST}/signin`));
+  assert.equal(fromCourse.status, 302);
+  const form = new URLSearchParams({ email: BUYER.email, next: "/learn/glow" }).toString();
+  const asked = await site.fetch(req(`${HUB}/signin`, { method: "POST", body: form, headers: { "Content-Type": "application/x-www-form-urlencoded" }, ip: "198.51.100.77" }));
+  assert.equal(asked.status, 200);
+  assert.match(await asked.text(), /Check your email/);
+  await Promise.all(site.waitUntil);
+  const link = mail.lastLink(BUYER.email);
+  assert.ok(link);
+  const confirm = await site.fetch(req(link));
+  assert.equal(confirm.status, 200, "a GET only shows Continue");
+  const go = await site.fetch(req(`${HUB}/auth/continue`, { method: "POST", body: new URLSearchParams({ t: mail.tokenOf(link) }).toString(), headers: { "Content-Type": "application/x-www-form-urlencoded" } }));
+  assert.equal(go.status, 303);
+  assert.equal(go.headers.get("Location"), "/learn/glow");
+  const cookie = cookiesFrom(go)["__Host-fbc_s"];
+  assert.equal((await site.fetch(req(`${HUB}/learn/glow`, { cookie: `__Host-fbc_s=${cookie.value}` }))).status, 200);
+  assert.equal(db.get("SELECT count(*) AS n FROM email_verifications").n, 1);
+});
+
 test("refunds are refused after 24 hours and access stays", async (t) => {
   const ctx = await setup(t);
   const { site, db, clock } = ctx;
@@ -168,8 +199,8 @@ test("course hosts keep the account, the receipt and the admin on the hub", asyn
     assert.equal(res.status, 302, path);
     assert.equal(res.headers.get("Location"), `${HUB}${path}`, path);
   }
-  for (const path of ["/api/me", "/api/me/orders/1", "/api/admin/orders", "/api/auth/restore", "/api/razorpay/webhook"]) {
-    const res = await site.fetch(req(`${COURSE_HOST}${path}`, { method: path.endsWith("restore") || path.endsWith("webhook") ? "POST" : "GET", body: path.endsWith("restore") || path.endsWith("webhook") ? {} : undefined }));
+  for (const path of ["/api/me", "/api/me/orders/1", "/api/admin/orders", "/api/auth/email-link", "/api/razorpay/webhook"]) {
+    const res = await site.fetch(req(`${COURSE_HOST}${path}`, { method: path.endsWith("email-link") || path.endsWith("webhook") ? "POST" : "GET", body: path.endsWith("email-link") || path.endsWith("webhook") ? {} : undefined }));
     assert.equal(res.status, 404, path);
   }
   // The receipt is private: never indexed or framed.

@@ -30,14 +30,14 @@ function walkTs(dir) {
 const fakeSecrets = { appSecret: "x", adminPasswordHash: "x", webhookSecret: "x" };
 const patch = deploymentConfigPatch(
   { hubHost: "h.example", apexDomain: "example", keyId: "rzp_test_x", keySecret: "x", deployHookUrl: "https://hook" },
-  { production: fakeSecrets, preview: fakeSecrets },
+  { production: fakeSecrets, preview: fakeSecrets, mailer: { key: "x" } },
   { production: "db-prod", preview: "db-preview" },
 );
 
 test("setup.mjs sets only names the Functions' Env declares", () => {
   const members = envMembers();
   for (const [env, cfg] of Object.entries(patch.deployment_configs)) {
-    for (const name of [...Object.keys(cfg.d1_databases), ...Object.keys(cfg.r2_buckets), ...Object.keys(cfg.env_vars)]) {
+    for (const name of [...Object.keys(cfg.d1_databases), ...Object.keys(cfg.r2_buckets), ...Object.keys(cfg.services), ...Object.keys(cfg.env_vars)]) {
       assert.ok(members.has(name), `${env}: setup.mjs sets ${name}, which functions/_lib/env.ts doesn't declare`);
     }
   }

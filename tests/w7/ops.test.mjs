@@ -188,8 +188,8 @@ test("contactSubject hashes and normalises", async () => {
 
 test("enforceRateLimits: 429 with Retry-After past the limit; fail open or closed on errors", async () => {
   const db = await createTestDb();
-  const rules = { restore_ip: { limit: 2, window: 60 } };
-  const checks = [{ rule: "restore_ip", subject: "203.0.113.9" }];
+  const rules = { signin_ip: { limit: 2, window: 60 } };
+  const checks = [{ rule: "signin_ip", subject: "203.0.113.9" }];
   assert.equal(await enforceRateLimits(db, checks, { now: NOW, rules }), null);
   assert.equal(await enforceRateLimits(db, checks, { now: NOW, rules }), null);
   const res = await enforceRateLimits(db, checks, { now: NOW + 10, rules });
