@@ -1,9 +1,10 @@
 {
-  "//": "Copy to setup.local.json (never committed) and fill in. docs/owner/SETUP.md explains each value.",
+  "//": "Copy to setup.local.json (never committed) and fill in. docs/owner/OWNER-GUIDE.md (Part A) explains each value.",
   "cloudflare": {
     "accountId": "32 hex characters: dashboard → Workers & Pages → Account ID",
-    "apiToken": "an API token with Account: Cloudflare Pages Edit, D1 Edit, Workers R2 Storage Edit",
-    "project": "feelings-courses"
+    "apiToken": "an API token with Account: Cloudflare Pages Edit, D1 Edit, Workers R2 Storage Edit (plus Zone Read + DNS Edit only for --add-domain)",
+    "project": "feelings-courses",
+    "location": "apac"
   },
   "razorpay": {
     "keyId": "rzp_test_… (rzp_live_… only for npm run go-live)",
