@@ -1,14 +1,15 @@
 // Accessibility pass for every page in tests/quality/pages.mjs, in a real browser, at a phone
 // (390 x 844) and a laptop (1280 x 900). CI only (.github/workflows/quality.yml): it needs Chromium.
 //
-//   npm i --no-save playwright@1.48.2 @axe-core/playwright@4.10.2 && npx playwright install --with-deps chromium
-//   ADMIN_COOKIE=… node tests/quality/a11y.mjs [outDir]
+//   npm i --no-save playwright@1.48.2 @axe-core/playwright@4.10.2
+//   PW_CHANNEL=chrome ADMIN_COOKIE=… node tests/quality/a11y.mjs [outDir]
 //
 // For each page and width:
 //   axe       WCAG 2.0, 2.1 and 2.2 A and AA rules plus axe's best practices; any violation fails;
 //   keyboard  the first Tab lands on a visible skip link whose target exists, and following it moves
 //             focus into the main content; the next 40 Tab stops are visible and show a focus ring;
-//   motion    with prefers-reduced-motion: reduce, nothing animates for longer than 10 ms;
+//   motion    with prefers-reduced-motion: reduce, nothing loops and nothing runs longer than 300 ms
+//             (the site's tiered rule, src/styles/motion.css: movement goes, short fades stay);
 //   layout    no sideways scroll (CLAUDE.md rule 2);
 //   language  <html lang> is set.
 // Writes <outDir>/a11y.json and prints a Markdown summary; exit 1 when anything failed.
@@ -105,7 +106,8 @@ async function keyboardChecks(page, target, viewport) {
   }
 }
 
-const browser = await chromium.launch();
+// PW_CHANNEL=chrome uses the runner's Google Chrome (no browser download).
+const browser = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {});
 try {
   for (const viewport of VIEWPORTS) {
     for (const reducedMotion of ["no-preference", "reduce"]) {
@@ -115,20 +117,27 @@ try {
         const ctx = needsAdmin(target) && adminContext ? adminContext : context;
         const page = await ctx.newPage();
         const consoleErrors = [];
-        page.on("console", (msg) => msg.type() === "error" && consoleErrors.push(msg.text()));
+        // A state page that answers 4xx on purpose (404, link expired…) logs its own status: not a bug.
+        page.on("console", (msg) => {
+          if (msg.type() !== "error") return;
+          if (/^Failed to load resource/.test(msg.text()) && msg.location().url === target.url) return;
+          consoleErrors.push(`${msg.text()} (${msg.location().url || "?"})`);
+        });
         try {
           await page.goto(target.url, { waitUntil: "networkidle", timeout: 30_000 });
           await settle(page);
           if (reducedMotion === "reduce") {
-            // Motion: nothing runs longer than 10 ms once the page has loaded (scroll reveals included).
+            // Motion: half a second after load and after scrolling to the end (scroll reveals included),
+            // nothing loops and nothing longer than 300 ms is still running.
             await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
             await settle(page);
+            await page.waitForTimeout(500);
             const moving = await page.evaluate(() =>
               document
                 .getAnimations()
                 .filter((a) => {
                   const t = a.effect?.getComputedTiming();
-                  return a.playState === "running" && t && (t.duration === Infinity || Number(t.duration) > 10 || t.iterations === Infinity);
+                  return a.playState === "running" && t && (t.duration === Infinity || Number(t.duration) > 300 || t.iterations === Infinity);
                 })
                 .map((a) => {
                   const el = a.effect && "target" in a.effect ? a.effect.target : null;

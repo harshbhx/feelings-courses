@@ -13,7 +13,7 @@ mkdir -p "$state"
 secret=$(openssl rand -hex 32)
 password=$(openssl rand -hex 16)
 hash=$(printf '%s' "$password" | openssl dgst -sha256 -hmac "$secret" -hex | awk '{print $NF}')
-printf 'APP_SECRET=%s\nADMIN_PASSWORD_HASH=%s\n' "$secret" "$hash" > .dev.vars
+printf 'APP_ENV=development\nAPP_SECRET=%s\nADMIN_PASSWORD_HASH=%s\n' "$secret" "$hash" > .dev.vars
 
 npx wrangler pages dev dist --d1 DB --r2 MEDIA --ip 127.0.0.1 --port 8788 \
   --compatibility-date 2026-10-01 --persist-to "$state/pages-dev" > "$state/pages-dev.log" 2>&1 &
@@ -32,10 +32,12 @@ done
 # The first request ran the D1 migrations; warm the course host and the learner pages too.
 curl -fsS -o /dev/null http://selfmakeup.localhost:8788/ || true
 
-cookie=$(curl -fsS -D - -o /dev/null -X POST http://127.0.0.1:8788/api/admin/login \
+code=$(curl -sS -D "$state/login.headers" -o "$state/login.body" -w '%{http_code}' -X POST http://127.0.0.1:8788/api/admin/login \
   -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:8788' \
-  --data "{\"password\":\"$password\"}" | tr -d '\r' | sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-fbc_admin=[^;]*\).*/\1/p')
-if [ -z "$cookie" ]; then echo "serve: admin sign-in failed"; tail -50 "$state/pages-dev.log"; exit 1; fi
+  --data "{\"password\":\"$password\"}")
+cookie=$(tr -d '\r' < "$state/login.headers" | sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-fbc_admin=[^;]*\).*/\1/p')
+rm -f "$state/login.headers"
+if [ -z "$cookie" ]; then echo "serve: admin sign-in failed ($code): $(cat "$state/login.body")"; tail -50 "$state/pages-dev.log"; exit 1; fi
 if [ -n "${GITHUB_ENV:-}" ]; then
   echo "::add-mask::${cookie#*=}"
   echo "ADMIN_COOKIE=$cookie" >> "$GITHUB_ENV"

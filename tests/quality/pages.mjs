@@ -17,7 +17,8 @@ export const COURSE = (process.env.QUALITY_COURSE ?? "http://selfmakeup.localhos
 export const LEARNER = (process.env.QUALITY_LEARNER ?? "http://127.0.0.1:8790").replace(/\/$/, "");
 
 /**
- * `lighthouse: false`: axe only (Lighthouse refuses to score a page that answers 404).
+ * `lighthouse: false`: axe only. These pages answer 4xx on purpose (404, 400, 403, 410), and
+ * Lighthouse refuses to score a page whose document status is an error.
  * @type {{ group: "public" | "learner" | "admin", name: string, url: string, lighthouse?: boolean }[]}
  */
 export const PAGES = [
@@ -44,9 +45,9 @@ export const PAGES = [
   { group: "learner", name: "certificate", url: `${LEARNER}/certificate` },
   { group: "learner", name: "receipt", url: `${LEARNER}/receipt` },
   { group: "learner", name: "sign-in link sent", url: `${LEARNER}/signin-sent` },
-  { group: "learner", name: "sign-in error", url: `${LEARNER}/signin-error` },
-  { group: "learner", name: "link expired", url: `${LEARNER}/link-expired` },
-  { group: "learner", name: "access ended", url: `${LEARNER}/access-ended` },
+  { group: "learner", name: "sign-in error", url: `${LEARNER}/signin-error`, lighthouse: false },
+  { group: "learner", name: "link expired", url: `${LEARNER}/link-expired`, lighthouse: false },
+  { group: "learner", name: "access ended", url: `${LEARNER}/access-ended`, lighthouse: false },
   // admin
   { group: "admin", name: "admin sign in", url: `${HUB}/admin` },
   { group: "admin", name: "admin dashboard", url: `${HUB}/admin/dashboard` },

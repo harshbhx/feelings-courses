@@ -177,7 +177,8 @@ const decode = (s) => s.replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&
   const robots = await get("/robots.txt", HUB_HOST);
   expect(robots.status === 200, `hub robots.txt: ${robots.status}`);
   expect(/Disallow: \/admin/.test(robots.body) && /Disallow: \/api\//.test(robots.body), "hub robots.txt: doesn't keep /admin and /api/ out");
-  expect(robots.body.includes(`Sitemap: https://${HUB_HOST}/sitemap.xml`), "hub robots.txt: no Sitemap line for the hub");
+  // The scheme is the request's: https on Cloudflare, http on the local server.
+  expect(new RegExp(`^Sitemap: https?://${HUB_HOST.replace(/\./g, "\\.")}/sitemap\\.xml$`, "m").test(robots.body), "hub robots.txt: no Sitemap line for the hub");
   const sitemap = await get("/sitemap.xml", HUB_HOST);
   expect(sitemap.status === 200 && /<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/.test(sitemap.body), "hub sitemap.xml: not a sitemap");
   expect(/xml/.test(String(sitemap.headers["content-type"])), `hub sitemap.xml: content-type ${sitemap.headers["content-type"]}`);
@@ -231,7 +232,7 @@ const decode = (s) => s.replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&
 // A course host, as production (Host: selfmakeup.feelingsbeautycare.in).
 {
   const robots = await get("/robots.txt", COURSE_HOST);
-  expect(robots.status === 200 && robots.body.includes(`Sitemap: https://${COURSE_HOST}/sitemap.xml`), "course host robots.txt: no Sitemap line for its own host");
+  expect(robots.status === 200 && new RegExp(`^Sitemap: https?://${COURSE_HOST.replace(/\./g, "\\.")}/sitemap\\.xml$`, "m").test(robots.body), "course host robots.txt: no Sitemap line for its own host");
   const sitemap = await get("/sitemap.xml", COURSE_HOST);
   expect(sitemap.status === 200 && /<urlset/.test(sitemap.body), `course host sitemap.xml: ${sitemap.status}`);
   const page = await get("/", COURSE_HOST);
