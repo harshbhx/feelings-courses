@@ -599,7 +599,8 @@ main.wrap {
   font-weight: var(--weight-ui);
   margin-top: var(--space-2);
 }
-.form input[type="text"] {
+.form input[type="text"],
+.form input[type="email"] {
   width: 100%;
   min-height: 48px;
   padding: 10px 14px;
@@ -610,10 +611,12 @@ main.wrap {
   font: inherit;
   transition: border-color var(--dur-fast) var(--ease-out);
 }
-.form input[type="text"]:hover {
+.form input[type="text"]:hover,
+.form input[type="email"]:hover {
   border-color: var(--text-muted);
 }
-.form input[type="text"]:focus-visible {
+.form input[type="text"]:focus-visible,
+.form input[type="email"]:focus-visible {
   border-color: var(--accent);
   outline-offset: 1px;
 }

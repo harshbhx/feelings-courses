@@ -44,7 +44,9 @@ try {
         const el = document.activeElement;
         if (!el || !el.classList.contains("skip")) return "not the skip link";
         const box = el.getBoundingClientRect();
-        return box.bottom > 0 && getComputedStyle(el).outlineStyle !== "none" ? null : "skip link not visible";
+        const style = getComputedStyle(el);
+        if (box.bottom > 0 && style.outlineStyle !== "none") return null;
+        return `skip link not visible (bottom ${Math.round(box.bottom)}, outline ${style.outlineStyle}, transform ${style.transform}, display ${style.display})`;
       });
       if (skip) problems.push(`${file} @${viewport.name}: first Tab: ${skip}`);
     }
