@@ -47,7 +47,8 @@ export async function studentPages() {
   return {
     "signin.html": ["Sign in on a new device", () => handleSignin(get("/signin?next=/account"), env, NOW)],
     "signin-device-ended.html": ["Sign in after this device was signed out (2-device limit)", () => handleSignin(get("/signin", ended), env, NOW)],
-    "signin-error.html": ["Sign in with details that match no payment", () => handleSignin(post("/signin", { contact: "9876543210", paymentId: "pay_NoSuchPayment00", next: "/account" }), env, NOW)],
+    "signin-error.html": ["Sign in with something that isn't an email", () => handleSignin(post("/signin", { email: "asha at example", next: "/account" }), env, NOW)],
+    "signin-sent.html": ["After asking for a sign-in link (same page for every address)", () => handleSignin(post("/signin", { email: "asha@example.com", next: "/account" }), env, NOW)],
     "link-expired.html": ["A one-time sign-in link that has expired", () => handleContinue(get("/auth/continue?t=expired-token-value-000000000000"), env, NOW)],
     "account.html": ["Account: courses with progress, devices, payments", () => handleAccount(get("/account", asha), env, NOW)],
     "account-empty.html": ["Account with no course yet", () => handleAccount(get("/account", bina), env, NOW)],

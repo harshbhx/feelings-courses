@@ -23,13 +23,20 @@
 //   3. checks the bucket isn't public (r2.dev) and adds one lifecycle rule: database dumps under
 //      backups/d1/ expire after 35 days, as the privacy policy says. Existing rules are kept
 //      (the lifecycle API replaces the whole list, so it is read, merged and written back);
-//   4. PATCHes the project's deployment config: the DB and MEDIA bindings, plain variables
-//      (APP_ENV, HUB_HOST, APEX_DOMAIN, RAZORPAY_KEY_ID) and secrets (APP_SECRET,
-//      ADMIN_PASSWORD_HASH, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, DEPLOY_HOOK_URL).
+//   4. uploads the mailer Worker (workers/mailer/index.js, one for both environments) with its
+//      send_email binding locked to the one sender address (email.from, on the apex domain), and
+//      turns its workers.dev and preview URLs off: only the Pages project can call it;
+//   5. PATCHes the project's deployment config: the DB and MEDIA bindings, the MAILER service
+//      binding, plain variables (APP_ENV, HUB_HOST, APEX_DOMAIN, RAZORPAY_KEY_ID, EMAIL_PROVIDER)
+//      and secrets (APP_SECRET, ADMIN_PASSWORD_HASH, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET,
+//      MAILER_KEY, DEPLOY_HOOK_URL).
 //      The Pages API merges env_vars per key (a key set to null is deleted; wrangler's own
 //      `pages secret put` sends one key at a time), so variables set by hand are kept;
-//   5. reads the project back and checks every variable and binding that existed before is still
+//   6. reads the project back and checks every variable and binding that existed before is still
 //      there and every one it set is present.
+// Email (owner decision, 23 Oct 2026: Cloudflare's own Email Sending, no paid provider) needs two
+// things in the dashboard first, docs/owner/OWNER-GUIDE.md "Email": the apex domain onboarded in
+// Email Service → Email Sending (same account), and the Workers Paid plan (sending to any address).
 // It refuses to point an existing DB or MEDIA binding at a different database or bucket (for
 // example after a restore switched production to fbc-courses-restore) unless --allow-rebind.
 // The database schema needs no step: the site migrates itself on the first request
@@ -76,7 +83,14 @@ const DEFAULTS = {
   hubHost: "courses.feelingsbeautycare.in",
   apexDomain: "feelingsbeautycare.in",
   location: "apac",
+  emailFrom: "courses@feelingsbeautycare.in",
+  emailFromName: "Feelings Beauty Care",
 };
+
+/** The mailer Worker: one for both environments (workers/mailer/index.js). */
+export const MAILER_WORKER = "fbc-courses-mailer";
+export const MAILER_SCRIPT = path.join(ROOT, "workers", "mailer", "index.js");
+export const MAILER_COMPATIBILITY_DATE = "2026-10-01";
 
 /** The R2 lifecycle rule for database dumps (functions/_lib/backup.ts BACKUP_PREFIX). */
 export const BACKUP_RULE = {
@@ -160,6 +174,7 @@ export function validateConfig(raw, { live = false, cloudflareOnly = false } = {
   const rp = c.razorpay && typeof c.razorpay === "object" ? c.razorpay : {};
   const str = (v) => (typeof v === "string" ? v.trim() : "");
 
+  const em = c.email && typeof c.email === "object" ? c.email : {};
   const config = {
     accountId: str(cf.accountId),
     apiToken: str(cf.apiToken),
@@ -170,16 +185,25 @@ export function validateConfig(raw, { live = false, cloudflareOnly = false } = {
     keyId: str(rp.keyId),
     keySecret: str(rp.keySecret),
     deployHookUrl: str(c.deployHookUrl),
+    emailFrom: (str(em.from) || DEFAULTS.emailFrom).toLowerCase(),
+    emailFromName: str(em.fromName) || DEFAULTS.emailFromName,
   };
 
   if (!/^[0-9a-f]{32}$/.test(config.accountId)) errors.push("cloudflare.accountId: 32 hex characters (dashboard → Workers & Pages → Account ID)");
-  if (config.apiToken.length < 30) errors.push("cloudflare.apiToken: an API token with Pages Edit, D1 Edit and R2 Edit (not the global key)");
+  if (config.apiToken.length < 30) errors.push("cloudflare.apiToken: an API token with Pages Edit, D1 Edit, R2 Edit and Workers Scripts Edit (not the global key)");
   if (!/^[a-z0-9][a-z0-9-]{0,57}$/.test(config.project)) errors.push("cloudflare.project: the Pages project name");
   if (!LOCATIONS.includes(config.location)) errors.push(`cloudflare.location: one of ${LOCATIONS.join(", ")} (or leave it out for apac)`);
   const host = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
   if (!host.test(config.hubHost)) errors.push("hubHost: a host name like courses.feelingsbeautycare.in");
   if (!host.test(config.apexDomain)) errors.push("apexDomain: a domain like feelingsbeautycare.in");
   if (cloudflareOnly) return { config, errors };
+
+  // The sender must be on the apex domain, which is onboarded in Email Service → Email Sending.
+  const at = config.emailFrom.lastIndexOf("@");
+  if (at < 1 || !/^[a-z0-9._+-]+$/.test(config.emailFrom.slice(0, at)) || config.emailFrom.slice(at + 1) !== config.apexDomain) {
+    errors.push(`email.from: an address on ${config.apexDomain}, like courses@${config.apexDomain} (or leave it out)`);
+  }
+  if (config.emailFromName.length > 60 || /[<>"\r\n]/.test(config.emailFromName)) errors.push("email.fromName: a short name like Feelings Beauty Care");
 
   const mode = /^rzp_(test|live)_[A-Za-z0-9]{6,}$/.exec(config.keyId)?.[1];
   if (!mode) errors.push("razorpay.keyId: rzp_test_… or rzp_live_…");
@@ -222,6 +246,8 @@ export function generatedSecrets(previous = {}) {
       webhookSecret: prev.webhookSecret ?? randomBytes(24).toString("base64url"),
     };
   }
+  // One mailer Worker serves both environments, so one key (the Worker checks it on every call).
+  out.mailer = { key: previous.mailer?.key ?? randomBytes(32).toString("hex") };
   return out;
 }
 
@@ -243,16 +269,20 @@ export function deploymentConfigPatch(config, secrets, databases, envs = Object.
       HUB_HOST: plain(config.hubHost),
       APEX_DOMAIN: plain(config.apexDomain),
       RAZORPAY_KEY_ID: plain(config.keyId),
+      EMAIL_PROVIDER: plain("cloudflare"),
       APP_SECRET: secret(s.appSecret),
       ADMIN_PASSWORD_HASH: secret(s.adminPasswordHash),
       RAZORPAY_KEY_SECRET: secret(config.keySecret),
       RAZORPAY_WEBHOOK_SECRET: secret(s.webhookSecret),
+      MAILER_KEY: secret(secrets.mailer.key),
     };
     // Only production rebuilds on publish; a preview never calls the hook.
     if (env === "production" && config.deployHookUrl) env_vars.DEPLOY_HOOK_URL = secret(config.deployHookUrl);
     deployment_configs[env] = {
       d1_databases: { DB: { id: databases[env] } },
       r2_buckets: { MEDIA: { name: spec.r2 } },
+      // The mailer Worker holds the send_email binding Pages can't have (functions/_lib/email.ts).
+      services: { MAILER: { service: MAILER_WORKER, environment: "production" } },
       env_vars,
     };
   }
@@ -331,6 +361,10 @@ export function planLines(project, patch) {
     lines.push(`${env}: binding DB → ${cfg.d1_databases.DB.id}: ${!db ? "add" : db === cfg.d1_databases.DB.id ? "keep" : "CHANGE"}`);
     const bucket = cur.r2_buckets?.MEDIA?.name;
     lines.push(`${env}: binding MEDIA → ${cfg.r2_buckets.MEDIA.name}: ${!bucket ? "add" : bucket === cfg.r2_buckets.MEDIA.name ? "keep" : "CHANGE"}`);
+    if (cfg.services?.MAILER) {
+      const service = cur.services?.MAILER?.service;
+      lines.push(`${env}: binding MAILER → Worker ${cfg.services.MAILER.service}: ${!service ? "add" : service === cfg.services.MAILER.service ? "keep" : "change"}`);
+    }
     for (const [name, v] of Object.entries(cfg.env_vars)) {
       const old = cur.env_vars?.[name];
       let action = "add";
@@ -410,6 +444,34 @@ export function domainPlan({ slug, apexDomain, projectSubdomain, pagesDomains = 
   return plan;
 }
 
+// ---------------------------------------------------------------- mailer Worker
+
+/**
+ * The mailer Worker's upload metadata (the multipart "metadata" part of PUT
+ * /accounts/:id/workers/scripts/:name). Pure, so the test checks exactly what would be sent.
+ * The send_email binding may only send FROM the one sender address.
+ */
+export function mailerMetadata(config, secrets) {
+  return {
+    main_module: "index.js",
+    compatibility_date: MAILER_COMPATIBILITY_DATE,
+    bindings: [
+      { type: "send_email", name: "EMAIL", allowed_sender_addresses: [config.emailFrom] },
+      { type: "plain_text", name: "EMAIL_FROM", text: config.emailFrom },
+      { type: "plain_text", name: "EMAIL_FROM_NAME", text: config.emailFromName },
+      { type: "secret_text", name: "MAILER_KEY", text: secrets.mailer.key },
+    ],
+  };
+}
+
+/** The multipart body for the upload: metadata plus the script, as Cloudflare's API wants it. */
+export function mailerUploadForm(config, secrets, script = readFileSync(MAILER_SCRIPT, "utf8")) {
+  const form = new FormData();
+  form.append("metadata", new Blob([JSON.stringify(mailerMetadata(config, secrets))], { type: "application/json" }), "metadata.json");
+  form.append("index.js", new Blob([script], { type: "application/javascript+module" }), "index.js");
+  return form;
+}
+
 // ---------------------------------------------------------------- go-live gate
 
 /** The read-only query go-live runs against the production database. */
@@ -433,10 +495,12 @@ export function goLiveBlockers(row) {
 /** A small v4 API client. Errors carry the HTTP status and Cloudflare's codes, never a request body. */
 export function cfClient(config, fetchImpl = globalThis.fetch) {
   return async function cf(method, pathname, body) {
+    const multipart = typeof FormData !== "undefined" && body instanceof FormData;
     const res = await fetchImpl(`${API}${pathname}`, {
       method,
-      headers: { Authorization: `Bearer ${config.apiToken}`, "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      // A FormData body sets its own multipart Content-Type with the boundary.
+      headers: multipart ? { Authorization: `Bearer ${config.apiToken}` } : { Authorization: `Bearer ${config.apiToken}`, "Content-Type": "application/json" },
+      body: body === undefined ? undefined : multipart ? body : JSON.stringify(body),
     });
     let data = null;
     try {
@@ -465,6 +529,21 @@ export function isR2NotEnabled(err) {
 async function findD1(cf, config, name) {
   const list = await cf("GET", `/accounts/${config.accountId}/d1/database?name=${encodeURIComponent(name)}&per_page=100`);
   return (list ?? []).find((d) => d.name === name)?.uuid ?? null;
+}
+
+/** True when the account has a Worker script with this name. */
+async function workerExists(cf, config, name) {
+  try {
+    const list = await cf("GET", `/accounts/${config.accountId}/workers/scripts`);
+    return (list ?? []).some((w) => w?.id === name);
+  } catch (err) {
+    if (err.status === 403) {
+      const e = new Error("the API token can't read Workers: add Account → Workers Scripts → Edit to it (docs/owner/OWNER-GUIDE.md), then run this again.");
+      e.status = 403;
+      throw e;
+    }
+    throw err;
+  }
 }
 
 async function bucketExists(cf, config, name) {
@@ -607,6 +686,8 @@ export async function main(argv = process.argv.slice(2), io = {}) {
     if (others.length) log(`  ${env}: also has ${others.join(", ")} (kept; checked again afterwards)`);
   }
   for (const env of args.envs) log(`  ${env}: R2 lifecycle rule ${BACKUP_RULE.id} (backups/d1/ deleted after 35 days): ${found[env].r2 ? "checked" : "added"}`);
+  const mailerExists = await workerExists(cf, config, MAILER_WORKER);
+  log(`  mailer Worker ${MAILER_WORKER}: ${mailerExists ? "update" : "add"} (sends as ${config.emailFrom}; no public URL)`);
   if (conflicts.length) {
     for (const c of conflicts) error(`  STOP ${c}`);
     if (!args.allowRebind) {
@@ -691,20 +772,25 @@ export async function main(argv = process.argv.slice(2), io = {}) {
     ].join("\n"),
   );
 
-  // ---- 7. bindings, variables and secrets
+  // ---- 7. the mailer Worker (before the binding that points at it)
+  await cf("PUT", `/accounts/${config.accountId}/workers/scripts/${MAILER_WORKER}`, mailerUploadForm(config, secrets));
+  await cf("POST", `/accounts/${config.accountId}/workers/scripts/${MAILER_WORKER}/subdomain`, { enabled: false, previews_enabled: false });
+  log(`  mailer Worker ${MAILER_WORKER}: ${mailerExists ? "updated" : "added"}, workers.dev off`);
+
+  // ---- 8. bindings, variables and secrets
   const before = bindingNames(project);
   const patch = deploymentConfigPatch(config, secrets, databases, args.envs);
   await cf("PATCH", `/accounts/${config.accountId}/pages/projects/${config.project}`, withConfigHash(patch, project));
   const after = bindingNames(await cf("GET", `/accounts/${config.accountId}/pages/projects/${config.project}`));
 
-  // ---- 8. check
+  // ---- 9. check
   let ok = true;
   for (const [env, names] of Object.entries(lostVariables(before, after))) {
     ok = false;
     error(`setup: ${env} lost ${names.join(", ")}. Re-add them in Pages → Settings → Variables and Secrets / Bindings (the backup file lists them).`);
   }
   for (const [env, cfg] of Object.entries(patch.deployment_configs)) {
-    const want = [...Object.keys(cfg.env_vars).map((n) => `env_vars:${n}`), "d1_databases:DB", "r2_buckets:MEDIA"];
+    const want = [...Object.keys(cfg.env_vars).map((n) => `env_vars:${n}`), "d1_databases:DB", "r2_buckets:MEDIA", "services:MAILER"];
     const missing = want.filter((n) => !(after[env] ?? []).includes(n));
     if (missing.length) {
       ok = false;
@@ -713,6 +799,7 @@ export async function main(argv = process.argv.slice(2), io = {}) {
   }
   log(ok ? "setup: done. Bindings, variables and secrets are set." : "setup: finished with problems (above).");
   log("Next: open setup.local.out.txt for the admin password and the Razorpay webhook, then redeploy (Pages → Deployments → Retry deployment), docs/owner/OWNER-GUIDE.md.");
+  log(`Email: ${config.apexDomain} must be onboarded in Email Service → Email Sending, or sign-in emails fail (OWNER-GUIDE.md, "Email"). Then ask for a sign-in link at /signin to check one arrives.`);
   return ok ? 0 : 1;
 }
 
