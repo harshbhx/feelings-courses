@@ -174,21 +174,43 @@ export function expectCleanBrowser(...contexts) {
 }
 
 /** Fills and sends the checkout on a course landing page that is already open. */
-export async function checkout(page, buyer, { coupon, batch, consent = true } = {}) {
+export async function checkout(page, buyer, { coupon, batch, consent = true, submit = true, expectNote = true } = {}) {
   await page.locator("[data-enroll]").first().click();
   const dialog = page.locator("dialog[data-checkout]");
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Your name").fill(buyer.name);
   await dialog.getByLabel("Email", { exact: true }).fill(buyer.email);
   if (buyer.phone) await dialog.getByLabel(/Mobile number/).fill(buyer.phone);
-  if (batch) await dialog.locator('select[name="batchId"]').selectOption({ label: batch });
+  if (batch) await dialog.locator('select[name="batchId"]').selectOption(batch);
   if (coupon) {
     await dialog.getByText("Have a coupon code?").click();
     await dialog.getByLabel("Coupon code").fill(coupon);
     await dialog.getByRole("button", { name: "Apply" }).click();
-    await expect(dialog.locator("[data-co-coupon-note]")).toContainText(coupon.toUpperCase() === "GIFTGLOW" ? "free" : "applied");
+    if (expectNote) await expect(dialog.locator("[data-co-coupon-note]")).toContainText(coupon.toUpperCase() === "GIFTGLOW" ? "free" : "applied");
   }
   if (consent) await dialog.locator('input[name="consent"]').check();
-  await dialog.locator("[data-co-submit]").click();
+  if (submit) await dialog.locator("[data-co-submit]").click();
   return dialog;
+}
+
+/** Buys Glow Makeup on its own host and lands on the receipt. Returns the order id. */
+export async function buyGlow(page, buyer, options = {}) {
+  await page.goto(`${COURSE_HOST}/`);
+  await checkout(page, buyer, options);
+  await page.waitForURL(`${HUB}/receipt/**`, { timeout: 15_000 });
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Payment received");
+  return Number(new URL(page.url()).pathname.split("/").pop());
+}
+
+/** Signs in to the admin with the e2e password and waits for the dashboard (or `next`). */
+export async function adminSignIn(page, next = "/admin/dashboard") {
+  await page.goto(`${HUB}/admin${next === "/admin/dashboard" ? "" : `?next=${encodeURIComponent(next)}`}`);
+  await page.getByLabel("Password", { exact: true }).fill(ADMIN_PASSWORD);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(`${HUB}${next}**`);
+}
+
+/** Makes the browser's clock agree with the server's (which tests move forward). */
+export async function syncClock(context) {
+  await context.clock.install({ time: (await ctl.now()) * 1000 });
 }
