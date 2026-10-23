@@ -38,3 +38,8 @@ backups/
 
 # learner page previews (scripts/preview-student-pages.mjs)
 preview/
+
+# e2e journeys (tests/e2e): throwaway certificate, traces, screenshots and the HTML report
+.e2e/
+test-results/
+playwright-report/

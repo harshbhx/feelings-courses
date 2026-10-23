@@ -1,0 +1,73 @@
+# Browser journeys (Playwright, Chromium) on every pull request: buying, learning, certificates,
+# batches, coupons, refunds, devices, the admin, rate limits and a 390px phone, against the real
+# Functions and the real build with fake Razorpay, a fake Email Service and in-memory D1 and R2
+# (tests/e2e/server.mjs). Nothing here talks to Cloudflare, Razorpay or any real inbox.
+# Traces, screenshots and the HTML report are kept as the "e2e-report" artifact
+# (gh run download <run> -n e2e-report; open playwright-report/index.html, or
+# npx playwright show-trace test-results/e2e/<test>/trace.zip). docs/E2E.md has the details.
+name: E2E
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  journeys:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ASTRO_TELEMETRY_DISABLED: "1"
+      WRANGLER_SEND_METRICS: "false"
+      E2E_HTTPS_PORT: "8443"
+      E2E_HTTP_PORT: "8790"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Chromium
+        run: npx playwright install --with-deps chromium
+
+      # The build fetches its content snapshot from the e2e server (the seeded courses), exactly as a
+      # production build fetches it from the live site. That server is stopped after the build; the
+      # journeys get a fresh one from playwright.config.mjs.
+      - name: Build against the e2e snapshot
+        run: |
+          node --experimental-strip-types --no-warnings --import ./tests/helpers/register.mjs tests/e2e/server.mjs > "$RUNNER_TEMP/e2e-build-server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/e2e-build-server.pid"
+          for i in $(seq 1 60); do curl -sf "http://127.0.0.1:$E2E_HTTP_PORT/__e2e/health" > /dev/null && break; sleep 0.5; done
+          SNAPSHOT_URL="http://127.0.0.1:$E2E_HTTP_PORT/api/public/snapshot" npm run build:fast
+          kill "$(cat "$RUNNER_TEMP/e2e-build-server.pid")"
+          test -f dist/c/glow.html && test -f dist/c/studio.html
+
+      - name: Journeys
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-report
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            playwright-report/
+            test-results/e2e/
