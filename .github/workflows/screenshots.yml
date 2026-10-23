@@ -1,7 +1,11 @@
-# Screenshots of the learner pages (sign-in, account, course, lesson, certificate, receipt and their
-# states) at 390px and 1280px, from static previews of the real Functions output. Runs on demand and
-# on pull requests that touch those pages; the pictures are a downloadable artifact
-# (gh run download <run> -n student-pages). Never deploys anything.
+# Screenshots, at 390px and 1280px:
+# - student-pages: the learner pages (sign-in, account, course, lesson, certificate, receipt and
+#   their states), from static previews of the real Functions output;
+# - public-pages: the public site (hub catalog, a course in each format, the empty hub, 404 and the
+#   payment result pages), built from test snapshots (tests/ux/public-fixture.mjs), with contact
+#   sheets, axe-core and the sideways-scroll check.
+# Runs on demand and on pull requests that touch those pages; the pictures are downloadable
+# artifacts (gh run download <run> -n student-pages / -n public-pages). Never deploys anything.
 name: Screenshots
 
 on:
@@ -13,6 +17,9 @@ on:
       - "public/app/**"
       - "tests/ux/**"
       - "scripts/preview-student-pages.mjs"
+      - "src/**"
+      - "public/**"
+      - ".github/workflows/screenshots.yml"
 
 permissions:
   contents: read
@@ -52,4 +59,52 @@ jobs:
           path: |
             preview/student
             preview/screenshots
+          retention-days: 14
+
+  public-pages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ASTRO_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci && npm i --no-save playwright@1.48.2 axe-core@4.10.2 && npx playwright install --with-deps chromium
+
+      - name: Build the showcase (three courses, one per format)
+        run: |
+          node --experimental-strip-types --no-warnings --import ./tests/helpers/register.mjs tests/ux/public-fixture.mjs showcase
+          npx astro build && node scripts/csp.mjs
+          mv dist dist-showcase
+
+      - name: Build the empty hub
+        run: |
+          node --experimental-strip-types --no-warnings --import ./tests/helpers/register.mjs tests/ux/public-fixture.mjs empty
+          npx astro build && node scripts/csp.mjs
+          mv dist dist-empty
+
+      - name: Screenshots, axe-core, sideways scroll and skip-link checks
+        run: |
+          status=0
+          node tests/ux/public-screenshots.mjs dist-showcase preview/public showcase || status=1
+          node tests/ux/public-screenshots.mjs dist-empty preview/public empty || status=1
+          exit $status
+
+      - name: Contact sheets
+        if: always()
+        run: node tests/ux/contact-sheets.mjs preview/public preview/sheets
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-pages
+          path: |
+            preview/public
+            preview/sheets
           retention-days: 14
