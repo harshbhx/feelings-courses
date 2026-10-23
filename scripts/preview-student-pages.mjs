@@ -9,6 +9,7 @@
 // relative and the files copied, so the pages open straight from disk with their real look.
 import { cpSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { handleAccount } from "../functions/_lib/pages/account.ts";
 import { handleContinue, handleLogout, handleSignin } from "../functions/_lib/pages/auth.ts";
 import { handleLearnPage } from "../functions/_lib/pages/learn.ts";
@@ -77,7 +78,8 @@ export function relativise(html) {
     .replaceAll('"/favicon.svg"', '"favicon.svg"');
 }
 
-if (import.meta.main) {
+// Run as a script (not when the tests import studentPages()). Node 22 has no import.meta.main.
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const out = path.resolve(root, process.argv[2] ?? "preview/student");
   mkdirSync(out, { recursive: true });
   cpSync(path.join(root, "public/app"), path.join(out, "app"), { recursive: true });
