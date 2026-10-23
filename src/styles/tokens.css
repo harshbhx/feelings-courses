@@ -88,8 +88,8 @@
      professional and modern, chosen by the owner over a thin didone (2026-10-18).
      Hierarchy comes from weight and size, never from a second typeface. The two
      tokens stay separate so a display face could be swapped in later. */
-  --font-display: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-body: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", "Plus Jakarta Sans Fallback", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-body: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", "Plus Jakarta Sans Fallback", "Segoe UI", system-ui, -apple-system, sans-serif;
 
   --weight-body: 400;     /* running text */
   --weight-ui: 600;       /* nav, meta, quiet labels */

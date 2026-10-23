@@ -269,3 +269,21 @@ test("the root middleware routes course hosts before the learn gate", async () =
   assert.equal(hub.headers.get("Location"), "/?locked=1#pricing");
   assert.equal(hub.headers.get("X-Frame-Options"), "DENY");
 });
+
+test("hub: an unknown API path is a JSON 404, a page 404 stays HTML", async () => {
+  const html404 = async () => new Response("<h1>Not found</h1>", { status: 404, headers: { "Content-Type": "text/html; charset=utf-8" } });
+  let r = await route(req("/api/no-such-endpoint", { host: HUB }), { next: html404 });
+  assert.equal(r.res.status, 404);
+  assert.match(r.res.headers.get("Content-Type") ?? "", /application\/json/);
+  assert.equal((await r.res.json()).error, "not_found");
+  assert.equal(r.res.headers.get("Cache-Control"), "no-store");
+
+  r = await route(req("/no-such-page", { host: HUB }), { next: html404 });
+  assert.equal(r.res.status, 404);
+  assert.match(r.res.headers.get("Content-Type") ?? "", /text\/html/);
+
+  // A Function's own JSON 404 passes through untouched.
+  const json404 = async () => new Response(JSON.stringify({ error: "not_found", message: "No such order." }), { status: 404, headers: { "Content-Type": "application/json; charset=utf-8" } });
+  r = await route(req("/api/me/orders/9", { host: HUB }), { next: json404 });
+  assert.equal((await r.res.json()).message, "No such order.");
+});

@@ -357,6 +357,10 @@ ready(() => {
   void loadInto($("[data-recent]")!, () => admin("GET /api/admin/orders", {}, {}), (p) => recent(p.items), { what: "recent payments", rows: 3 });
   const coursesP = loadCourses();
   void loadInto($("[data-courses]")!, () => coursesP, courseList, { what: "your courses", rows: 3 });
-  Promise.all([admin("GET /api/admin/settings").catch(() => null), coursesP.catch(() => [] as AdminCourse[])]).then(([settings, list]) => setup(settings, list));
+  Promise.all([admin("GET /api/admin/settings").catch(() => null), coursesP.catch(() => [] as AdminCourse[])])
+    .then(([settings, list]) => setup(settings, list))
+    // The numbers below the setup card are painted once it is known whether the card shows, so
+    // they don't jump down when it appears (dashboard.astro, data-await-setup).
+    .finally(() => document.documentElement.classList.add("setup-known"));
   document.addEventListener("admin:published", () => void site());
 });

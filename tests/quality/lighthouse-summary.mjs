@@ -15,14 +15,23 @@ const score = (lhr, id) => (lhr.categories[id]?.score == null ? null : Math.roun
 const num = (lhr, id) => lhr.audits[id]?.numericValue ?? null;
 const scriptBytes = (lhr) => lhr.audits["resource-summary"]?.details?.items?.find((i) => i.resourceType === "script")?.transferSize ?? 0;
 
-const rows = [];
+// Several runs per page: keep the median run by performance score (what the thresholds judge).
+const runs = new Map();
 for (const file of readdirSync(dir).filter((f) => /^lhr-.*\.json$/.test(f))) {
   const lhr = JSON.parse(readFileSync(path.join(dir, file), "utf8"));
   const url = lhr.requestedUrl ?? lhr.finalDisplayedUrl;
+  runs.set(url, [...(runs.get(url) ?? []), lhr]);
+}
+const median = (list) => [...list].sort((a, b) => (a.categories.performance?.score ?? 0) - (b.categories.performance?.score ?? 0))[Math.floor((list.length - 1) / 2)];
+
+const rows = [];
+for (const [url, list] of runs) {
+  const lhr = median(list);
   rows.push({
     page: nameOf(url),
     url,
     finalUrl: lhr.finalDisplayedUrl ?? lhr.finalUrl,
+    runs: list.length,
     performance: score(lhr, "performance"),
     accessibility: score(lhr, "accessibility"),
     bestPractices: score(lhr, "best-practices"),

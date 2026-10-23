@@ -41,13 +41,45 @@ async function settle(page) {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
-async function keyboardChecks(page, target, viewport) {
-  // Start from the top of the document, as a keyboard user arriving on the page does.
+/** Waits (at most 3 s) for entrance animations to end, so axe measures colours at full opacity. */
+async function animationsDone(page) {
+  await page.evaluate(() =>
+    Promise.race([
+      Promise.all(
+        document
+          .getAnimations()
+          .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+          .map((a) => a.finished.catch(() => undefined)),
+      ),
+      new Promise((r) => setTimeout(r, 3000)),
+    ]),
+  );
+}
+
+/**
+ * Puts the sequential focus starting point at the very top of the document, as when a keyboard
+ * user arrives on the page (a script's autofocus or an earlier check may have moved it): focus a
+ * temporary element placed first in <body>, then remove it on the next Tab.
+ */
+async function focusFromTop(page) {
   await page.evaluate(() => {
     window.scrollTo(0, 0);
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    const start = document.createElement("span");
+    start.id = "__quality_start";
+    start.tabIndex = -1;
+    document.body.prepend(start);
+    start.focus();
   });
+}
+
+async function tab(page) {
   await page.keyboard.press("Tab");
+  await page.evaluate(() => document.getElementById("__quality_start")?.remove());
+}
+
+async function keyboardChecks(page, target, viewport) {
+  await focusFromTop(page);
+  await tab(page);
   await settle(page);
   const skip = await page.evaluate(() => {
     const el = document.activeElement;
@@ -77,13 +109,10 @@ async function keyboardChecks(page, target, viewport) {
   }
 
   // Walk the Tab order: every stop is visible and shows a focus indicator.
-  await page.evaluate(() => {
-    window.scrollTo(0, 0);
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-  });
+  await focusFromTop(page);
   const seen = new Set();
   for (let i = 0; i < TAB_STOPS; i++) {
-    await page.keyboard.press("Tab");
+    await tab(page);
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     const stop = await page.evaluate(() => {
       const el = document.activeElement;
@@ -153,6 +182,7 @@ try {
           const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
           if (overflow > 0) report(target, viewport, "layout", `scrolls sideways by ${overflow}px`);
 
+          await animationsDone(page);
           const axe = await new AxeBuilder({ page }).withTags(TAGS).analyze();
           for (const v of axe.violations) {
             const nodes = v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ");

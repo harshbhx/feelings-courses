@@ -4,7 +4,8 @@
 import { getGlimpseCovers } from "./glimpse-covers";
 
 const covers = await getGlimpseCovers();
-const json = JSON.stringify(Object.fromEntries(covers.map((c) => [c.id, c]))).replace(/</g, "\\u003c");
+// The browser needs id, label and src only (client/covers.ts); the srcset stays out of the page.
+const json = JSON.stringify(Object.fromEntries(covers.map(({ id, label, src }) => [id, { id, label, src }]))).replace(/</g, "\\u003c");
 ---
 
 <script type="application/json" id="cover-data" set:html={json} />

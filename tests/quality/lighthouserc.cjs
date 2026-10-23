@@ -19,8 +19,9 @@ const settings = {
   ...(cookie ? { extraHeaders: { Cookie: cookie } } : {}),
 };
 
-const min = (score) => ["error", { minScore: score }];
-const max = (value) => ["error", { maxNumericValue: value }];
+// Judged on the median run of the three (by performance score), not the best one.
+const min = (score) => ["error", { minScore: score, aggregationMethod: "median-run" }];
+const max = (value) => ["error", { maxNumericValue: value, aggregationMethod: "median-run" }];
 
 // Thresholds. Every page, every form factor: 95 or more in each category, and the Core Web
 // Vitals inside Google's "good" limits under Lighthouse's throttling.
@@ -51,13 +52,21 @@ const SCRIPT_BUDGET = { public: 60_000, learner: 25_000, admin: 120_000 };
 module.exports = {
   ci: {
     collect: {
-      numberOfRuns: 1,
+      // Three runs per page; Lighthouse CI keeps the median one, so one slow run on a busy
+      // runner doesn't fail the check.
+      numberOfRuns: 3,
       settings: { ...settings, chromeFlags: "--no-sandbox --headless=new" },
     },
     assert: {
       assertMatrix: [
         {
-          matchingUrlPattern: "^http://(127\\.0\\.0\\.1|localhost):8788/(admin)",
+          // The admin's sign-in screen asks GET /api/admin/me whether a session already exists
+          // (to skip the form); the expected 401 is the one console line, so that audit is off here.
+          matchingUrlPattern: "^http://127\\.0\\.0\\.1:8788/admin$",
+          assertions: { ...assertions, "errors-in-console": "off", "resource-summary:script:size": max(SCRIPT_BUDGET.admin) },
+        },
+        {
+          matchingUrlPattern: "^http://127\\.0\\.0\\.1:8788/admin/",
           assertions: { ...assertions, "resource-summary:script:size": max(SCRIPT_BUDGET.admin) },
         },
         {
