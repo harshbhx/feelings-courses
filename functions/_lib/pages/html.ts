@@ -115,7 +115,11 @@ export function pageHeaders(extra: Record<string, string> = {}): Headers {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "private, no-store",
     "Content-Security-Policy": PAGE_CSP,
-    "Referrer-Policy": "no-referrer",
+    // same-origin, not no-referrer: with no-referrer, browsers send `Origin: null` on these pages'
+    // own form posts (Fetch spec), and formFromSameSite() then refuses every one of them (Mark as
+    // done, the certificate, /signin, /auth/continue, the account forms). Other sites still get no
+    // Referer at all, so tokens and course paths never leak (found by the e2e journeys).
+    "Referrer-Policy": "same-origin",
     "X-Robots-Tag": "noindex, nofollow",
     ...extra,
   });
@@ -238,7 +242,7 @@ export function layout(options: LayoutOptions, content: Raw): Raw {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="referrer" content="no-referrer">
+<meta name="referrer" content="same-origin">
 <meta name="theme-color" content="#ffffff">
 <title>${options.title} | ${options.business.name}</title>
 <link rel="preload" href="/app/fonts/plus-jakarta-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
