@@ -98,7 +98,9 @@ jobs:
 
       - name: Contact sheets
         if: always()
-        run: node tests/ux/contact-sheets.mjs preview/public preview/sheets
+        run: |
+          node tests/ux/contact-sheets.mjs preview/public preview/sheets
+          mkdir -p preview/sheets/og && cp dist-showcase/og/*.jpg preview/sheets/og/ || true
 
       - uses: actions/upload-artifact@v4
         if: always()

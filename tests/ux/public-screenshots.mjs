@@ -120,6 +120,19 @@ try {
 
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
         if (overflow > 0) problems.push(`${p.name} @${viewport.name}: scrolls sideways by ${overflow}px`);
+        // Every picture on the page loaded and has a box (a broken or collapsed image fails).
+        const broken = await page.evaluate(() =>
+          Array.from(document.images)
+            .filter((img) => !img.closest("dialog, [hidden]") && img.checkVisibility())
+            .map((img) => {
+              const box = img.getBoundingClientRect();
+              return img.naturalWidth === 0 || box.width === 0 || box.height === 0
+                ? `${img.currentSrc || img.src} (natural ${img.naturalWidth}, box ${Math.round(box.width)}x${Math.round(box.height)}, complete ${img.complete})`
+                : null;
+            })
+            .filter(Boolean),
+        );
+        for (const b of broken) problems.push(`${p.name} @${viewport.name}: image not shown: ${b}`);
         await page.screenshot({ path: shot(`${p.name}-${viewport.name}`), fullPage: true });
 
         // Accessibility: axe-core on the rendered page (once per page, at the phone width).

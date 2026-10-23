@@ -16,9 +16,11 @@ import { ratingCount, ratingMonth } from "./facts";
 interface Props {
   /** The course's teacher, as the admin entered it. */
   teacher: string;
+  /** "course": a course page ("She teaches this course herself"); "hub": the catalog and its empty state. */
+  context?: "course" | "hub";
 }
 
-const { teacher } = Astro.props;
+const { teacher, context = "course" } = Astro.props;
 const firstName = teacher.split(" ")[0];
 
 const sizes = "(min-width: 56rem) min(36vw, 28rem), min(80vw, 20rem)";
@@ -32,10 +34,11 @@ const [avif, webp] = await Promise.all([
 <section class="section band-deep teacher" id="teacher" aria-labelledby="teacher-title">
   <div class="container teacher-grid">
     <div class="teacher-body" data-reveal>
-      <h2 id="teacher-title">Your teacher, {firstName}<span class="bindi" aria-hidden="true"></span></h2>
+      <h2 id="teacher-title">{context === "hub" ? `Meet ${firstName}` : `Your teacher, ${firstName}`}<span class="bindi" aria-hidden="true"></span></h2>
       <p class="lead">
-        {teacher} runs {site.name} in {site.address.city}: a ladies’ parlour, bridal studio and makeup academy. She teaches
-        this course herself.
+        {teacher} runs {site.name} in {site.address.city}: a ladies’ parlour, bridal studio and makeup academy.{
+          context === "course" && " She teaches this course herself."
+        }
       </p>
 
       <ul class="creds">

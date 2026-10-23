@@ -29,12 +29,12 @@ function dayFromNow(days) {
 }
 
 let nextLesson = 1000;
-const lesson = (title, minutes = 0) => ({
+const lesson = (title, minutes = 0, freePreview = false) => ({
   id: ++nextLesson,
   slug: `l-${nextLesson}`,
   title,
   minutes,
-  freePreview: false,
+  freePreview,
   vertical: false,
   hasVideo: false,
 });
@@ -106,7 +106,7 @@ export function showcase() {
     canonicalUrl: "https://bridal.feelingsbeautycare.in/",
     domainActive: true,
     modules: [
-      { id: 31, position: 1, title: "Bridal base", lessons: [lesson("Prep for a long day", 12), lesson("Base that lasts", 14)] },
+      { id: 31, position: 1, title: "Bridal base", lessons: [lesson("Prep for a long day", 12, true), lesson("Base that lasts", 14)] },
       { id: 32, position: 2, title: "Bridal eyes", lessons: [lesson("Traditional eyes", 16), lesson("Modern soft glam", 13)] },
       { id: 33, position: 3, title: "Finishing", lessons: [lesson("Dupatta setting", 9), lesson("Touch-up kit", 7)] },
     ],

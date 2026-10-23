@@ -62,8 +62,8 @@ const sellable = (course.isDemo || platform) && bookable;
   canonical={course.canonicalUrl}
   noindex={!courseIndexable(course, buildEnv)}
   demo={course.isDemo}
-  image={course.ogImageUrl ?? undefined}
-  imageAlt={course.ogImageUrl ? course.title : undefined}
+  image={course.ogImageUrl ?? `/og/${course.slug}.jpg`}
+  imageAlt={course.ogImageUrl ? course.title : `${course.title}: ${site.name} logo beside a photo from the course`}
   jsonLd={courseJsonLd(course, settings.business)}
 >
   <Reveal />
