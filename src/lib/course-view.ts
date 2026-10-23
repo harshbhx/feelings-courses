@@ -44,6 +44,23 @@ export function batchDates(batch: Pick<PublicBatch, "startsOn" | "endsOn">): str
     : formatDay(batch.startsOn);
 }
 
+const partsFmt = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", weekday: "short", timeZone: "UTC" });
+/** "2026-11-04" → { day: "4", month: "Nov", weekday: "Wed" }, for a calendar-leaf date block. */
+export function dayParts(isoDate: string): { day: string; month: string; weekday: string } | null {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = Object.fromEntries(partsFmt.formatToParts(d).map((p) => [p.type, p.value]));
+  return { day: parts.day ?? "", month: parts.month ?? "", weekday: parts.weekday ?? "" };
+}
+
+/** The soonest batch that still takes bookings (a seat left, or no limit), or null. */
+export function nextOpenBatch(batches: readonly PublicBatch[]): PublicBatch | null {
+  return batches.find((b) => b.seatsLeft !== 0) ?? null;
+}
+
+/** Few enough seats that the number deserves the accent: 5 or fewer (a real count, never a timer). */
+export const FEW_SEATS = 5;
+
 /** "4 seats left", "Full", or null when the batch has no seat limit. */
 export function seatsLabel(batch: Pick<PublicBatch, "seatsLeft">): string | null {
   if (batch.seatsLeft === null) return null;
