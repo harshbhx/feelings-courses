@@ -183,7 +183,8 @@ export async function checkout(page, buyer, { coupon, batch, consent = true, sub
   if (buyer.phone) await dialog.getByLabel(/Mobile number/).fill(buyer.phone);
   if (batch) await dialog.locator('select[name="batchId"]').selectOption(batch);
   if (coupon) {
-    await dialog.getByText("Have a coupon code?").click();
+    const box = dialog.locator("[data-co-coupon]");
+    if (!(await box.evaluate((d) => d.open))) await dialog.getByText("Have a coupon code?").click();
     await dialog.getByLabel("Coupon code").fill(coupon);
     await dialog.getByRole("button", { name: "Apply" }).click();
     if (expectNote) await expect(dialog.locator("[data-co-coupon-note]")).toContainText(coupon.toUpperCase() === "GIFTGLOW" ? "free" : "applied");

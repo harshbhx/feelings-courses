@@ -52,8 +52,9 @@ test("buy a recorded course, learn it, get and verify the certificate", async ({
 
   await page.getByRole("button", { name: "Mark as done and go on" }).click();
   await expect(page).toHaveURL(`${HUB}/learn/glow/base`);
+  // The last lesson: done, and back to the course home.
   await page.getByRole("button", { name: /^Mark as done/ }).click();
-  await expect(page.getByRole("button", { name: /Done \(undo\)/ })).toBeVisible();
+  await expect(page).toHaveURL(`${HUB}/learn/glow`);
 
   // Progress is saved on the server.
   const progress = await ctl.sql(

@@ -37,7 +37,7 @@ test("a free coupon enrolls without a payment and opens the course; it can't be 
   await page.goto(`${COURSE_HOST}/`);
   const dialog = await checkout(page, buyer, { coupon: "GIFTGLOW", submit: false });
   await expect(dialog.locator("[data-co-submit]")).toContainText("Get free access");
-  await expect(dialog.locator("[data-co-amount]")).toContainText(/₹\s?0/);
+  await expect(dialog.locator("[data-co-amount]")).toHaveText(/Free|₹\s?0/);
   await dialog.locator("[data-co-submit]").click();
 
   // No Razorpay, straight into the course on the hub, signed in.

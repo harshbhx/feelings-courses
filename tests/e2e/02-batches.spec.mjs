@@ -87,8 +87,13 @@ test("two buyers racing for one last seat: the batch is never silently overbooke
   expect(v1.status).toBe(200);
   // The money for the second seat was taken, so it must not vanish: either the booking stands and the
   // admin is told the batch is over its seats, or it is refused for a refund. Never a silent overbook.
+  expect(v2.status).toBe(200);
   const [batch] = await ctl.sql("SELECT seats, seats_taken FROM batches WHERE id = 412");
-  const flagged = await ctl.sql("SELECT action FROM audit_log WHERE action = 'batch.overbooked' AND entity_id = 412");
-  expect(batch.seats_taken <= batch.seats || flagged.length > 0, `seats ${batch.seats}, taken ${batch.seats_taken}, verify 2: ${v2.status}`).toBe(true);
+  expect(batch).toEqual({ seats: 1, seats_taken: 2 });
+  // The second booking is flagged for the admin (Activity), and can be refunded even after 24 hours.
+  const flagged = await ctl.sql("SELECT entity_id FROM audit_log WHERE action = 'order.batch_overbooked'");
+  expect(flagged.map((r) => Number(r.entity_id))).toEqual([second.ref]);
+  const notFlagged = await ctl.sql("SELECT 1 FROM audit_log WHERE action = 'order.batch_overbooked' AND entity_id = ?", [String(first.ref)]);
+  expect(notFlagged).toEqual([]);
   expectCleanBrowser(context);
 });

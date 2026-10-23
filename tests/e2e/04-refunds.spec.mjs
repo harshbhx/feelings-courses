@@ -24,7 +24,7 @@ test("a refund within 24 hours ends access and the receipt says so", async ({ pa
   await form.getByLabel("Reason").fill("Asked within 24 hours, can't attend");
   await form.getByRole("button", { name: "Refund", exact: true }).click();
   await admin.getByRole("button", { name: "Yes, refund" }).click();
-  await expect(admin.getByText("Refund started.")).toBeVisible();
+  await expect(admin.getByText(/^Refund started\./).first()).toBeVisible();
 
   // Razorpay's refund.processed webhook arrives: the order is refunded in full.
   await expect.poll(() => orderStatus(ctl, orderId), { timeout: 10_000 }).toEqual({ status: "refunded", refunded_paise: 149900 });

@@ -86,7 +86,7 @@ test("20 wrong admin passwords lock sign-in for everyone for an hour; signed-in 
   expectCleanBrowser(context, office, late, later);
 });
 
-test("sign-in links: 3 emails per address per 15 minutes, and the page never tells", async ({ page, context, ctl, buyer, device }) => {
+test("sign-in links: 3 emails per address per 15 minutes, then a wait", async ({ page, context, ctl, buyer, device }) => {
   await buyGlow(page, buyer);
   const phone = await device();
   const p = await phone.newPage();
@@ -101,9 +101,10 @@ test("sign-in links: 3 emails per address per 15 minutes, and the page never tel
     await expect(p.getByRole("heading", { level: 1 })).toHaveText("Check your email");
   }
   await expect.poll(links).toBe(3);
-  // The 4th: no email, and the answer doesn't reveal the limit to someone probing an address.
+  // The 4th: no email.
   await ask();
-  await expect(p.getByRole("heading", { level: 1 })).toHaveText(/Check your email|Too many/);
+  // The form again, asking to wait (the same answer whether or not the address has an account).
+  await expect(p.locator("main")).toContainText("Too many tries. Please wait about");
   await p.waitForTimeout(500);
   expect(await links()).toBe(3);
   // 15 minutes later it works again.
