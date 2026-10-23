@@ -21,6 +21,8 @@ Each branch was merged with `git merge --no-ff` at the commit below, in the hub'
 
 W1 to W5 started from the same W0 commit; W7 is stacked on W1 and W6 on W5. None changed `package.json` or the lockfile.
 
+**Round 2 and 3 (23 Oct 2026),** on `feat/email-auth` (draft PR into this branch): the round-2 PRs [#19](https://github.com/harshbhx/feelings-courses/pull/19) (security review), [#20](https://github.com/harshbhx/feelings-courses/pull/20) (learner UX), [#21](https://github.com/harshbhx/feelings-courses/pull/21) (CI readiness) and [#22](https://github.com/harshbhx/feelings-courses/pull/22) (go-live ops) merged without conflicts, then **email identity** on top (owner decision): a student is their email and signs in with a single-use emailed link; the phone is an optional contact field; email goes out through Cloudflare Email Sending via a small mailer Worker. Docs: `docs/platform/STUDENTS.md`, `docs/platform/EMAIL.md`, `docs/SECURITY-REVIEW.md` ("Email identity").
+
 ## 2. Conflicts resolved
 
 Only two files conflicted. Everything else merged cleanly, W6 included.
@@ -109,29 +111,30 @@ In order. Nothing here has been done to the Cloudflare or Razorpay accounts.
 1. **GitHub billing:** fix it (GitHub → Settings → Billing) so Actions runs. Then re-run CI on this PR: check, Functions type check, tests, `build:fast` and `check-dist.mjs`. That is the first full build of the combined code: `docs/CI-FIRST-RUN.md` lists what was checked before it and how to read each failure, and the `full-verify` label runs the longer Verify workflow (full build plus a `wrangler pages dev` smoke test).
 2. **Choose how to merge.** Either review and merge the individual PRs in the order of section 1 and close this one, or merge #10 into `main` and then this PR (it contains all of them, plus the fixes in section 4). If you go one by one, the section 4 fixes still have to land, so take them from this branch.
 3. **Legal wording (W7, #13):** confirm the points listed in that PR. They are the grievance officer, the 2-working-day refund start, the 7/30-day rights answers, batch cancellation, and adults only. Then tick "legal confirmed" in the admin.
-4. **Setup, preview first:** put the Razorpay **test** keys in `setup.local.json`, enable R2, create the deploy hook, then run `npm run setup -- --check`, then `--dry-run`, then `--env preview`, then production. The plain-language version, with the test checklist, rollback plan, monitoring and the legal wording questions, is in `docs/owner/` (start at `OWNER-GUIDE.md`).
-5. **Razorpay dashboard (test mode):**
+4. **Email (Cloudflare Email Sending):** the Workers Paid plan on the account, `feelingsbeautycare.in` onboarded in Email Service → Email Sending (same account as the Pages project), an Email Routing rule for `courses@`, and Workers Scripts: Edit on the setup token (`docs/owner/OWNER-GUIDE.md` A3b, `docs/platform/EMAIL.md`).
+5. **Setup, preview first:** put the Razorpay **test** keys in `setup.local.json`, enable R2, create the deploy hook, then run `npm run setup -- --check`, then `--dry-run`, then `--env preview`, then production. The plain-language version, with the test checklist, rollback plan, monitoring and the legal wording questions, is in `docs/owner/` (start at `OWNER-GUIDE.md`).
+6. **Razorpay dashboard (test mode):**
    - webhook URL `https://courses.feelingsbeautycare.in/api/razorpay/webhook`, with the secret the setup script wrote;
    - events `payment.captured`, `payment.failed`, `order.paid`, `refund.processed` and `refund.failed`;
    - auto-capture on.
-6. **The admin on the preview (W6, never seen in a browser yet):** at 390, 768, 1024 and 1440 px.
+7. **The admin on the preview (W6, never seen in a browser yet):** at 390, 768, 1024 and 1440 px.
    1. Sign in with the setup password, then change it in Settings → Admin password (every other session ends).
    2. Make a course: web address, fee, a module and lessons, upload a video (pause and resume once), a cover image; publish it and check "Publish changes".
    3. Settings → Backups: "Back up now", then "Download the newest", and keep the file somewhere off Cloudflare.
    4. Check that "Open Cloudflare" in the web-address helper lands on the project's Custom domains page for this account.
-7. **One real test purchase on the preview, on a phone at 390px:**
+8. **One real test purchase on the preview, on a phone at 390px:**
    1. buy with a coupon;
-   2. check the receipt;
+   2. check the receipt, on screen and in the email (with its sign-in link);
    3. open the course and play a lesson;
-   4. sign in on a second device, then a third (the first one is signed out);
+   4. sign in on a second device with an emailed link (`/signin`), then a third (the first one is signed out);
    5. refund from the admin's Payments drawer within 24 hours, then "Re-check with Razorpay";
    6. check that the course closes once Razorpay confirms the refund;
-   7. from the Students drawer, send a sign-in link on WhatsApp and open it on another phone, and issue a certificate and open its check page.
+   7. from the Students drawer, "Email a sign-in link" (and "Share on WhatsApp") and open it on another phone, and issue a certificate and open its check page.
 
    Also try a free coupon, and in Instagram's in-app browser, the redirect flow.
-8. **Course subdomains:** add each one in Pages (the admin shows the steps). Then run `node scripts/smoke-hosts.mjs`, which covers W1's open item "security headers reach the course subdomains" (the CSP on `/c/<slug>` served through the router).
-9. **Confirm:** the invoice prefix `FBC/`, and that a payment flagged as a duplicate may be refunded after 24 hours (W2).
-10. **Go live:**
+9. **Course subdomains:** add each one in Pages (the admin shows the steps). Then run `node scripts/smoke-hosts.mjs`, which covers W1's open item "security headers reach the course subdomains" (the CSP on `/c/<slug>` served through the router).
+10. **Confirm:** the invoice prefix `FBC/`, and that a payment flagged as a duplicate may be refunded after 24 hours (W2).
+11. **Go live:**
    1. publish the real courses with their fees;
    2. unpublish the demo course;
    3. `npm run go-live` with the live keys (it refuses while the legal pages are unconfirmed or the demo is published);
@@ -140,7 +143,8 @@ In order. Nothing here has been done to the Cloudflare or Razorpay accounts.
 
 ## 7. Known limits and risks
 
-- **Security review:** `docs/SECURITY-REVIEW.md`. Two items need an owner decision: phone squatting without phone verification (F4), and the Astro 7 and sharp 0.35 upgrades for published advisories (F5). Since F1, a sign-in by proof of purchase (handoff or payment ID) opens an account only for its first purchase. A returning buyer on a new device signs in with their first payment ID or a WhatsApp link.
+- **Security review:** `docs/SECURITY-REVIEW.md`. One item needs an owner decision: the Astro 7 and sharp 0.35 upgrades for published advisories (F5). Phone squatting (F4) is closed by email identity: a purchase signs the paying device in only for a new account whose email was never proven, and the first emailed-link sign-in to an address signs out every older session. A returning buyer on a new device asks for a link by email.
+- **Email depends on Cloudflare Email Sending** (public beta): without the onboarded domain or Workers Paid, sign-in links don't arrive (the admin can still copy a link and share it on WhatsApp). The mailer Worker's logs show Email Service error codes.
 - **A refund removes access when Razorpay confirms it** (the `refund.processed` webhook, or "Sync with Razorpay" in the admin). Refunds start as pending. If the webhook is missing, access stays until a sync.
 - **Video access lasts up to 60 seconds after a refund or sign-out.** W4 reuses a passed check for 60 s in each isolate. The course area and the play API refuse at once.
 - **Checkout UI and the whole admin UI haven't been seen in a browser.** No build or Playwright ran on the VM. `astro check` type-checks the scripts, but the checkout's batch picker, coupon field and checkbox, and every admin screen (W6), need a look at 390px and up (checklist steps 6 and 7).

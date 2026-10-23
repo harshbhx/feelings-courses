@@ -31,13 +31,17 @@ Do every line on a phone at 390 px wide, in test mode, before Part C of [OWNER-G
 
 - [ ] Pay with `failure@razorpay` → the "payment failed" page, no access, no receipt. Admin shows it as failed or not paid.
 - [ ] Close the Razorpay window halfway → back on the course page, nothing charged.
-- [ ] Try to buy the same course again with the phone from step 1 → it says you're already enrolled and offers your account.
+- [ ] Try to buy the same course again with the email from step 1 → it says you're already enrolled and offers your account.
 
 ## 3. Devices and sign-in
 
-- [ ] On a second phone or browser: sign in with the phone number + the `pay_…` ID from the receipt → the course opens.
+- [ ] The receipt email arrived at the address you paid with, with **View receipt** and **Open my course**.
+- [ ] On a second phone or browser: open `/signin`, enter the same email → a sign-in email arrives → **Sign in** → **Continue** → the course opens. Open the same link again → "expired or already used".
+- [ ] Ask for a link for an email that never bought anything → the same "Check your email" page, and no email arrives.
+- [ ] Buy a course with a **new** email but a phone number already used before → a new account (the phone never links accounts).
 - [ ] On a third browser: sign in again → the **first** device is signed out on its next page load.
-- [ ] Admin → Students → the student → **Make a sign-in link** → **Open WhatsApp** → open the link on another phone → signed in. Open the same link again → it refuses (one use only).
+- [ ] Admin → Students → the student → **Email a sign-in link** → it arrives by email; **Share on WhatsApp** also works → open the link on another phone → signed in. Open the same link again → it refuses (one use only).
+- [ ] Admin → the student → **Edit details** → change the email → a link sent earlier to the old address no longer works.
 - [ ] Admin → the student → **Sign out all** → every device is signed out.
 
 ## 4. Refunds

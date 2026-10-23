@@ -1,22 +1,29 @@
 # Students and learning (W3)
 
-How a student signs in, stays signed in, opens their courses, saves progress and gets a certificate. Code: `functions/_lib/session.ts`, `restore.ts`, `learn.ts`, `students.ts`, `certificates.ts`, `access-link.ts`, `student-api.ts` and the pages in `functions/_lib/pages/`. Tests: `tests/w3/` (D1 shim, fake Razorpay, no real keys).
+How a student signs in, stays signed in, opens their courses, saves progress and gets a certificate. Code: `functions/_lib/session.ts`, `claim.ts`, `signin-links.ts`, `email.ts`, `learn.ts`, `students.ts`, `certificates.ts`, `access-link.ts`, `student-api.ts` and the pages in `functions/_lib/pages/`. Tests: `tests/w3/` and `tests/security/` (D1 shim, fake Razorpay, a fake Email Service behind the real mailer Worker, no real keys).
 
-## Sign-in
+## Sign-in (email identity, owner decision 23 Oct 2026)
 
-There are no passwords and no email. A student gets a session in three ways:
+A student **is their email address**. There are no passwords, and the phone number is only an optional contact detail: it never finds, links or opens an account. Email goes out through Cloudflare's own Email Sending (no paid provider): `functions/_lib/email.ts`, the mailer Worker in `workers/mailer/`, and [EMAIL.md](EMAIL.md).
 
-1. **At payment.** W2's verify (and a free enrollment) calls `issueLoginToken(db, studentId, "handoff", path)` and redirects to `https://<hub>/auth/continue?t=…`. The handoff token lasts 10 minutes, works once, and signs in at once.
-   - **Only for a first purchase** (`functions/_lib/claim.ts`, security review F1). Nobody checks that the buyer owns the phone number, so a payment or free enrollment hands off only when the student had no other live enrollment before it. Otherwise verify answers with the receipt link, and a free enrollment with `https://<hub>/signin?next=…` (a signed-in device goes straight on).
-2. **Restore on a new device** (`/signin`, or `POST /api/auth/restore`). The student types:
-   - the phone number or email they paid with;
-   - the Razorpay payment ID from their receipt (`pay_…`).
-   Both must belong to one paid order in D1. The contact is compared with the student's phone and email and with what they typed into Razorpay's form.
-   - **First purchase only** (same rule as the handoff): when the account had a live enrollment before this order, the answer is `use_first_payment` (409): sign in with the first purchase's payment ID, or ask for a WhatsApp link. Only someone holding a paid order for that contact sees it.
-   - **Fallback:** for a captured payment D1 hasn't recorded yet (the browser closed before verify and the webhook is late), Razorpay's record is fetched with the server's keys. It must be captured, for the order's exact amount and mode, and is then fulfilled through W2's `fulfilOrder`.
-3. **A one-time WhatsApp link from Urmi.** W5's `POST /api/admin/students/:id/access-link` calls `createAccessLink()`. It returns the link and a prefilled `wa.me` message for the admin to send.
-   - The link lasts 24 hours and works once. A newer link replaces the student's unused older ones.
-   - Opening it shows a **Continue** button first, because WhatsApp's link preview opens links and would otherwise use the token up.
+A student gets a session in three ways:
+
+1. **At payment, on the paying device, for a new account only.** W2's verify (and a free enrollment) calls `issueLoginToken(db, studentId, "handoff", path)` and redirects to `https://<hub>/auth/continue?t=…`. The handoff token lasts 10 minutes, works once, and signs in at once.
+   - Typing an email at checkout proves nothing, so the handoff happens only when `claim.ts purchaseOpensAccount()` allows it: the account's email has **never been proven** (no row in `email_verifications` for its current address) **and** the account holds nothing from before this purchase (no other enrollment in any state, and the purchase isn't a renewal of an older enrollment row).
+   - Otherwise verify answers with the on-screen receipt, a free enrollment with `https://<hub>/signin?sent=1` ("check your email"), and a device that is already signed in as that student goes straight to the receipt.
+   - Either way the account's email gets the receipt and a fresh sign-in link (`sendReceiptEmail` / `sendEnrolledEmail` in `signin-links.ts`), once per order: whichever of verify and the webhook marked it paid sends it.
+2. **An emailed link** (`/signin`, or `POST /api/auth/email-link { email, next? }`). The student types their email; when it belongs to an account, a link is emailed to it.
+   - The link is `https://<hub>/auth/continue?t=<43 characters>`: 256 random bits, only the SHA-256 stored (`login_tokens`, purpose `admin_link`), **single use, 15 minutes** (`EMAIL_LINK_TTL`), and a newer link replaces the student's unused older ones.
+   - Opening it shows a **Continue** button first: mail scanners (Outlook Safe Links, Gmail's previews) fetch links and would otherwise use the token up. Continue signs this device in and lands on `next` (same-site paths only).
+   - **Same answer for every address** (no enumeration), and the lookup, the link and the send run after the answer (`waitUntil`), so the response time doesn't tell either.
+   - Receipt and enrollment emails carry the same kind of link (15 minutes). An expired or used link opens the sign-in form with "That sign-in link has expired or was already used".
+3. **A link from Urmi.** W5's `POST /api/admin/students/:id/access-link` calls `createAccessLink()`: 24 hours, single use, **emailed to the student** at once; the admin also gets the link to copy and a prefilled `wa.me` message to share it on WhatsApp (for a student who can't reach their inbox).
+
+**Proof of the email.** Opening an emailed or admin link (Continue) is the proof: `markEmailVerified()` records the address in `email_verifications`. **The first proof of an address signs out every session from before it, once** (`revokeAllSessions`): a handoff session someone got by paying with an address that isn't theirs ends the moment the real owner opens a link. After that, no purchase can hand off a session for that account again.
+
+**Changing the email.** Only the admin changes it ("Edit details", `PUT /api/admin/students/:id`): the student's unused links end, and the new address needs its own proof. A student can change their name on `/account`, not their email or phone.
+
+**Accounts from before email identity** (phone only, no email): they can't be found by anything typed. The admin adds their email with "Edit details" and sends a link.
 
 ## Sessions and devices (owner decision: 2 devices)
 
@@ -68,24 +75,28 @@ When every lesson is done, the enrollment's `completed_at` is set once and never
 
 ## Security
 
-- **Restore rate limits** are counted before any lookup:
-  - per IP: 5 per 15 minutes;
-  - per contact and per payment ID: 5 per day each, hashed so no contact detail sits in `rate_limits`.
-- **No enumeration.** An unknown payment, a wrong contact, a refunded order and an erased student all give the same answer. A course that doesn't exist and one the student doesn't have give the same 404. Another student's session id looks like a missing one.
-- **Constant-time compares.** Contacts are hashed and compared with `timingSafeEqual`, always against 4 slots. Tokens are looked up by their SHA-256 through a unique index; raw tokens are never stored or logged.
-- **CSRF.** JSON writes need `Content-Type: application/json` and a same-origin `Origin`. Form posts need a same-origin `Origin`, or a `Sec-Fetch-Site` that isn't cross-site. This includes `/signin`, to stop login CSRF. Cookies are SameSite=Lax.
+The threat model and the tests are in [SECURITY-REVIEW.md](../SECURITY-REVIEW.md), "Email identity", and `tests/security/email-auth.test.mjs`.
+
+- **Sign-in link rate limits** are counted before any lookup, and every try counts (refused ones too):
+  - per IP (IPv6 per /64): 10 per 15 minutes (`signin_ip`);
+  - per address, hashed so no address sits in `rate_limits`: 3 per 15 minutes and 10 a day (`signin_email`, `signin_email_day`), from any IP. An address with no account is limited exactly the same way.
+- **No enumeration.** An unknown address, an erased student and a real account give the same page and the same 202. A course that doesn't exist and one the student doesn't have give the same 404. Another student's session id looks like a missing one.
+- **Tokens.** 32 random bytes; only SHA-256 in D1, looked up through a unique index (the raw token is never compared, stored or logged); single use through one guarded `UPDATE … RETURNING`; expiry checked in the same statement. Erasing a student deletes their tokens and their email proof.
+- **No mail, no link.** Without a mailer (production before setup) no sign-in link is made at all: a link nobody receives is only a risk.
+- **CSRF.** JSON writes need `Content-Type: application/json` and a same-origin `Origin`. Form posts need a same-origin `Origin`, or a `Sec-Fetch-Site` that isn't cross-site. This includes `/signin` and `/auth/continue`, to stop login CSRF. Cookies are SameSite=Lax.
 - **Rendered pages:**
-  - every value is escaped (`html```);
+  - every value is escaped (`html```), in emails too;
   - the CSP allows no inline script or style;
   - `no-store`, `noindex`, `frame-ancestors 'none'`, and `Referrer-Policy: no-referrer`, so tokens and course paths never leak in a Referer.
 - **Redirects** after sign-in accept same-site paths only (`safeRedirectPath`: no `//`, `/\`, schemes or control characters).
-- **Audit log:** `student.restore`, `student.handoff_signin`, `student.link_signin`, `student.access_link`, `certificate.issue` and `student.update_profile`. No contact details are logged.
+- **Receipts** show the buyer's name only: no phone, no email.
+- **Audit log:** `student.email_link` (`sent` true/false), `student.handoff_signin`, `student.link_signin` (`firstProof` on the first proof), `student.access_link` (`emailed`), `order.receipt_email`, `student.update_details` (which fields changed, never the values), `certificate.issue` and `student.update_profile`. No email address, phone number or token is ever logged.
 
 ## Left for integration
 
-- **W2:** `GET /api/me/orders/:id` should return W2's `buildReceipt()`, and `/account` should link each payment to its receipt (`receiptPath`). The restore fallback's success path needs W2's `fulfilOrder`; on this branch it is still the stub, so the fallback answers "no_match".
+- **W2:** `GET /api/me/orders/:id` should return W2's `buildReceipt()`, and `/account` should link each payment to its receipt (`receiptPath`). (The phone + payment ID restore and its Razorpay fallback are gone since email identity: a payment the browser never reported is recorded by the webhook, which also sends the receipt email.)
 - **W4:** `playLesson` and the `/media/v` route, which checks the session tag (`tokenHash.slice(0, 16)`) with `readSession`.
-- **W5:** the admin endpoint for the access link (calls `createAccessLink`), "sign out everywhere" (`revokeAllSessions`) and certificate issue/revoke (`issueCertificate`).
+- **W5:** the admin endpoint for the access link (calls `createAccessLink`, which emails it), "sign out everywhere" (`revokeAllSessions`), "Edit details" (`PUT /api/admin/students/:id`) and certificate issue/revoke (`issueCertificate`).
 - **W1:**
   - course hosts should send `/signin`, `/account`, `/auth`, `/learn` and `/verify` to the hub (its `PRIVATE_PREFIXES` covers all but `/verify`, which is public);
   - `public/_routes.json` may exclude `/app/*` (static files).

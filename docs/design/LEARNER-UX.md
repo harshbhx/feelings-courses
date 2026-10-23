@@ -35,7 +35,7 @@ retry and WhatsApp.
 
 **Receipt.** The thank-you and the next step come first: "Your course is ready" with Start learning
 (or "See you at the studio" with the batch date for a studio-only booking), then the receipt itself
-(receipt number, masked phone, payment ID, amounts, the refund window while it's open), then Share
+(receipt number, name, payment ID, amounts, the refund window while it's open; no phone or email since email identity), then Share
 on WhatsApp and Print. A booking amount is the bold total; the balance at the studio sits under it.
 Never a GSTIN or tax line.
 

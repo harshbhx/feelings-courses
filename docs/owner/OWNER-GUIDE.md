@@ -39,6 +39,7 @@ You need: this repo, Node 22 or newer, and logins for Cloudflare (the account th
    - **Cloudflare Pages: Edit**
    - **D1: Edit**
    - **Workers R2 Storage: Edit**
+   - **Workers Scripts: Edit** (the small mailer Worker that sends sign-in links and receipts)
 4. Optional, only if you want the script to add course subdomains for you (B1 has the dashboard way): **Zone → Zone: Read** and **Zone → DNS: Edit**, limited to the zone `feelingsbeautycare.in`.
 5. **Account Resources**: only this account. Give it an end date a few weeks away; you can make a new one later.
 6. **Continue to summary** → **Create Token**. Copy it once into `setup.local.json`.
@@ -50,6 +51,16 @@ Also copy the **Account ID**: **Workers & Pages** → right-hand side → **Acco
 1. Cloudflare dashboard → **R2 object storage** → **Purchase R2 Plan** / **Enable R2**.
 2. It asks for a card. The course site stays inside the free allowance (10 GB stored, a million uploads and ten million reads a month, downloads are never charged). Nothing is charged unless that is passed. [MONITORING.md](MONITORING.md) shows how to see the usage.
 3. Don't create buckets yourself: the script does that with the right names.
+
+### A3b. Email: let Cloudflare send from feelingsbeautycare.in
+
+Students sign in with a link we email them, and get their receipt by email. Cloudflare sends it (Email Sending), so there is no other email company to pay. Three dashboard steps, once:
+
+1. **Workers Paid plan** on this Cloudflare account (**Workers & Pages** → **Plans**). Sending to any address needs it; 3,000 emails a month are included. If the salon app (Feelings Staff) already runs on this account, it is already on.
+2. **Compute** → **Email Service** → **Email Sending** → **Onboard Domain** → `feelingsbeautycare.in` → **Done**. Cloudflare adds its own records on a `cf-bounce` sub-domain; the existing email forwarding keeps working. Wait until it shows **Verified** (usually minutes). If the domain is already listed there (the salon app did it), skip this step. It must be the **same Cloudflare account** as the `feelings-courses` Pages project.
+3. Replies: emails come from `courses@feelingsbeautycare.in`. **Email Service** → **Email Routing** → **Routing rules** → **Create address**: `courses` → send to Urmi's inbox, so a student who replies reaches someone.
+
+The setup script (A6) does the rest. To use another sender, set `"email": { "from": "…@feelingsbeautycare.in" }` in `setup.local.json` and add the same routing rule for it. More in [docs/platform/EMAIL.md](../platform/EMAIL.md).
 
 ### A4. The deploy hook (so "Publish changes" rebuilds the site)
 
@@ -113,6 +124,7 @@ Settings only reach the site on the next deployment.
 1. **Workers & Pages** → `feelings-courses` → **Deployments**.
 2. On the latest **Production** deployment: **⋯** → **Retry deployment**. Wait for **Success** (about 2 minutes).
 3. Open `https://courses.feelingsbeautycare.in/` once. The site builds its database tables by itself on this first visit.
+4. Check email: open `https://courses.feelingsbeautycare.in/signin` and enter an email that has a course (after your first test purchase). The sign-in link should arrive within a minute (look in Spam once). Nothing? Check A3b, then **Workers & Pages** → `fbc-courses-mailer` → **Logs** for a code like `E_SENDER_NOT_VERIFIED`.
 
 ### A9. First sign-in to the admin
 
@@ -165,24 +177,25 @@ The policy: a full refund for any reason within **24 hours** of payment.
 
 A full refund always ends the access to that course's recorded lessons, also for a hybrid course where only the batch was cancelled. If the student should keep the lessons, refund part of the amount instead ([LEGAL-QUESTIONS.md](LEGAL-QUESTIONS.md), question 4).
 
-### B4. Send someone a sign-in link on WhatsApp
+### B4. Help someone sign in
 
-For a student who changed phone, can't sign in, or was signed out after using a third device.
+Students sign in by themselves: on the sign-in page they type their email and open the link we send them (it works once, for 15 minutes). Help is for a student whose email doesn't arrive, who typed it wrong when paying, or who can't open their inbox.
 
-1. Admin → **Students** → search by name or phone → open the student.
-2. **Make a sign-in link**. The link works once and for 24 hours.
-3. **Open WhatsApp**: it opens a chat to the student's number with the link. Send it.
-4. They tap it, confirm, and are signed in on that phone.
+1. Admin → **Students** → search by name, email or phone → open the student.
+2. Wrong or missing email? **Edit details** → correct it → **Save**. (Links already sent to the old address stop working.)
+3. **Email a sign-in link**. It goes to their email at once and works once, for 24 hours.
+4. Can't reach their email? **Share on WhatsApp** (or **Copy link**) and send it to the student's own number.
+5. They tap it, press **Continue**, and are signed in on that phone.
 
 Good to know:
+- A student's email is their account. They can't change it themselves: you do, after checking it's really them.
 - A student can be signed in on **2 devices**. Signing in on a third signs out the device they signed in on first.
-- They can also get back in by themselves: on the sign-in page, their phone number (or email) and the `pay_…` ID from their receipt.
-- **Sign out all** in the student drawer ends every device at once (for a lost phone or a shared account).
-- Never send a sign-in link to a number other than the student's own.
+- **Sign out all** in the student drawer ends every device at once (for a lost phone or a shared account). Use it too after changing an email that wasn't theirs.
+- Never send a sign-in link to anyone but the student.
 
-### B5. Receipts on WhatsApp
+### B5. Receipts
 
-There is no email. After paying, the student sees the receipt on screen and keeps it in **My account**. If they ask for it: open their payment in the admin, open the receipt, and share the link or a screenshot on WhatsApp. Receipts never show a GSTIN or tax lines.
+After paying, the student sees the receipt on screen, gets it by email (with a link to open the course), and keeps it in **My account**. If they ask for it again: open their payment in the admin, open the receipt, and share the link or a screenshot on WhatsApp. Receipts never show a GSTIN or tax lines.
 
 ### B6. Weekly habits (5 minutes)
 

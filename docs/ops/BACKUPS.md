@@ -47,4 +47,4 @@ The same steps, with `npx wrangler d1 execute fbc-courses-restore --remote --fil
 
 ## Privacy
 
-Backups contain students' names and phone numbers. The R2 bucket is private (never give it a public URL), dumps older than 35 days are deleted automatically, and `backups/` is gitignored. The privacy policy (`src/data/legal.ts`) says backups are kept for 35 days; change both together.
+Backups contain students' names, emails and phone numbers. The R2 bucket is private (never give it a public URL), dumps older than 35 days are deleted automatically, and `backups/` is gitignored. The privacy policy (`src/data/legal.ts`) says backups are kept for 35 days; change both together.

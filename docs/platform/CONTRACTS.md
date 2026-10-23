@@ -39,7 +39,7 @@ W1 hosts and SEO · W2 payments · W3 students and learning · W4 media · W5 ad
 | `Certificate`, `CertificateCheck` | Certificates | W3 | W5, W6 |
 | `Watermark`, `SignedMedia`, `PlayInfo` | Signed video playback | W4 | W3 (play route), W4 player |
 | `Quote`, `QuoteFailure` | Server pricing | W2 | W2 checkout |
-| `RazorpayPayment`, `RazorpayRefund` | The Razorpay entity fields the app reads | W0 | W2, W3 (restore fallback) |
+| `RazorpayPayment`, `RazorpayRefund` | The Razorpay entity fields the app reads | W0 | W2 |
 | `OrderSummary`, `Refund`, `Receipt`, `ReceiptLine` | Orders and receipts | W2 | W3 account, W5, W6 |
 | `AdminCourse`, `AdminCourseInput`, `AdminModule`, `AdminLesson`, `AdminBatch` | Course editor | W5 | W6 |
 | `AdminCoupon`, `AdminCouponInput` | Coupons | W5 | W6 |
@@ -53,6 +53,7 @@ W1 hosts and SEO · W2 payments · W3 students and learning · W4 media · W5 ad
 - One request type and one response type per endpoint in plan section 4, for example `OrderRequest` / `OrderResponse` or `AdminRefundRequest` / `AdminRefundResponse`.
 - `Endpoints` maps `"METHOD /path"` (path parameters written `:name`) to `{ req, res }`. `RequestOf<K>` and `ResponseOf<K>` read from it.
 - `ApiErrorBody` and `ApiErrorCode` list the known error codes. Add new ones through a contract PR.
+- Email identity (23 Oct 2026): `POST /api/auth/restore` (`RestoreRequest`) is gone, with the `no_match` and `use_first_payment` codes; `POST /api/auth/email-link` (`EmailLinkRequest` → 202 `EmailLinkResponse`) and `PUT /api/admin/students/:id` (`AdminUpdateStudentRequest`) are new. `OrderRequest.email` is required and `phone` optional; `AdminAddStudentRequest` likewise; `MeUpdateRequest` is the name only; `AdminAccessLinkResponse` adds `emailed` and `email`.
 - Who implements each endpoint is the **W** column of plan section 4.
 
 ## Constants: `src/shared/constants.ts`
@@ -87,6 +88,7 @@ W1 hosts and SEO · W2 payments · W3 students and learning · W4 media · W5 ad
 | File | What |
 |---|---|
 | `0001_init.sql` | The schema from plan section 2, exactly. |
+| `0003_email_identity.sql` | Email identity (23 Oct 2026, additive, `IF NOT EXISTS`): table `email_verifications (student_id PK, email, verified_at)`, which records that a student proved their current email by opening a sign-in link; index `login_tokens_student`. No other table changes: emailed links reuse `login_tokens` (purpose `admin_link`, 15-minute `expires_at`), and `students.phone` stays as an optional, unique contact detail. |
 | `0002_seed.sql` | **DEMO** `selfmakeup` course (`is_demo = 1`, published, ids 1 / modules 1–3 / lessons 1–9). The academy drafts `diploma`, `crashcourse` and `combo` are `hybrid`, with `price_paise NULL` and `access_days = 365` (ids 2–4, modules 4–6, lessons 10–26). All four slugs are provisional. Settings: `business`, `legal_confirmed = false`, `content_version = 1`. |
 
 Tables, and the workstream that writes them (others only read):
@@ -96,7 +98,8 @@ Tables, and the workstream that writes them (others only read):
 | `settings` | W5 (admin), W2 (invoice/legal reads), W7 (`last_backup_at`, `last_cleanup_at`) |
 | `courses`, `batches`, `modules`, `lessons` | W5 (`batches.seats_taken`: W2 fulfil) |
 | `media` | W4 |
-| `students` | W2 (upsert at order), W3 (profile), W5 (manual add, erase) |
+| `students` | W2 (upsert **by email** at order; an existing account is never changed by a checkout), W3 (profile: name only), W5 (manual add, edit details, erase) |
+| `email_verifications` | W3 (`claim.ts markEmailVerified`, when a link is opened); W5 erase deletes |
 | `coupons` | W5 (`used_count`: W2 fulfil) |
 | `orders`, `refunds`, `invoice_counters`, `coupon_redemptions`, `webhook_events` | W2 |
 | `enrollments` | W2 (payment), W5 (manual and revoke), W3 (`completed_at`) |
@@ -113,7 +116,7 @@ Tables, and the workstream that writes them (others only read):
 
 | Module | Exports | U |
 |---|---|---|
-| `env.ts` | `Env` (DB, MEDIA, ASSETS, APP_ENV?, HUB_HOST?, APEX_DOMAIN?, secrets?), `hasDb()`, `Context` | all |
+| `env.ts` | `Env` (DB, MEDIA, ASSETS, APP_ENV?, HUB_HOST?, APEX_DOMAIN?, secrets?, MAILER? (service binding to the mailer Worker), MAILER_KEY?, EMAIL_PROVIDER?), `hasDb()`, `Context` | all |
 | `config.ts` | `config(env)`, which returns `AppConfig { appEnv, hubHost, apexDomain, hubOrigin, paymentMode }` (missing `APP_ENV` counts as `production`); `razorpayMode()`, `requireSecret()`, `ConfigError`; constants for cookies, TTLs, `RATE_LIMITS`, upload sizes and `REBUILD_DEBOUNCE` | all |
 | `crypto.ts` | `sha256Hex`, `hmacSha256Hex`, `timingSafeEqual`, `randomHex`, `randomToken`, `randomDigits`, `randomCrockford`, `CROCKFORD` | W2, W3, W4, W5 |
 | `http.ts` | `json`, `error`, `methodNotAllowed`, `redirect` (303, multiple cookies, security headers), `sameOrigin`, `isJson`, `readBody`, `readJson`, `readForm` (16 KB default), `SECURITY_HEADERS`, `securityHeaders()`, `clientIp()`, `errorResponse()` | all endpoints |
@@ -134,13 +137,17 @@ Tables, and the workstream that writes them (others only read):
 |---|---|---|---|
 | `hosts.ts` | `hostRouting(context, next)`. Filled by W1 (docs/platform/HOSTS.md). | W1 | `_middleware.ts` |
 | `snapshot.ts` | `buildSnapshot(env): Promise<Snapshot>` | W1 | `/api/public/snapshot` |
-| `session.ts` | `createSession(db, studentId, request) → { cookie }`; `readSession(env, request) → SessionRef \| null`; `issueLoginToken(db, studentId, purpose, redirectPath) → raw token`; `requireEnrollment(env, request, courseSlug) → EnrollmentRef \| null` | W3 | W2 (handoff), W4, W5 (access link) |
+| `session.ts` | `createSession(db, studentId, request) → { cookie }`; `readSession(env, request) → SessionRef \| null`; `issueLoginToken(db, studentId, purpose, redirectPath, now?, { ttl? }) → raw token`; `requireEnrollment(env, request, courseSlug) → EnrollmentRef \| null` | W3 | W2 (handoff), W4, W5 (access link) |
 | `certificates.ts` | `issueCertificate(env, { studentId, courseId, name }) → Certificate` | W3 | W3, W5 |
-| `orders.ts` | `fulfilOrder(env, { orderId, payment }) → FulfilResult`; `refundOrder(env, orderId, { amountPaise?, reason, revoke }) → Refund`; `syncOrder(env, orderId) → AdminOrder`; `processWebhookEvent(env, eventId)` | W2 | W2, W3 (restore), W5 |
+| `orders.ts` | `fulfilOrder(env, { orderId, payment }) → FulfilResult`; `refundOrder(env, orderId, { amountPaise?, reason, revoke }) → Refund`; `syncOrder(env, orderId) → AdminOrder`; `processWebhookEvent(env, eventId) → { paidOrderId }` (the order it newly marked paid, for the receipt email) | W2 | W2, W5 |
 | `pricing.ts` | `quote(db, { courseSlug, batchId?, couponCode?, studentId?, now }) → Quote` | W2 | W2 |
 | `receipts.ts` (W2, new) | `buildReceipt(db, orderId) → Receipt`; `receiptPath(env, orderId)` (HMAC link) | W2 | W3 (`/api/me/orders/:id`) |
 | `media.ts` | `signMediaUrl(env, { kind: "v" \| "c", lessonId, sessionTag, ttl? }) → string` | W4 | W4, W3 |
-| `access-link.ts` (W3, new) | `createAccessLink(env, studentId, { actor?, now? }) → AdminAccessLinkResponse` | W3 | W5 (`POST /api/admin/students/:id/access-link`) |
+| `access-link.ts` (W3, new) | `createAccessLink(env, studentId, { actor?, now? }) → AdminAccessLinkResponse` (emails the link) | W3 | W5 (`POST /api/admin/students/:id/access-link`) |
+| `claim.ts` (email identity) | `purchaseOpensAccount(db, studentId, { orderId, courseId, since }) → boolean`; `emailVerified(db, studentId)`; `markEmailVerified(db, studentId, now) → first proof?` | W3 | W2 (verify, free enrollment), W3 (`/auth/continue`) |
+| `email.ts` (email identity) | `sendEmail(env, { to, subject, text, html }) → boolean` (never throws); `emailProvider(env)`; `outbox` (dev and tests) | W3 | `signin-links.ts`, `access-link.ts` |
+| `email-templates.ts` | `signInEmail`, `receiptEmail`, `enrolledEmail`, `adminLinkEmail` | W3 | `signin-links.ts`, `access-link.ts` |
+| `signin-links.ts` | `requestSignInLink(env, request, { email, next }, { now?, ctx? })`; `emailLinkUrl(env, studentId, path, now)`; `sendReceiptEmail(env, orderId)`; `sendEnrolledEmail(env, studentId, courseId)` | W3 | W2 (verify, webhook, free enrollment), W3 (`/signin`, `POST /api/auth/email-link`), W5 (webhook replay) |
 | `play.ts` | `playLesson(env, enrollment, lessonId) → PlayInfo \| null` | W4 | W3's play route |
 | `analytics.ts` | `bump(db, day, courseId, field, by?) → DbStatement` (to use inside a batch) | W7 | W2, W7 |
 | `daily.ts` | `maybeRunDaily(env, ctx)` | W7 | W5 middleware, W2 webhook |
@@ -165,7 +172,7 @@ W2's flow, owner setup and integration notes: `docs/platform/PAYMENTS.md`. W2 al
 
 ### W3 additions (students)
 
-W3's sessions, restore, course area and certificates: `docs/platform/STUDENTS.md`. W3 also exports `readCookie`, `sessionToken`, `consumeLoginToken`, `revokeSession`, `revokeAllSessions`, `safeRedirectPath` and `enrollmentActive` from `session.ts`, `checkCertificate` and `normalizeCertificateCode` from `certificates.ts`, and optional trailing `now` parameters on the session functions (tests pass a fixed clock).
+W3's sessions, email sign-in, course area and certificates: `docs/platform/STUDENTS.md`; email sending: `docs/platform/EMAIL.md`. W3 also exports `readCookie`, `sessionToken`, `consumeLoginToken`, `revokeSession`, `revokeAllSessions`, `safeRedirectPath` and `enrollmentActive` from `session.ts`, `checkCertificate` and `normalizeCertificateCode` from `certificates.ts`, and optional trailing `now` parameters on the session functions (tests pass a fixed clock).
 
 ### W4 additions (media)
 
@@ -193,7 +200,8 @@ The integration branch (`docs/INTEGRATION.md`) settled the overlaps between work
 | Certificate audit row | W3 `issueCertificate(…, { actor })` writes it once | W3 claim, W5 admin issue (actor `admin`) |
 | Student receipt | W2 `buildReceipt()` / `receiptPath()` | `GET /api/me/orders/:id`, `/account` links |
 | Backups | W7 `backup.ts` `runBackup()` | W5 `POST /api/admin/backup/run`, `GET /api/admin/backup`, W7 daily job |
-| Phone numbers (E.164) | `normalizePhone()` in `src/shared/constants.ts` | W0 `validate.ts` `phone()`, W2 checkout `normalisePhone`, W6 admin forms |
+| Phone numbers (E.164, a contact detail only) | `normalizePhone()` in `src/shared/constants.ts` | W0 `validate.ts` `phone()`, W2 checkout `normalisePhone`, W6 admin forms |
+| Student identity (email) | W2 `payments.ts upsertStudent()` finds by email; W3 `claim.ts` decides when a purchase may sign a device in; W3 `signin-links.ts` emails links | W2, W3, W5 |
 | GSTIN format | `GSTIN_RE` in `src/shared/constants.ts` | W5 settings, W6 settings form |
 | Upload types and sizes | `MEDIA_FILE_TYPES`, `MEDIA_MAX_BYTES`, `extensionOf()` in `src/shared/constants.ts` | W4 `media-rules.ts` (`MEDIA_RULES`, `MAX_UPLOAD_BYTES`), W6 file picker (`UPLOAD_RULES`) |
 | Rupee formatting | W1 `course-view.ts` `formatInr()` | W6 `formatPaise()` (zero is "₹0" there, not "Free") |
