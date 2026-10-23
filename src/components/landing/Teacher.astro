@@ -25,9 +25,9 @@ const firstName = teacher.split(" ")[0];
 
 const sizes = "(min-width: 56rem) min(36vw, 28rem), min(80vw, 20rem)";
 const widths = [320, 480, 640, 960];
-// WebP only: the AVIF that sharp made of this cut-out (alpha, quality 45) decoded to nothing in
-// Chromium at the 960w size, so the desktop band showed an empty half (seen in the public-pages
-// screenshots, 2026-10-23). WebP keeps the transparency everywhere for a few KB more.
+// WebP only. The AVIF sharp made of this cut-out (alpha, quality 45) was missing from Chromium's
+// 1280px screenshots of every long page (an empty half of the band), and libvips decodes the live
+// files with green blocks: an unreliable encode. WebP keeps the transparency for a few KB more.
 const webp = await getImage({ src: urmi, widths, sizes, format: "webp", quality: 72 });
 ---
 
