@@ -1,49 +1,755 @@
 ---
-// A slim brand bar: the studio's logo, so visitors from Instagram know whose course this is, and a
-// quiet WhatsApp link for questions. Not sticky: on a phone the enroll bar at the bottom is the
-// only fixed element.
+// The courses site's header, built on the main site's (feelings-beauty-care, Header.astro) so the
+// two read as one brand: the maroon logo, a white bar with a hairline, quiet pill links with a
+// bindi under the current one, and the same "Menu" pill on phones and tablets.
+//
+// - Sticky. It "shrinks" once the page scrolls without changing its height (no layout shift): the
+//   bar sticks a few pixels above the top edge (top: -var(--hdr-tuck)), and the logo and buttons
+//   settle into the visible part by transform only. An IntersectionObserver on a sentinel toggles
+//   .is-stuck (rule 5: no layout reads at script start).
+// - Phones and tablets: a full-height menu with the same links, the studio's contact and the main
+//   site. Focus stays inside it (Tab and Shift+Tab wrap), Escape closes it and returns focus to the
+//   button, and the page behind it is inert. Every target is at least 44px.
+// - "All courses" points at the hub, because on a course's own subdomain "/" is that course.
 import Icon from "../Icon.astro";
 import Logo from "./Logo.astro";
+import { site } from "../../data/site";
+import { buildEnv } from "../../lib/build-env";
+import { hubOrigin } from "../../lib/seo";
 import { whatsappLink } from "../../lib/whatsapp";
-import { teacherFirstName } from "./facts";
+import { mainHost, teacherFirstName } from "./facts";
+
+interface Props {
+  /** Marks a nav link as the current page. */
+  current?: "courses" | "contact";
+}
+
+const { current } = Astro.props;
+const hub = hubOrigin(buildEnv);
+
+const links = [
+  { id: "courses", href: `${hub}/`, label: "All courses", line: "Every course, online and at the studio", icon: "squares-four" },
+  { id: "account", href: "/account", label: "My courses", line: "Sign in with your email to watch", icon: "user" },
+  { id: "contact", href: "/legal#contact", label: "Contact", line: "Phone, WhatsApp and our policies", icon: "phone" },
+] as const;
+const ask = whatsappLink();
 ---
 
-<header class="lp-header">
-  <div class="container lp-header-inner">
-    <a class="lp-brand" href="/">
-      <Logo width="clamp(7.5rem, 6.4rem + 3vw, 9.25rem)" />
+<span class="hdr-sentinel" aria-hidden="true" data-hdr-sentinel></span>
+<header class="site-header" data-site-header>
+  <div class="container bar">
+    <a class="brand" href="/" aria-label={`${site.name} courses, home`}>
+      <Logo width="var(--logo-w)" decorative />
+      <span class="brand-tag" aria-hidden="true">Courses</span>
     </a>
-    <a class="btn btn-secondary lp-ask" href={whatsappLink()} target="_blank" rel="noopener">
-      <Icon name="whatsapp" />
-      Ask {teacherFirstName}
-    </a>
+
+    <nav class="nav" aria-label="Main">
+      <ul class="nav-list">
+        {
+          links.map((l) => (
+            <li>
+              <a class="nav-link" href={l.href} aria-current={current === l.id ? "page" : undefined}>
+                {l.label}
+              </a>
+            </li>
+          ))
+        }
+        <li class="nav-main">
+          <a class="nav-link" href={site.mainUrl}>
+            {mainHost}
+            <Icon name="arrow-up-right" class="icon nav-out" />
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="actions">
+      <a class="btn btn-secondary btn-sm ask" href={ask} target="_blank" rel="noopener">
+        <Icon name="whatsapp" />
+        <span class="ask-label">Ask {teacherFirstName}</span>
+        <span class="visually-hidden"> on WhatsApp (opens WhatsApp)</span>
+      </a>
+      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-menu" data-menu-toggle>
+        <span class="toggle-lines" aria-hidden="true"><span></span><span></span></span>
+        <span class="toggle-open">Menu</span>
+        <span class="toggle-close">Close</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="site-menu" class="panel" hidden data-menu-panel>
+    <nav class="container panel-body" aria-label="Menu">
+      <ul class="panel-links">
+        {
+          links.map((l, i) => (
+            <li class="p-in" style={`--i: ${i}`}>
+              <a href={l.href} aria-current={current === l.id ? "page" : undefined}>
+                <span class="p-icon" aria-hidden="true">
+                  <Icon name={l.icon} />
+                </span>
+                <span class="p-text">
+                  <span class="p-name">
+                    {l.label}
+                    {current === l.id && <span class="bindi" aria-hidden="true" />}
+                  </span>
+                  <span class="p-line">{l.line}</span>
+                </span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+
+      <a class="panel-main p-in" style="--i: 3" href={site.mainUrl}>
+        <span>
+          <span class="panel-main-label">The studio's main site</span>
+          <span class="panel-main-host">{mainHost}</span>
+        </span>
+        <Icon name="arrow-up-right" />
+      </a>
+
+      <div class="panel-visit p-in" style="--i: 4">
+        <p class="panel-address">
+          {site.name}, {site.address.street},<br />
+          {site.address.landmark}, {site.address.city}
+        </p>
+        <div class="panel-quick">
+          <a href={`tel:${site.phone.tel}`}>
+            <Icon name="phone" />
+            <span class="tabular">{site.phone.display}</span>
+          </a>
+          <a href={site.social.instagram} target="_blank" rel="noopener">
+            <Icon name="instagram" />
+            Instagram
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <div class="panel-actions">
+      <a class="btn btn-secondary" href={ask} target="_blank" rel="noopener">
+        <Icon name="whatsapp" />
+        Ask {teacherFirstName} on WhatsApp
+      </a>
+    </div>
   </div>
 </header>
 
+<script>
+  const header = document.querySelector<HTMLElement>("[data-site-header]");
+  const sentinel = document.querySelector<HTMLElement>("[data-hdr-sentinel]");
+  const toggle = header?.querySelector<HTMLButtonElement>("[data-menu-toggle]");
+  const panel = header?.querySelector<HTMLElement>("[data-menu-panel]");
+
+  // Stuck or not: the sentinel sits where the header starts; once it scrolls out, the bar settles.
+  if (header && sentinel && "IntersectionObserver" in window) {
+    new IntersectionObserver((entries) => {
+      const last = entries[entries.length - 1];
+      if (last) header.classList.toggle("is-stuck", !last.isIntersecting);
+    }).observe(sentinel);
+  }
+
+  const BEHIND = "main, footer, [data-enroll-bar], .demo-ribbon, .skip-link";
+  const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const isOpen = () => toggle?.getAttribute("aria-expanded") === "true";
+
+  const setMenu = (open: boolean, returnFocus = false) => {
+    if (!header || !toggle || !panel) return;
+    if (open) {
+      // Measured on the click, not at load: where the bar ends right now.
+      header.style.setProperty("--panel-top", `${Math.max(0, header.getBoundingClientRect().bottom)}px`);
+    }
+    toggle.setAttribute("aria-expanded", String(open));
+    panel.hidden = !open;
+    document.documentElement.classList.toggle("menu-open", open);
+    // The menu covers the page, so the page is out of reach (Tab and screen readers).
+    document.querySelectorAll(BEHIND).forEach((el) => el.toggleAttribute("inert", open));
+    if (open) panel.querySelector<HTMLAnchorElement>("a")?.focus();
+    else if (returnFocus) toggle.focus();
+  };
+
+  if (header && toggle && panel) {
+    toggle.addEventListener("click", () => setMenu(!isOpen()));
+
+    // A link inside the menu (an anchor on this page included) closes it.
+    panel.addEventListener("click", (event) => {
+      if ((event.target as Element).closest("a")) setMenu(false);
+    });
+
+    header.addEventListener("keydown", (event) => {
+      if (!isOpen()) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMenu(false, true);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      // Focus trap: the visible controls of the header (logo, WhatsApp, Close, the menu's links).
+      const items = Array.from(header.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden",
+      );
+      if (items.length === 0) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+
+    // Crossing into the desktop layout (no menu there) closes it.
+    window.matchMedia("(min-width: 64rem)").addEventListener("change", (event) => {
+      if (event.matches && isOpen()) setMenu(false);
+    });
+  }
+</script>
+
 <style>
-  .lp-header-inner {
+  /* Where the header starts. No box of its own: absolute, in its static position. */
+  .hdr-sentinel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+  }
+
+  .site-header {
+    /* How far the bar tucks above the screen's top edge once stuck: the visible bar is that much
+       shorter, and nothing below it moves. */
+    --hdr-tuck: 0.5rem;
+    position: sticky;
+    top: calc(var(--hdr-tuck) * -1);
+    z-index: 40;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    transition: box-shadow var(--dur-base) var(--ease-out);
+  }
+
+  .site-header.is-stuck {
+    box-shadow: var(--shadow-header);
+  }
+
+  .bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--space-4);
-    min-height: var(--header-h);
+    gap: var(--space-3);
+    height: var(--header-h);
+    transition: transform var(--dur-base) var(--ease-out);
   }
 
-  .lp-brand {
+  /* Stuck: the content moves down by half the tuck, so it is centred in what shows. */
+  .is-stuck .bar {
+    transform: translateY(calc(var(--hdr-tuck) / 2));
+  }
+
+  /* ── Brand ── */
+
+  .brand {
+    --logo-w: 6.5rem;
     display: inline-flex;
     align-items: center;
+    gap: var(--space-3);
+    flex: none;
     min-height: 2.75rem;
+    color: var(--text);
+    text-decoration: none;
   }
 
-  /* 44px tall: a real thumb target, still quieter than the red enroll button. */
-  .lp-ask {
+  .brand :global(.logo) {
+    transform-origin: left center;
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+
+  .is-stuck .brand :global(.logo) {
+    transform: scale(0.9);
+  }
+
+  .brand-tag {
+    transition: transform var(--dur-base) var(--ease-out);
+    padding-left: var(--space-3);
+    border-left: 1px solid var(--border-strong);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    letter-spacing: 0.06em;
+    line-height: 1.6;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* The tag follows the logo's right edge as it scales (0.9 of --logo-w). */
+  .is-stuck .brand-tag {
+    transform: translateX(calc(var(--logo-w) * -0.1));
+  }
+
+  /* The smallest phones keep the logo and both buttons on one line. */
+  @media (max-width: 22.99rem) {
+    .brand-tag {
+      display: none;
+    }
+  }
+
+  /* ── Desktop navigation ── */
+
+  .nav {
+    display: none;
+  }
+
+  .nav-list {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .nav-link {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
     min-height: 2.75rem;
-    padding: 0.5rem 1rem;
+    padding: 0 0.875rem;
+    border-radius: var(--radius-pill);
     font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    color: var(--text-body);
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
   }
 
-  .lp-ask :global(.icon) {
-    width: 1.15rem;
-    height: 1.15rem;
+  .nav-link:hover {
+    background: var(--bg-tint);
+    color: var(--text);
+  }
+
+  .nav-link:focus-visible {
+    outline-offset: 0;
+  }
+
+  /* The signature, as on the main site: a bindi under the current page. */
+  .nav-link[aria-current="page"] {
+    color: var(--text);
+  }
+
+  .nav-link[aria-current="page"]::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0.3rem;
+    width: 5px;
+    height: 5px;
+    margin-left: -2.5px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* The main site sits apart from the course links, behind a hairline. */
+  .nav-main {
+    display: flex;
+    align-items: center;
+    margin-left: var(--space-2);
+    padding-left: var(--space-3);
+    border-left: 1px solid var(--border-strong);
+  }
+
+  .nav-main .nav-link {
+    color: var(--text-muted);
+  }
+
+  .nav-main .nav-link:hover {
+    color: var(--text);
+  }
+
+  .nav-link :global(.nav-out) {
+    width: 0.95em;
+    height: 0.95em;
+    color: var(--accent);
+    transition: transform var(--dur-fast) var(--ease-out);
+  }
+
+  /* ── Buttons ── */
+
+  .actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+
+  /* Phones: WhatsApp is a round 44px button; its words join from tablets up. Never red: on a
+     course page the one red button is "Enroll". */
+  .ask.btn-sm {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+    padding: 0;
+  }
+
+  .ask :global(.icon) {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .ask-label {
+    display: none;
+  }
+
+  :global(html.menu-open) .ask {
+    visibility: hidden;
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0 0.95rem 0 0.85rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-strong);
+    cursor: pointer;
+    transition:
+      border-color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .menu-toggle:hover {
+    border-color: var(--text);
+  }
+
+  .menu-toggle[aria-expanded="true"] {
+    border-color: var(--bg-tint);
+    background: var(--bg-tint);
+  }
+
+  .toggle-lines {
+    position: relative;
+    display: block;
+    width: 1.125rem;
+    height: 0.75rem;
+  }
+
+  .toggle-lines span {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+
+  .toggle-lines span:first-child {
+    top: 0.125rem;
+  }
+
+  .toggle-lines span:last-child {
+    bottom: 0.125rem;
+  }
+
+  .menu-toggle[aria-expanded="true"] .toggle-lines span:first-child {
+    transform: translateY(0.1875rem) rotate(45deg);
+  }
+
+  .menu-toggle[aria-expanded="true"] .toggle-lines span:last-child {
+    transform: translateY(-0.1875rem) rotate(-45deg);
+  }
+
+  .toggle-close,
+  .menu-toggle[aria-expanded="true"] .toggle-open {
+    display: none;
+  }
+
+  .menu-toggle[aria-expanded="true"] .toggle-close {
+    display: inline;
+  }
+
+  /* ── The menu (phones and tablets) ── */
+
+  .panel {
+    position: fixed;
+    inset: var(--panel-top, var(--header-h)) 0 0 0;
+    z-index: 39;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .panel[hidden] {
+    display: none;
+  }
+
+  .panel-body {
+    flex: 1 0 auto;
+    padding-block: var(--space-4) var(--space-6);
+  }
+
+  .panel-links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .panel-links a {
+    display: grid;
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-4);
+    min-height: 4rem;
+    padding-block: var(--space-2);
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .p-icon {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    background: var(--bg-soft);
+    color: var(--accent);
+  }
+
+  .p-icon :global(.icon) {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .p-text {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .p-name {
+    font-size: var(--text-xl);
+    font-weight: var(--weight-strong);
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  .p-line {
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    color: var(--text-muted);
+  }
+
+  .panel-links a[aria-current="page"] .p-name {
+    color: var(--accent);
+  }
+
+  .panel-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 3.5rem;
+    margin-top: var(--space-4);
+    padding: var(--space-2) var(--space-4) var(--space-2) var(--space-5);
+    border-radius: var(--radius-pill);
+    background: var(--bg-soft);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .panel-main > span {
+    display: grid;
+  }
+
+  .panel-main-label {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+    color: var(--text-muted);
+  }
+
+  .panel-main-host {
+    font-weight: var(--weight-strong);
+  }
+
+  .panel-main :global(.icon) {
+    width: 1.2rem;
+    height: 1.2rem;
+    color: var(--accent);
+  }
+
+  .panel-visit {
+    display: grid;
+    gap: var(--space-2);
+    margin-top: var(--space-5);
+  }
+
+  .panel-address {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--text-body);
+  }
+
+  .panel-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-5);
+  }
+
+  .panel-quick a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.75rem;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-strong);
+    color: var(--text);
+    text-decoration: underline;
+    text-decoration-color: var(--border-strong);
+    text-underline-offset: 0.3em;
+  }
+
+  .panel-quick .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .panel-quick a:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .panel-quick :global(.icon) {
+    width: 1.1em;
+    height: 1.1em;
+    color: var(--accent);
+  }
+
+  /* WhatsApp, pinned to the bottom of the menu where a thumb rests. */
+  .panel-actions {
+    position: sticky;
+    bottom: 0;
+    padding: var(--space-3) var(--gutter) calc(var(--space-3) + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .panel-actions .btn {
+    width: 100%;
+    min-height: 3.125rem;
+  }
+
+  :global(html.menu-open) {
+    overflow: hidden;
+  }
+
+  /* ── Motion: transform and opacity only; with reduced motion, state changes are instant. ── */
+
+  @media (prefers-reduced-motion: no-preference) {
+    .panel:not([hidden]) {
+      animation: panel-in 200ms var(--ease-out) both;
+    }
+
+    .panel:not([hidden]) .p-in {
+      animation: menu-in 420ms var(--ease-soft) both;
+      animation-delay: calc(30ms + var(--i, 0) * 32ms);
+    }
+
+    .nav-main .nav-link:hover :global(.nav-out) {
+      transform: translate(1px, -1px);
+    }
+
+    @keyframes panel-in {
+      from {
+        opacity: 0;
+      }
+    }
+
+    @keyframes menu-in {
+      from {
+        opacity: 0;
+        transform: translate3d(0, 10px, 0);
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .site-header,
+    .bar,
+    .brand :global(.logo),
+    .brand-tag,
+    .toggle-lines span {
+      transition: none;
+    }
+  }
+
+  /* ── Tablets ── */
+
+  @media (min-width: 48rem) {
+    .brand {
+      --logo-w: 8rem;
+    }
+
+    .brand-tag {
+      font-size: var(--text-xs);
+    }
+
+    .ask.btn-sm {
+      padding: 0 1.05rem;
+    }
+
+    .ask-label {
+      display: inline;
+    }
+
+    .panel-body {
+      width: min(100% - var(--gutter) * 2, var(--container-narrow));
+      padding-top: var(--space-6);
+    }
+
+    .panel-actions {
+      padding-inline: max(var(--gutter), (100% - var(--container-narrow)) / 2);
+    }
+
+    .panel-actions .btn {
+      width: auto;
+    }
+  }
+
+  /* ── Desktop: logo, the navigation in the middle, WhatsApp ── */
+
+  @media (min-width: 64rem) {
+    .brand {
+      --logo-w: 8.75rem;
+    }
+
+    .bar {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+    }
+
+    .nav {
+      display: block;
+    }
+
+    .menu-toggle,
+    .panel {
+      display: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .nav-link[aria-current="page"]::after {
+      forced-color-adjust: none;
+      background: CanvasText;
+    }
   }
 </style>

@@ -146,10 +146,11 @@ import { site } from "../data/site";
 </script>
 
 <style is:global>
+  /* Sticks just under the site header (which tucks 0.5rem above the top edge once stuck). */
   .cp-bar {
     position: sticky;
-    top: 0;
-    z-index: 40;
+    top: calc(var(--header-h) - 0.5rem);
+    z-index: 39;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
