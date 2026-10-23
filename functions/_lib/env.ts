@@ -38,6 +38,20 @@ export interface Env {
   RAZORPAY_WEBHOOK_SECRET?: string;
 
   /**
+   * Service binding to the mailer Worker (workers/mailer/, deployed by scripts/setup.mjs). Pages
+   * Functions can't hold a send_email binding, so the Worker holds it and sends for us through
+   * Cloudflare Email Service. Read through functions/_lib/email.ts only.
+   */
+  MAILER?: Fetcher;
+  /** Shared secret the mailer Worker checks on every call (setup generates it). */
+  MAILER_KEY?: string;
+  /**
+   * "cloudflare" (send through MAILER) or "outbox" (keep messages in memory and log a line; never
+   * in production). Missing: "cloudflare" when MAILER is bound, else "outbox" outside production.
+   */
+  EMAIL_PROVIDER?: string;
+
+  /**
    * @deprecated The demo's enrollment cookie key (functions/_lib/enrollment.ts). Removed by W3 when
    * D1 sessions replace the cookie.
    */
