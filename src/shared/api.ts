@@ -95,6 +95,8 @@ export type ApiErrorCode =
   | "not_signed_in"
   | "not_enrolled"
   | "no_match"
+  /** Restore: the details match, but the account had an earlier purchase (security review F1). */
+  | "use_first_payment"
   | "token_invalid"
   | "course_incomplete"
   | "no_certificate"

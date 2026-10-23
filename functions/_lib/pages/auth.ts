@@ -145,6 +145,18 @@ export async function handleSignin(request: Request, env: Env, now = unixNow()):
       response.headers.set("Retry-After", String(result.retryAfter));
       return response;
     }
+    if (result.reason === "use_first_payment") {
+      return page(
+        signinForm(business, {
+          ...state,
+          paymentId: "",
+          error:
+            "This account has an earlier purchase. Enter the payment ID of your first purchase, or message us on WhatsApp for a sign-in link.",
+          field: "paymentId",
+        }),
+        409,
+      );
+    }
     return page(
       signinForm(business, {
         ...state,
