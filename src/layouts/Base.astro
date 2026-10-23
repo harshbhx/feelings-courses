@@ -79,9 +79,9 @@ const imageUrl = new URL(image, site.url).href;
   <body>
     {
       demo && (
-        <p class="demo-ribbon" role="note">
-          Demo preview: the price and lessons are examples, and payments run in test mode. No real money is charged.
-        </p>
+        <aside class="demo-ribbon" aria-label="Demo notice">
+          <p>Demo preview: the price and lessons are examples, and payments run in test mode. No real money is charged.</p>
+        </aside>
       )
     }
     <slot />
@@ -89,6 +89,7 @@ const imageUrl = new URL(image, site.url).href;
 </html>
 
 <style>
+  /* An <aside> (a landmark), so screen-reader users can find it and every part of the page sits in one. */
   .demo-ribbon {
     margin: 0;
     padding: 0.5rem 1rem;
@@ -97,5 +98,9 @@ const imageUrl = new URL(image, site.url).href;
     font-size: 0.8125rem;
     font-weight: var(--weight-ui);
     text-align: center;
+  }
+
+  .demo-ribbon p {
+    margin: 0;
   }
 </style>

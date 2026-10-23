@@ -56,6 +56,7 @@ const baseIcons = ["close", "check-circle", "info", "warning-circle", "arrow-cou
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{`${title} · Course admin · ${site.name}`}</title>
+    <meta name="description" content={`${title}: the course admin of ${site.name}, for courses, students, payments and settings.`} />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="referrer" content="same-origin" />
     <meta name="theme-color" content="#ffffff" />
@@ -70,7 +71,8 @@ const baseIcons = ["close", "check-circle", "info", "warning-circle", "arrow-cou
         <slot />
       ) : (
         <div class="shell">
-          <div class="sidebar">
+          {/* An <aside>, so the brand and the footer links sit in a landmark too (screen readers list it). */}
+          <aside class="sidebar" aria-label="Admin menu">
             <a class="side-brand" href="/admin/dashboard">
               <Logo width="8.75rem" />
               <span>Course admin</span>
@@ -99,7 +101,7 @@ const baseIcons = ["close", "check-circle", "info", "warning-circle", "arrow-cou
                 Sign out
               </button>
             </div>
-          </div>
+          </aside>
           <div class="main-col">
             <header class="topbar">
               <a class="tb-app" href="/admin/dashboard">

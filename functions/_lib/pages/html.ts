@@ -176,6 +176,8 @@ export function whatsappHref(business: Business, text: string): string | null {
 
 export interface LayoutOptions {
   title: string;
+  /** The meta description (the pages are noindex; it still names the page for link previews and tools). */
+  description?: string;
   business: Business;
   /** Show "My courses" and "Sign out" in the header. */
   signedIn?: boolean;
@@ -241,6 +243,7 @@ export function layout(options: LayoutOptions, content: Raw): Raw {
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#ffffff">
 <title>${options.title} | ${options.business.name}</title>
+<meta name="description" content="${options.description ?? `${options.title}: your courses with ${options.business.name}, with your lessons, progress, certificates and receipts.`}">
 <link rel="preload" href="/app/fonts/plus-jakarta-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/app/app.css">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">

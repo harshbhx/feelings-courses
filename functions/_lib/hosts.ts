@@ -8,7 +8,8 @@
  *              /c/<slug>     → 301 https://<slug>.feelingsbeautycare.in/ once that course's domain
  *                              is active (dist/domains.json, written by the build);
  *              /terms …      → the hub's /legal/<page> (LEGAL_PAGES), served in place;
- *              /robots.txt   → generated for the host.
+ *              /robots.txt   → generated for the host;
+ *              /api/<unknown> → 404 JSON (not the static 404 page).
  *   course   <slug>.feelingsbeautycare.in: the course's landing page and checkout only.
  *              /             → the static page /c/<slug> (rewritten, the URL stays /);
  *              /sitemap.xml  → /sitemaps/<slug>.xml; /robots.txt generated; /terms … as on the hub;
@@ -284,8 +285,16 @@ export async function hostRouting(context: MiddlewareContext, next: () => Promis
       }
     }
   }
-  return done(await next());
+  const res = await next();
+  // An API path no Function answers falls through to the static 404 page: API callers (the
+  // admin, checkout, scripts) get the JSON error shape instead, as on course hosts.
+  if (res.status === 404 && isApiPath(pathname) && !(res.headers.get("Content-Type") ?? "").toLowerCase().includes("json")) {
+    return done(notFoundJson());
+  }
+  return done(res);
 }
+
+const isApiPath = (pathname: string) => pathname === "/api" || pathname.startsWith("/api/");
 
 async function routeCourseHost(
   context: MiddlewareContext,
@@ -320,7 +329,7 @@ async function routeCourseHost(
   const api = COURSE_HOST_APIS.includes(pathname) || COURSE_HOST_API_PREFIXES.some((p) => pathname.startsWith(p));
   if (shared || api) return next();
 
-  if (pathname.startsWith("/api/") || pathname === "/api") return notFoundJson();
+  if (isApiPath(pathname)) return notFoundJson();
   if (!readOnly) return notFoundJson();
   return redirectTo(`${hubOrigin}${pathname}${url.search}`, 302);
 }

@@ -177,7 +177,8 @@ function renderHeader(): void {
   if (view) {
     view.href = course.domainStatus === "active" ? addr.subdomainUrl : addr.hubUrl;
     view.hidden = course.status !== "published";
-    view.setAttribute("aria-label", "View on the site (opens a new tab)");
+    // Starts with the visible words, so voice control users can say what they see (WCAG 2.5.3).
+    view.setAttribute("aria-label", "View on site (opens a new tab)");
   }
   const viewLabel = $("[data-view-label]");
   if (viewLabel) viewLabel.textContent = "View on site";
