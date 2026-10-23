@@ -106,7 +106,7 @@ Nothing was found that changes a frozen signature or the schema. No new migratio
 
 In order. Nothing here has been done to the Cloudflare or Razorpay accounts.
 
-1. **GitHub billing:** fix it (GitHub → Settings → Billing) so Actions runs. Then re-run CI on this PR: check, Functions type check, tests, `build:fast` and `check-dist.mjs`. That is the first full build of the combined code.
+1. **GitHub billing:** fix it (GitHub → Settings → Billing) so Actions runs. Then re-run CI on this PR: check, Functions type check, tests, `build:fast` and `check-dist.mjs`. That is the first full build of the combined code: `docs/CI-FIRST-RUN.md` lists what was checked before it and how to read each failure, and the `full-verify` label runs the longer Verify workflow (full build plus a `wrangler pages dev` smoke test).
 2. **Choose how to merge.** Either review and merge the individual PRs in the order of section 1 and close this one, or merge #10 into `main` and then this PR (it contains all of them, plus the fixes in section 4). If you go one by one, the section 4 fixes still have to land, so take them from this branch.
 3. **Legal wording (W7, #13):** confirm the points listed in that PR. They are the grievance officer, the 2-working-day refund start, the 7/30-day rights answers, batch cancellation, and adults only. Then tick "legal confirmed" in the admin.
 4. **Setup, preview first:** put the Razorpay **test** keys in `setup.local.json`, enable R2, create the deploy hook, then run `npm run setup -- --check`, then `--dry-run`, then the preview environment.
