@@ -1,178 +1,533 @@
 ---
-// A minimal footer: the studio, its address, and three ways to reach it. Every link is 44px tall.
+// The courses site's footer, in the main site's maroon (feelings-beauty-care, Footer.astro) so the
+// two close the same way: the logo in white, columns with small titles, the studio's address and
+// hours, round social buttons, and a legal row with "Back to top".
+//
+// Every fact comes from src/data/site.ts (kept in sync with the main site); nothing is invented.
+// Every link is at least 44px tall.
+//
+//   variant="full"     public pages: brand, Courses, The studio, Visit, legal row.
+//   variant="compact"  focused pages (payment result, the course area): one brand row, the main
+//                      links and the legal row.
+// `bleed`: on phones the footer reaches down under the room global.css keeps for the enroll bar,
+// so the page ends in maroon rather than a white strip. Pages whose body has no such room (the
+// course area) pass bleed={false}.
 import Icon from "../Icon.astro";
 import Logo from "./Logo.astro";
 import { site } from "../../data/site";
+import { buildEnv } from "../../lib/build-env";
+import { hubOrigin } from "../../lib/seo";
 import { whatsappLink } from "../../lib/whatsapp";
-import { addressLine, mainHost } from "./facts";
+import { mainHost, teacherFirstName } from "./facts";
 import { LEGAL_PAGES, type LegalPage } from "../../shared/constants";
+
+interface Props {
+  variant?: "full" | "compact";
+  bleed?: boolean;
+}
+
+const { variant = "full", bleed = true } = Astro.props;
+const hub = hubOrigin(buildEnv);
+const year = new Date().getFullYear();
 
 // /legal/* is served on every host (course hosts pass it through; /terms and friends also work there).
 const SHORT_TITLES: Record<LegalPage, string> = { terms: "Terms", refunds: "Refunds", privacy: "Privacy", delivery: "Delivery" };
 
-const year = new Date().getFullYear();
+const courseLinks = [
+  { href: `${hub}/`, label: "All courses" },
+  { href: "/account", label: "My courses" },
+  { href: "/signin", label: "Sign in" },
+  { href: "/verify", label: "Check a certificate" },
+];
+const studioLinks = [
+  { href: site.mainUrl, label: mainHost, out: true },
+  { href: site.academyUrl, label: "Makeup academy", out: true },
+  { href: "/legal#contact", label: "Contact us" },
+];
 ---
 
-<footer class="lp-footer">
-  <div class="container footer-inner">
-    <div class="footer-brand">
-      <a class="footer-logo" href={site.mainUrl} target="_blank" rel="noopener">
-        <Logo tone="white" width="9.5rem" />
-      </a>
-      <p>{site.name}, {site.address.city}. Since {site.foundedYear}.</p>
-      <address>
-        <Icon name="map-pin" />
-        <span>{addressLine}</span>
-      </address>
-    </div>
+<footer class:list={["site-footer", `is-${variant}`, { "is-bleed": bleed }]}>
+  <div class="container">
+    {
+      variant === "full" ? (
+        <div class="cols">
+          <div class="brand">
+            <div class="brand-id">
+              <a class="brand-link" href="/" aria-label={`${site.name} courses, home`}>
+                <Logo width="var(--logo-w)" tone="white" decorative />
+              </a>
+              <p>
+                Makeup courses by {site.founder}, from {site.name}, {site.address.city}. Since {site.foundedYear}.
+              </p>
+            </div>
+            <ul class="social" aria-label="Social media and WhatsApp">
+              <li>
+                <a href={site.social.instagram} target="_blank" rel="noopener">
+                  <Icon name="instagram" label="Instagram" />
+                </a>
+              </li>
+              <li>
+                <a href={site.social.youtube} target="_blank" rel="noopener">
+                  <Icon name="youtube" label="YouTube" />
+                </a>
+              </li>
+              <li>
+                <a href={whatsappLink()} target="_blank" rel="noopener">
+                  <Icon name="whatsapp" label={`Ask ${teacherFirstName} on WhatsApp`} />
+                </a>
+              </li>
+            </ul>
+          </div>
 
-    <ul class="footer-links" aria-label="Contact and links">
-      <li>
-        <a href={site.mainUrl} target="_blank" rel="noopener">
-          <Icon name="arrow-up-right" />
-          {mainHost}
-        </a>
-      </li>
-      <li>
-        <a href={site.social.instagram} target="_blank" rel="noopener">
-          <Icon name="instagram" />
-          Instagram
-        </a>
-      </li>
-      <li>
-        <a href={whatsappLink()} target="_blank" rel="noopener">
-          <Icon name="whatsapp" />
-          WhatsApp
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div class="container footer-legal">
-    <p>© {year} {site.name}</p>
-    <ul class="footer-policies" aria-label="Policies">
-      {
-        LEGAL_PAGES.map((page) => (
-          <li>
-            <a href={`/legal/${page}`}>{SHORT_TITLES[page]}</a>
-          </li>
-        ))
-      }
-      <li><a href="/legal">Contact</a></li>
-    </ul>
+          {/* Column titles are labels, not headings (as on the main site): the navs carry their own names. */}
+          <nav class="col" aria-label="Courses">
+            <p class="col-title">Courses</p>
+            <ul class="links">
+              {courseLinks.map((l) => (
+                <li>
+                  <a href={l.href}>{l.label}</a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <nav class="col" aria-label="The studio">
+            <p class="col-title">The studio</p>
+            <ul class="links">
+              {studioLinks.map((l) => (
+                <li>
+                  <a href={l.href}>
+                    {l.label}
+                    {l.out && <Icon name="arrow-up-right" class="icon out" />}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <section class="col visit" aria-labelledby="footer-visit">
+            <p class="col-title" id="footer-visit">
+              Visit
+            </p>
+            <address>
+              {site.address.street}
+              <br />
+              {site.address.landmark}, {site.address.city} {site.address.postalCode}
+            </address>
+            <a class="directions" href={site.directionsUrl} target="_blank" rel="noopener">
+              <Icon name="navigation" />
+              Get directions
+            </a>
+            <dl class="hours">
+              {site.hours.map((h) => (
+                <div>
+                  <dt>
+                    <abbr title={h.label}>{h.short}</abbr>
+                  </dt>
+                  <dd>{h.time}</dd>
+                </div>
+              ))}
+            </dl>
+            <a class="directions tabular" href={`tel:${site.phone.tel}`}>
+              <Icon name="phone" />
+              {site.phone.display}
+            </a>
+          </section>
+        </div>
+      ) : (
+        <div class="compact">
+          <a class="brand-link" href={site.mainUrl} aria-label={`${site.name}, main site`}>
+            <Logo width="8rem" tone="white" decorative />
+          </a>
+          <p class="compact-line">
+            {site.name}, {site.address.city}. Since {site.foundedYear}.
+          </p>
+          <ul class="compact-links" aria-label="Links">
+            <li>
+              <a href={`${hub}/`}>All courses</a>
+            </li>
+            <li>
+              <a href={whatsappLink()} target="_blank" rel="noopener">
+                <Icon name="whatsapp" />
+                WhatsApp
+              </a>
+            </li>
+            <li>
+              <a href={site.social.instagram} target="_blank" rel="noopener">
+                <Icon name="instagram" />
+                Instagram
+              </a>
+            </li>
+            <li>
+              <a href={site.mainUrl}>
+                {mainHost}
+                <Icon name="arrow-up-right" class="icon out" />
+              </a>
+            </li>
+          </ul>
+        </div>
+      )
+    }
+
+    <div class="legal">
+      <p>© {year} {site.name}, {site.address.city}</p>
+      <ul class="policies" aria-label="Policies">
+        {
+          LEGAL_PAGES.map((page) => (
+            <li>
+              <a href={`/legal/${page}`}>{SHORT_TITLES[page]}</a>
+            </li>
+          ))
+        }
+      </ul>
+      <a class="top" href="#main">
+        <span class="top-label">Back to top</span>
+        <Icon name="arrow-up" />
+      </a>
+    </div>
   </div>
 </footer>
 
 <style>
-  .lp-footer {
-    padding-block: var(--space-8) var(--space-5);
+  .site-footer {
+    padding-top: var(--space-7);
     background: var(--bg-deepest);
     color: var(--text-on-deep-muted);
     font-size: var(--text-sm);
   }
 
-  .lp-footer :focus-visible {
-    outline-color: var(--white);
-  }
-
-  .footer-inner {
-    display: grid;
-    gap: var(--space-6);
-  }
-
-  .footer-brand {
-    display: grid;
-    gap: var(--space-3);
-    justify-items: start;
-  }
-
-  .footer-logo {
-    display: inline-flex;
-    align-items: center;
-    min-height: 2.75rem;
-    margin-bottom: var(--space-2);
-  }
-
-  address {
-    display: flex;
-    gap: var(--space-2);
-    max-width: 26rem;
-    font-style: normal;
-    line-height: 1.5;
-  }
-
-  address :global(.icon) {
-    width: 1.1rem;
-    height: 1.1rem;
-    margin-top: 0.15rem;
-  }
-
-  .footer-links {
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0 var(--space-5);
-  }
-
-  .footer-links a {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    min-height: 2.75rem;
-    color: var(--text-on-deep);
-    font-weight: var(--weight-ui);
+  .site-footer a {
+    color: inherit;
     text-decoration: none;
+    transition: color var(--dur-fast) var(--ease-out);
   }
 
-  .footer-links a:hover {
-    text-decoration: underline;
-    text-decoration-color: var(--border-on-deep);
+  .site-footer :focus-visible {
+    outline-color: var(--text-on-deep);
   }
 
-  .footer-links :global(.icon) {
-    width: 1.15rem;
-    height: 1.15rem;
+  .site-footer :global(.icon) {
+    width: 1.1em;
+    height: 1.1em;
+    flex: none;
   }
 
-  .footer-legal {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-5);
+  .site-footer :global(.out) {
+    width: 0.9em;
+    height: 0.9em;
+    opacity: 0.8;
+  }
+
+  /* ── Full: brand and three columns ──
+     Phones: the brand, then Courses beside The studio, then Visit.
+     Tablets: the brand as a row, then three columns. Desktop: four columns, the brand first. */
+
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-6) var(--space-5);
+    padding-bottom: var(--space-6);
+  }
+
+  .brand,
+  .visit {
+    grid-column: 1 / -1;
+  }
+
+  .brand {
+    --logo-w: 10rem;
+    display: grid;
+    gap: var(--space-5);
+    padding-bottom: var(--space-6);
+    border-bottom: 1px solid var(--border-on-deep);
+  }
+
+  .brand-id {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-3);
+    max-width: 22rem;
+  }
+
+  .brand-id p {
+    margin: 0;
+    line-height: 1.55;
+  }
+
+  .brand-link {
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    margin-top: var(--space-6);
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--border-on-deep);
+    min-height: 2.75rem;
   }
 
-  .footer-policies {
+  .social {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0 var(--space-4);
+    gap: var(--space-2);
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  .footer-policies a {
-    display: inline-flex;
-    min-height: 44px;
-    align-items: center;
-    color: inherit;
+  /* Hover fills the circle white, with the icon in maroon. */
+  .social a {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 1px solid var(--border-on-deep);
+    border-radius: 50%;
+    color: var(--text-on-deep);
+    transition:
+      color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
   }
 
-  /* Phones: global.css pads the body for the enroll bar. The footer reaches down under that
-     padding, so the page ends in maroon rather than a white strip. */
+  .site-footer .social a:hover {
+    background: var(--text-on-deep);
+    border-color: var(--text-on-deep);
+    color: var(--bg-deepest);
+  }
+
+  .site-footer .social :global(.icon) {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .col-title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-strong);
+    line-height: var(--leading-snug);
+    color: var(--text-on-deep);
+  }
+
+  .links {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .links a,
+  .directions,
+  .compact-links a,
+  .policies a,
+  .top {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.75rem;
+  }
+
+  .site-footer :is(.links a, .directions, .compact-links a, .policies a, .top):hover {
+    color: var(--text-on-deep);
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
+  }
+
+  address {
+    margin-top: var(--space-2);
+    font-style: normal;
+    line-height: 1.6;
+  }
+
+  .directions {
+    color: var(--text-on-deep);
+    font-weight: var(--weight-strong);
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hours {
+    display: grid;
+    gap: var(--space-1);
+    margin: var(--space-1) 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hours div {
+    display: flex;
+    gap: var(--space-3);
+  }
+
+  .hours dt {
+    min-width: 4.5em;
+    color: var(--text-on-deep);
+    font-weight: var(--weight-ui);
+  }
+
+  .hours abbr {
+    text-decoration: none;
+  }
+
+  .hours dd {
+    margin: 0;
+  }
+
+  /* ── Compact ── */
+
+  .compact {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-2);
+    padding-bottom: var(--space-4);
+  }
+
+  .compact-line {
+    margin: 0;
+  }
+
+  .compact-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .compact-links a {
+    color: var(--text-on-deep);
+    font-weight: var(--weight-ui);
+  }
+
+  /* ── Legal row ── */
+
+  .legal {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0 var(--space-5);
+    padding-block: var(--space-2);
+    border-top: 1px solid var(--border-on-deep);
+  }
+
+  .legal p {
+    margin: 0;
+    padding-block: var(--space-3);
+  }
+
+  .policies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* Short words ("Terms") still make a 44px-wide target. */
+  .policies a {
+    justify-content: center;
+    min-width: 2.75rem;
+  }
+
+  .top :global(.icon) {
+    width: 1em;
+    height: 1em;
+  }
+
+  /* Phones: the policies take their own row; "Back to top" is a round button beside the
+     copyright line, its words kept for screen readers. */
   @media (max-width: 47.99rem) {
-    .lp-footer {
+    .legal p {
+      flex: 1;
+    }
+
+    .policies {
+      order: 3;
+      flex-basis: 100%;
+    }
+
+    .top {
+      position: relative;
+      flex: none;
+      justify-content: center;
+      width: 2.75rem;
+      border: 1px solid var(--border-on-deep);
+      border-radius: 50%;
+      color: var(--text-on-deep);
+    }
+
+    .site-footer .top:hover {
+      border-color: var(--text-on-deep);
+      text-decoration: none;
+    }
+
+    .top-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    .site-footer .top :global(.icon) {
+      width: 1.1rem;
+      height: 1.1rem;
+    }
+
+    .is-bleed {
       margin-bottom: calc((var(--mobile-bar-h) + env(safe-area-inset-bottom)) * -1);
-      padding-bottom: calc(var(--space-5) + var(--mobile-bar-h) + env(safe-area-inset-bottom));
+      padding-bottom: calc(var(--mobile-bar-h) + env(safe-area-inset-bottom));
     }
   }
 
   @media (min-width: 48rem) {
-    .footer-inner {
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: end;
+    .site-footer {
+      padding-top: var(--space-8);
+    }
+
+    .cols {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
+      gap: var(--space-7) var(--space-6);
+      padding-bottom: var(--space-7);
+    }
+
+    .brand {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+
+    .visit {
+      grid-column: auto;
+    }
+
+    .is-compact {
+      padding-top: var(--space-6);
+    }
+
+    .legal {
+      padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .compact {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      column-gap: var(--space-5);
+    }
+
+    .cols {
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
+      gap: var(--space-6);
+    }
+
+    .brand {
+      grid-column: auto;
+      display: grid;
+      align-content: start;
+      padding-bottom: 0;
+      border-bottom: 0;
     }
   }
 </style>

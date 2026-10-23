@@ -12,6 +12,7 @@ import { getSetting } from "../db/settings.ts";
 import type { Db } from "../db/d1.ts";
 import { securityHeaders } from "../http.ts";
 import { ICON_PATHS, type IconName } from "./icons.ts";
+import { site } from "../../../src/data/site.ts";
 
 // ---------------------------------------------------------------- escaping
 
@@ -229,6 +230,7 @@ const LEGAL_LINKS = [
   { href: "/refunds", label: "Refunds" },
   { href: "/privacy", label: "Privacy" },
 ];
+const MAIN_HOST = new URL(site.mainUrl).host;
 
 export function layout(options: LayoutOptions, content: Raw): Raw {
   const help = whatsappHref(options.business, "Hi Urmi, I need help with my course account.");
@@ -250,15 +252,17 @@ ${options.script ? html`<script type="module" src="/app/learn.js"></script>` : "
 <a class="skip" href="#main">Skip to content</a>
 <header class="top">
   <div class="wrap${options.wide ? " wide" : ""} top-row">
-    <a class="brand" href="${options.signedIn ? "/account" : "/"}"><img class="brand-mark" src="/favicon.svg" alt="" width="32" height="32"><span class="brand-text">${options.business.name}<span class="brand-sub">Courses</span></span></a>
+    <a class="brand" href="${options.signedIn ? "/account" : "/"}"><span class="brand-logo" aria-hidden="true"></span><span class="visually-hidden">${options.business.name} </span><span class="brand-sub">Courses</span></a>
+    <nav class="top-nav" aria-label="Main">
+    <a class="nav-link nav-wide" href="/">${icon("squares-four")}<span>All courses</span></a>
     ${
       options.signedIn
-        ? html`<nav class="top-nav" aria-label="Account">
-    <a class="nav-link" href="/account"${options.current === "account" ? raw(` aria-current="page"`) : ""}>${icon("book-open-text")}<span>My courses</span></a>
-    <form method="post" action="/learn/logout"><button type="submit" class="nav-link">${icon("sign-out")}<span class="nav-label-optional">Sign out</span></button></form>
-  </nav>`
-        : ""
+        ? html`<a class="nav-link" href="/account"${options.current === "account" ? raw(` aria-current="page"`) : ""}>${icon("book-open-text")}<span>My courses</span></a>
+    <form method="post" action="/learn/logout"><button type="submit" class="nav-link">${icon("sign-out")}<span class="nav-label-optional">Sign out</span></button></form>`
+        : html`<a class="nav-link" href="/signin">${icon("user")}<span>Sign in</span></a>`
     }
+    ${help ? html`<a class="nav-link nav-wide" href="${help}" rel="noopener noreferrer" target="_blank">${icon("whatsapp")}<span>Help</span></a>` : ""}
+  </nav>
   </div>
 </header>
 <main id="main" class="wrap${options.wide ? " wide" : ""}">
@@ -266,8 +270,20 @@ ${content}
 </main>
 <footer class="foot">
   <div class="wrap${options.wide ? " wide" : ""} foot-row">
-    ${help ? html`<a href="${help}" rel="noopener noreferrer" target="_blank">${icon("whatsapp")}Need help? Message us on WhatsApp</a>` : html`<span>${options.business.name}</span>`}
-    <nav class="foot-links" aria-label="Policies">${LEGAL_LINKS.map((l) => html`<a href="${l.href}">${l.label}</a>`)}</nav>
+    <div class="foot-brand">
+      <a class="foot-logo" href="${site.mainUrl}"><span class="brand-logo" aria-hidden="true"></span><span class="visually-hidden">${options.business.name}, main site</span></a>
+      <p>${options.business.name}, ${site.address.city}. Since ${site.foundedYear}.</p>
+    </div>
+    <ul class="foot-links" aria-label="Help and links">
+      ${help ? html`<li><a href="${help}" rel="noopener noreferrer" target="_blank">${icon("whatsapp")}Need help? Message us on WhatsApp</a></li>` : ""}
+      <li><a href="/">All courses</a></li>
+      <li><a href="${site.social.instagram}" rel="noopener noreferrer" target="_blank">${icon("instagram")}Instagram</a></li>
+      <li><a href="${site.mainUrl}">${MAIN_HOST}${icon("arrow-up-right")}</a></li>
+    </ul>
+  </div>
+  <div class="wrap${options.wide ? " wide" : ""} foot-legal">
+    <p>© ${new Date().getUTCFullYear()} ${options.business.name}</p>
+    <nav class="foot-policies" aria-label="Policies">${LEGAL_LINKS.map((l) => html`<a href="${l.href}">${l.label}</a>`)}</nav>
   </div>
 </footer>
 </body>

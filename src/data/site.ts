@@ -24,6 +24,14 @@ export const site = {
     country: "IN",
   },
 
+  // The studio's hours and its map pin, copied from the main site (2026-10-23), where they match
+  // the Google Business Profile. CONFIRM there before go-live; the footer shows them.
+  hours: [
+    { label: "Monday to Saturday", short: "Mon–Sat", time: "10 am – 8 pm" },
+    { label: "Sunday", short: "Sun", time: "10 am – 1 pm" },
+  ],
+  directionsUrl: "https://www.google.com/maps/dir/?api=1&destination=22.4606479%2C70.0565093",
+
   social: {
     instagram: "https://www.instagram.com/feelingsbeautycare/",
     youtube: "https://www.youtube.com/@feelingsbeautycare",

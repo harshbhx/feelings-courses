@@ -42,15 +42,21 @@ try {
       await page.keyboard.press("Tab");
       // Reduced motion still runs a 0.01 ms transition on every property (the usual pattern), so
       // read the style after two frames, not on the same tick as the focus change.
-      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-      const skip = await page.evaluate(() => {
-        const el = document.activeElement;
-        if (!el || !el.classList.contains("skip")) return "not the skip link";
-        const box = el.getBoundingClientRect();
-        const style = getComputedStyle(el);
-        if (box.bottom > 0 && style.outlineStyle !== "none") return null;
-        return `skip link not visible (bottom ${Math.round(box.bottom)}, outline ${style.outlineStyle}, transform ${style.transform}, display ${style.display})`;
-      });
+      // Poll for up to a second: on a busy runner the focus transition can outlast two frames.
+      let skip = null;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        skip = await page.evaluate(() => {
+          const el = document.activeElement;
+          if (!el || !el.classList.contains("skip")) return "not the skip link";
+          const box = el.getBoundingClientRect();
+          const style = getComputedStyle(el);
+          if (box.bottom > 0 && style.outlineStyle !== "none") return null;
+          return `skip link not visible (bottom ${Math.round(box.bottom)}, outline ${style.outlineStyle}, transform ${style.transform}, display ${style.display})`;
+        });
+        if (!skip) break;
+        await page.waitForTimeout(100);
+      }
       if (skip) problems.push(`${file} @${viewport.name}: first Tab: ${skip}`);
     }
     await context.close();

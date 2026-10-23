@@ -1,9 +1,10 @@
 ---
-// The course area's footer: where progress is kept, logging out of this device, the main site.
-import { site } from "../../data/site";
+// The course area's footer: where progress is kept and logging out of this device, on a soft band,
+// then the site's compact footer (the studio, the main links, policies), as on every other page.
+import Footer from "../landing/Footer.astro";
 ---
 
-<footer class="learn-footer">
+<section class="learn-device" aria-label="This device">
   <div class="container inner">
     <p class="saved">Your ticks are saved in this browser, on this device only.</p>
     <details class="logout">
@@ -15,17 +16,14 @@ import { site } from "../../data/site";
         </form>
       </div>
     </details>
-    <p class="studio">
-      {site.name}, {site.address.city}, since {site.foundedYear}.
-      <a href={site.mainUrl}>{site.mainUrl.replace("https://", "")}</a>
-    </p>
   </div>
-</footer>
+</section>
+<Footer variant="compact" bleed={false} />
 
 <style>
-  .learn-footer {
+  .learn-device {
     margin-top: var(--space-8);
-    padding-block: var(--space-6);
+    padding-block: var(--space-5);
     border-top: 1px solid var(--border);
     background: var(--bg-soft);
     font-size: var(--text-sm);
@@ -37,11 +35,8 @@ import { site } from "../../data/site";
     gap: var(--space-3);
   }
 
-  .studio a {
-    display: inline-block;
-    padding-block: var(--space-2);
-    color: var(--text);
-    font-weight: var(--weight-ui);
+  .saved {
+    margin: 0;
   }
 
   .logout summary {
@@ -71,13 +66,8 @@ import { site } from "../../data/site";
   @media (min-width: 64rem) {
     .inner {
       grid-template-columns: 1fr auto;
-      align-items: start;
+      align-items: center;
       column-gap: var(--space-7);
-    }
-
-    .logout {
-      grid-row: span 2;
-      justify-self: end;
     }
   }
 </style>
