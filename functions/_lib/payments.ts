@@ -22,6 +22,7 @@ import type { PaymentMode, QuoteFailure } from "../../src/shared/types.ts";
 import { MIN_CHARGE_PAISE } from "../../src/shared/constants.ts";
 import { bump, statDay } from "./analytics.ts";
 import { handleOrder, handleVerify, parseBuyer } from "./checkout.ts";
+import { purchaseOpensAccount } from "./claim.ts";
 import { ConfigError, config, razorpayMode, requireSecret } from "./config.ts";
 import { sha256Hex } from "./crypto.ts";
 import { maybeRunDaily } from "./daily.ts";
@@ -32,7 +33,7 @@ import { isUniqueViolation } from "./db/errors.ts";
 import { getSetting } from "./db/settings.ts";
 import { batch, changes, lastId } from "./db/tx.ts";
 import { hasDb, type Env } from "./env.ts";
-import { clientIp, error, errorResponse, isJson, json, methodNotAllowed, readBody, readJson, redirect, sameOrigin } from "./http.ts";
+import { error, errorResponse, isJson, json, methodNotAllowed, readBody, readJson, redirect, sameOrigin } from "./http.ts";
 import {
   fulfilOrderDb,
   getOrderByRazorpayId,
@@ -43,6 +44,7 @@ import {
   type PaymentKeys,
 } from "./orders.ts";
 import { normaliseCouponCode, quote } from "./pricing.ts";
+import { ipSubject } from "./guard.ts";
 import { hit } from "./ratelimit.ts";
 import {
   RazorpayError,
@@ -121,7 +123,7 @@ export async function handleCouponQuote(request: Request, env: Env, now = unixNo
   if (!hasDb(env)) return error(503, "platform_not_configured", "This part of the site isn't set up yet.");
   const db: Db = env.DB;
   try {
-    const limited = await rateLimited(db, "coupon_quote_ip", clientIp(request), now);
+    const limited = await rateLimited(db, "coupon_quote_ip", ipSubject(request), now);
     if (limited) return limited;
     const body = await readJson(request);
     if (!body.ok) return body.response;
@@ -211,7 +213,7 @@ export async function handleLiveOrder(request: Request, env: Env, now = unixNow(
     if (Object.keys(fields).length) return error(400, "invalid_details", "Please check your details.", { fields });
 
     // ---- rate limits (per IP, and per phone so one number can't be flooded with orders)
-    const byIp = await rateLimited(db, "order_ip", clientIp(request), now);
+    const byIp = await rateLimited(db, "order_ip", ipSubject(request), now);
     if (byIp) return byIp;
     const byPhone = await rateLimited(db, "order_phone", await sha256Hex(buyer.phone!), now);
     if (byPhone) return byPhone;
@@ -461,8 +463,12 @@ async function freeEnrollment(
   if (!(await hasActiveEnrollment(db, studentId, courseId, "live", now))) return quoteError("coupon_used_up");
   // Recorded lessons open the course area; a studio-only booking has none, so it lands on the account.
   const target = course?.format === "in_person" ? "/account" : `/learn/${input.courseSlug}`;
-  const handoff = await handoffUrl(env, db, studentId, target);
-  return json({ mode: "free", redirect: handoff ?? "/thank-you" } satisfies OrderResponse);
+  // A free enrollment proves even less than a payment: it opens only a brand-new account
+  // (claim.ts, security review F1). An existing customer signs in as usual and finds it there.
+  const opens = await purchaseOpensAccount(db, studentId, { orderId: null, courseId, since: now }, now);
+  const handoff = opens ? await handoffUrl(env, db, studentId, target) : null;
+  const signin = `${config(env).hubOrigin}/signin?next=${encodeURIComponent(target)}`;
+  return json({ mode: "free", redirect: handoff ?? (opens ? "/thank-you" : signin) } satisfies OrderResponse);
 }
 
 // ---------------------------------------------------------------- POST /api/verify
@@ -581,7 +587,11 @@ async function confirmPayment(env: Env, db: Db, ids: Payload, now: number): Prom
   // A sign-in link only right after the payment: an old (order, payment, signature) triple seen
   // later must not become a way into the student's account.
   const recent = fresh?.paid_at !== null && fresh?.paid_at !== undefined && now - fresh.paid_at <= HANDOFF_WINDOW;
-  const handoff = recent ? await handoffUrl(env, db, result.studentId, receiptRelative ?? "/account") : null;
+  // Nobody checks that the buyer owns the phone number, so a payment only opens the account when
+  // it is the account's first purchase (claim.ts, security review F1). Otherwise: the receipt.
+  const opens =
+    recent && (await purchaseOpensAccount(db, result.studentId, { orderId: order.id, courseId: order.course_id, since: order.created_at }, now));
+  const handoff = opens ? await handoffUrl(env, db, result.studentId, receiptRelative ?? "/account") : null;
   return { ok: true, redirect: handoff ?? receipt ?? "/thank-you", receipt };
 }
 

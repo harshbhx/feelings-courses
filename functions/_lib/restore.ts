@@ -18,13 +18,14 @@
  *   and is then fulfilled through W2's fulfilOrder (idempotent with verify and the webhook).
  */
 import type { RazorpayPayment } from "../../src/shared/types.ts";
+import { purchaseOpensAccount } from "./claim.ts";
 import { config, ConfigError, razorpayMode, requireSecret, type RateLimitName } from "./config.ts";
 import { sha256Hex, timingSafeEqual } from "./crypto.ts";
 import { unixNow, type Db } from "./db/d1.ts";
 import { ValidationError } from "./db/errors.ts";
 import * as v from "./db/validate.ts";
 import type { Env } from "./env.ts";
-import { clientIp } from "./http.ts";
+import { ipSubject } from "./guard.ts";
 import { fulfilOrder } from "./orders.ts";
 import { hit } from "./ratelimit.ts";
 import { fetchRazorpayPayment, RazorpayError } from "./razorpay.ts";
@@ -36,7 +37,13 @@ export const PAYMENT_ID_RE = /^pay_[A-Za-z0-9]{8,40}$/;
 export type RestoreResult =
   | { ok: true; studentId: number; orderId: number; via: "order" | "razorpay" }
   | { ok: false; reason: "rate_limited"; retryAfter: number }
-  | { ok: false; reason: "no_match" };
+  | { ok: false; reason: "no_match" }
+  /**
+   * The details match a paid order, but the account had an earlier purchase (claim.ts, security
+   * review F1): sign in with the first purchase's payment ID, or ask for a link on WhatsApp. Only
+   * someone holding a paid order for this contact ever sees this answer.
+   */
+  | { ok: false; reason: "use_first_payment" };
 
 export interface RestoreInput {
   contact: string;
@@ -103,6 +110,8 @@ async function limited(db: Db, rules: [RateLimitName, string][], now: number): P
 interface StoredOrder {
   id: number;
   student_id: number;
+  course_id: number;
+  created_at: number;
   status: string;
   phone: string | null;
   email: string | null;
@@ -122,7 +131,7 @@ export async function restoreAccess(
 ): Promise<RestoreResult> {
   const db = env.DB;
   // The IP counts every attempt, even malformed ones.
-  const ipWait = await limited(db, [["restore_ip", clientIp(request)]], now);
+  const ipWait = await limited(db, [["restore_ip", ipSubject(request)]], now);
   if (ipWait !== null) return { ok: false, reason: "rate_limited", retryAfter: ipWait };
 
   const contact = normalizeContact(body.contact);
@@ -139,7 +148,7 @@ export async function restoreAccess(
 
   const order = await db
     .prepare(
-      "SELECT o.id, o.student_id, o.status, s.phone, s.email, o.payer_contact, o.payer_email " +
+      "SELECT o.id, o.student_id, o.course_id, o.created_at, o.status, s.phone, s.email, o.payer_contact, o.payer_email " +
         "FROM orders o JOIN students s ON s.id = o.student_id WHERE o.razorpay_payment_id = ? AND s.erased_at IS NULL",
     )
     .bind(paymentId)
@@ -148,16 +157,20 @@ export async function restoreAccess(
   if (order) {
     const matches = await contactMatches(contact, [order.phone, order.email, order.payer_contact, order.payer_email]);
     const paid = order.status === "paid" || order.status === "partially_refunded";
-    return matches && paid ? { ok: true, studentId: order.student_id, orderId: order.id, via: "order" } : { ok: false, reason: "no_match" };
+    if (!matches || !paid) return { ok: false, reason: "no_match" };
+    if (!(await purchaseOpensAccount(db, order.student_id, { orderId: order.id, courseId: order.course_id, since: order.created_at }, now))) {
+      return { ok: false, reason: "use_first_payment" };
+    }
+    return { ok: true, studentId: order.student_id, orderId: order.id, via: "order" };
   }
 
   // Burn the same compares as above, then try Razorpay's own record.
   await contactMatches(contact, []);
-  return restoreFromRazorpay(env, contact, paymentId);
+  return restoreFromRazorpay(env, contact, paymentId, now);
 }
 
 /** The fallback for a captured payment D1 hasn't recorded yet. Any doubt is "no_match". */
-async function restoreFromRazorpay(env: Env, contact: string, paymentId: string): Promise<RestoreResult> {
+async function restoreFromRazorpay(env: Env, contact: string, paymentId: string, now: number): Promise<RestoreResult> {
   const noMatch: RestoreResult = { ok: false, reason: "no_match" };
   let keyId: string;
   let keySecret: string;
@@ -185,12 +198,22 @@ async function restoreFromRazorpay(env: Env, contact: string, paymentId: string)
   }
 
   const order = await env.DB.prepare(
-    "SELECT o.id, o.student_id, o.status, s.phone, s.email, o.amount_paise, o.mode " +
+    "SELECT o.id, o.student_id, o.course_id, o.created_at, o.status, s.phone, s.email, o.amount_paise, o.mode " +
       "FROM orders o JOIN students s ON s.id = o.student_id " +
       "WHERE o.razorpay_order_id = ? AND o.status IN ('created', 'failed') AND s.erased_at IS NULL",
   )
     .bind(payment.order_id)
-    .first<{ id: number; student_id: number; status: string; phone: string | null; email: string | null; amount_paise: number; mode: string }>();
+    .first<{
+      id: number;
+      student_id: number;
+      course_id: number;
+      created_at: number;
+      status: string;
+      phone: string | null;
+      email: string | null;
+      amount_paise: number;
+      mode: string;
+    }>();
   if (!order || order.amount_paise !== payment.amount || order.mode !== mode) return noMatch;
   if (!(await contactMatches(contact, [order.phone, order.email, payment.contact, payment.email]))) return noMatch;
 
@@ -211,6 +234,9 @@ async function restoreFromRazorpay(env: Env, contact: string, paymentId: string)
       },
     });
     if (!result.ok || result.studentId !== order.student_id) return noMatch;
+    if (!(await purchaseOpensAccount(env.DB, order.student_id, { orderId: order.id, courseId: order.course_id, since: order.created_at }, now))) {
+      return { ok: false, reason: "use_first_payment" };
+    }
     return { ok: true, studentId: order.student_id, orderId: order.id, via: "razorpay" };
   } catch (err) {
     if (!(err instanceof NotImplementedError)) console.error(`restore: fulfil failed: ${err instanceof Error ? err.message : "unknown error"}`);
