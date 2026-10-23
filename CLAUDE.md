@@ -54,6 +54,7 @@ The site is becoming the production course platform (8 workstreams, W0 to W7). *
   - Enroll buttons: `data-enroll` opens `src/components/checkout/Checkout.astro`; the result pages read `src/data/course.ts`.
   - The `fbc_enroll` cookie (`functions/_lib/enrollment.ts`), which W3 replaces with D1 sessions.
   - Course facts in `src/data/course.ts`. Business facts in `src/data/site.ts`, kept in sync with the main site.
+- **Student pages' look:** the pages Functions render (sign-in, account, course area, certificates, receipts) share `public/app/app.css` and the frame in `functions/_lib/pages/html.ts`; no inline style on them (CSP). `scripts/preview-student-pages.mjs` writes every state to static HTML; `docs/design/LEARNER-UX.md` has the design notes and the screenshot workflow.
 - **Tests:** `npm test` runs `tests/**/*.test.mjs` (Node 22.13+ `node:test`, D1 shim on `node:sqlite`, fakes for R2 and Razorpay in `tests/helpers/`) plus the two suites in `scripts/`. CI (`.github/workflows/ci.yml`) runs check, the Functions type check, tests and the build on every PR.
 
 ## Payments (Razorpay)
