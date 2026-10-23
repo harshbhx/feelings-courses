@@ -150,6 +150,8 @@ try {
         page.on("console", (msg) => {
           if (msg.type() !== "error") return;
           if (/^Failed to load resource/.test(msg.text()) && msg.location().url === target.url) return;
+          // The admin sign-in screen asks whether a session exists already; a 401 is the answer "no".
+          if (/status of 401/.test(msg.text()) && msg.location().url.endsWith("/api/admin/me") && !needsAdmin(target)) return;
           consoleErrors.push(`${msg.text()} (${msg.location().url || "?"})`);
         });
         try {

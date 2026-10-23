@@ -4,6 +4,9 @@ import { $, fill, h, icon, ready } from "./dom";
 import { duration, inr, plural } from "./format";
 import { coverImage } from "./covers";
 
+/** The card image's rendered width per layout (catalog.astro's grid): 1, 2 or 3 columns. */
+const CARD_SIZES = "(min-width: 64rem) 22rem, (min-width: 40rem) 45vw, calc(100vw - 2.5rem)";
+
 function card(c: Course): HTMLElement {
   const img = coverImage(c.cover, c.title);
   const href = c.main ? "/" : `/course?id=${encodeURIComponent(c.id)}`;
@@ -14,7 +17,12 @@ function card(c: Course): HTMLElement {
     h(
       "a",
       { class: "cat-card", href },
-      h("span", { class: "cat-media" }, h("img", { src: img.src, alt: "", width: 480, height: 600, decoding: "async" })),
+      h(
+        "span",
+        { class: "cat-media" },
+        // Same sizes as the first card in catalog.astro, so the browser picks the same file.
+        h("img", { ...(img.srcset ? { srcset: img.srcset, sizes: CARD_SIZES } : {}), src: img.src, alt: "", width: 480, height: 600, decoding: "async" }),
+      ),
       h(
         "span",
         { class: "cat-body" },

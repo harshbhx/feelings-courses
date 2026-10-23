@@ -70,8 +70,16 @@ module.exports = {
           assertions: { ...assertions, "resource-summary:script:size": max(SCRIPT_BUDGET.admin) },
         },
         {
-          matchingUrlPattern: "^http://127\\.0\\.0\\.1:8790/|^http://127\\.0\\.0\\.1:8788/(signin|verify)",
+          matchingUrlPattern: "^http://127\\.0\\.0\\.1:8790/(?!receipt)|^http://127\\.0\\.0\\.1:8788/(signin|verify)",
           assertions: { ...assertions, "resource-summary:script:size": max(SCRIPT_BUDGET.learner) },
+        },
+        {
+          // The receipt's policy is the strictest on the site (default-src 'none', no connect-src:
+          // functions/_lib/receipts.ts), so Lighthouse's in-page fetch of /robots.txt is refused and
+          // its robots-txt audit fails (SEO 88). Search engines fetch robots.txt themselves and the
+          // receipt is personal and noindex; loosening the policy for an audit tool isn't worth it.
+          matchingUrlPattern: "^http://127\\.0\\.0\\.1:8790/receipt",
+          assertions: { ...assertions, "categories:seo": min(0.85), "resource-summary:script:size": max(SCRIPT_BUDGET.learner) },
         },
         {
           matchingUrlPattern: "^http://(127\\.0\\.0\\.1|selfmakeup\\.localhost):8788/(?!admin|signin|verify)",
