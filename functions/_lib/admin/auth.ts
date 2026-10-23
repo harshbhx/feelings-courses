@@ -31,6 +31,7 @@ import { getSetting, setSettingStatement } from "../db/settings.ts";
 import { batch } from "../db/tx.ts";
 import type { Env } from "../env.ts";
 import { clientIp } from "../http.ts";
+import { ipSubject } from "../guard.ts";
 import { hit } from "../ratelimit.ts";
 
 /** The audit log's actor for everything done in the admin. */
@@ -242,7 +243,8 @@ export async function login(env: Env, request: Request, rawPassword: unknown, no
   if (until !== null) return { ok: false, status: 429, code: "admin_locked", retryAfter: until - now };
 
   const ip = clientIp(request);
-  const perIp = await hit(db, "admin_login_ip", ip, { now });
+  // Counted per /64 for IPv6 (guard.ts ipSubject): one phone or home can't rotate past the limit.
+  const perIp = await hit(db, "admin_login_ip", ipSubject(request), { now });
   if (!perIp.allowed) return { ok: false, status: 429, code: "rate_limited", retryAfter: perIp.retryAfter };
 
   const password = passwordField(rawPassword, "password");
@@ -279,8 +281,8 @@ export async function changePassword(
   now: number,
 ): Promise<LoginResult> {
   const db = env.DB;
-  const ip = clientIp(request);
-  const perIp = await hit(db, "admin_login_ip", ip, { now });
+  // Counted per /64 for IPv6 (guard.ts ipSubject): one phone or home can't rotate past the limit.
+  const perIp = await hit(db, "admin_login_ip", ipSubject(request), { now });
   if (!perIp.allowed) return { ok: false, status: 429, code: "rate_limited", retryAfter: perIp.retryAfter };
 
   const current = passwordField(input.current, "current");

@@ -56,7 +56,7 @@ const EXPECTED = {
   "api/admin/uploads/index.ts": "404",
   "api/admin/webhooks/[id]/replay.ts": "404",
   "api/admin/webhooks/index.ts": "404",
-  "api/auth/restore.ts": "404",
+  "api/auth/email-link.ts": "404",
   "api/auth/signout.ts": "404",
   "api/certificates/[code].ts": "404",
   "api/coupon/quote.ts": "serve",

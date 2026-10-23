@@ -31,11 +31,16 @@ test("the refund window, access period and device limit come from the owner's co
   assert.ok(text(docs.delivery).includes("up to two devices"));
 });
 
-test("no GSTIN, no tax lines, no email promises", () => {
+test("no GSTIN, no tax lines; the email is the account and the pages say so", () => {
   assert.doesNotMatch(all, /GST|gstin|tax invoice|\bVAT\b/i);
   assert.doesNotMatch(all, /\b[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b/, "no GSTIN-shaped string");
-  assert.doesNotMatch(all, /we (will )?(e-?mail|send an e-?mail)/i);
-  assert.match(text(docs.delivery), /We don't send emails/);
+  // Email identity (owner decision, 23 Oct 2026): collected, used for receipts and sign-in links, never marketing.
+  assert.match(text(docs.privacy), /your email \(your account/);
+  assert.match(text(docs.privacy), /We don't send marketing emails/);
+  assert.match(text(docs.privacy), /sends our emails/, "Cloudflare named as the sender");
+  assert.match(text(docs.delivery), /sent to your email/);
+  assert.match(text(docs.terms), /Your account is the email you give/);
+  assert.doesNotMatch(all, /payment ID, or ask us|We don't send emails|phone number or email you paid with/i, "no phone or payment-ID sign-in left");
 });
 
 test("business facts come from settings", () => {

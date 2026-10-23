@@ -1,12 +1,13 @@
 /**
- * On-screen receipts (owner decision: no email service, so the receipt lives on a page the buyer
- * can keep, print or share on WhatsApp).
+ * Receipts: a page the buyer can keep, print or share on WhatsApp, and (since 23 Oct 2026) the same
+ * link in the receipt email (signin-links.ts sendReceiptEmail).
  *
  * - buildReceipt(db, orderId): the Receipt data (src/shared/types.ts). W3's GET /api/me/orders/:id
  *   returns it for a signed-in student.
  * - receiptKey / receiptPath: a capability link, /receipt/<orderId>?k=<key>, where key is an HMAC
  *   of the order id with APP_SECRET. Whoever has the link sees the receipt; nobody can guess one
- *   for another order. The page masks the phone number and leaves out the email.
+ *   for another order. The page shows the buyer's name only: no phone, no email (someone who
+ *   paid with another person's address must learn nothing more from it).
  * - renderReceiptPage(): the HTML, rendered by functions/receipt/[id].ts.
  *
  * Owner decision (plan 10.5): a plain "Payment receipt" with its invoice number. No GSTIN, no tax
@@ -19,8 +20,10 @@ import { hmacSha256Hex, timingSafeEqual } from "./crypto.ts";
 import type { Db } from "./db/d1.ts";
 import { getSetting } from "./db/settings.ts";
 import type { Env } from "./env.ts";
-import { listRefunds, maskPhone, toOrderSummary } from "./orders.ts";
+import { listRefunds, toOrderSummary } from "./orders.ts";
 import { formatRupees } from "./pricing.ts";
+import { batchLine, icon, layout, markup, messagePage, raw, type Business } from "./pages/html.ts";
+import { MAX_DEVICES_PER_STUDENT } from "../../src/shared/constants.ts";
 
 const PAID_STATES = new Set(["paid", "partially_refunded", "refunded"]);
 
@@ -205,6 +208,10 @@ function printScriptHash(): Promise<string> {
   return printHash;
 }
 
+/**
+ * The receipt's headers. It shares the student area's stylesheet and font (/app/app.css, same
+ * origin), so no inline style is allowed; the one inline script is the print button, by hash.
+ */
 export async function receiptHeaders(): Promise<Record<string, string>> {
   return {
     "Content-Type": "text/html; charset=utf-8",
@@ -214,7 +221,7 @@ export async function receiptHeaders(): Promise<Record<string, string>> {
     "Referrer-Policy": "no-referrer",
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
-    "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; script-src ${await printScriptHash()}; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+    "Content-Security-Policy": `default-src 'none'; style-src 'self'; font-src 'self'; script-src ${await printScriptHash()}; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
   };
 }
 
@@ -226,6 +233,12 @@ export interface ReceiptPageOptions {
   now: number;
 }
 
+/** The business line for the page frame (name and WhatsApp only; never the GSTIN). */
+function frameBusiness(business: PublicBusiness): Business {
+  const whatsapp = business.whatsapp.replace(/\D/g, "");
+  return { name: business.name, whatsapp: /^\d{8,15}$/.test(whatsapp) ? whatsapp : null };
+}
+
 export function renderReceiptPage(receipt: Receipt & { extras: ReceiptExtras }, options: ReceiptPageOptions): string {
   const { order, business, extras } = receipt;
   const test = order.mode === "test";
@@ -233,7 +246,9 @@ export function renderReceiptPage(receipt: Receipt & { extras: ReceiptExtras }, 
   const money = (p: number) => escapeHtml(formatRupees(p));
   const rows = receipt.lines
     .map((line, i) => {
-      const total = i === receipt.lines.length - 1 || line.label === "Booking amount paid online";
+      // The amount paid is the total: the last line, or the booking amount when the balance is paid at the studio.
+      const deposit = receipt.lines.some((l) => l.label === "Booking amount paid online");
+      const total = deposit ? line.label === "Booking amount paid online" : i === receipt.lines.length - 1;
       return `<tr${total ? ' class="total"' : ""}><th scope="row">${escapeHtml(line.label)}</th><td>${money(line.amountPaise)}</td></tr>`;
     })
     .join("");
@@ -251,79 +266,65 @@ export function renderReceiptPage(receipt: Receipt & { extras: ReceiptExtras }, 
     ? wa(`Hi, I have a question about my payment ${number} (${order.courseTitle}).`, business.whatsapp.replace(/\D/g, ""))
     : null;
   const learnLink = extras.courseFormat !== "in_person" ? `${options.hubOrigin}/learn/${encodeURIComponent(order.courseSlug)}` : null;
+  const refunded = order.status === "refunded";
+  const firstName = receipt.buyer.name?.trim().split(/\s+/)[0] ?? "";
+  const i = (name: Parameters<typeof icon>[0]) => markup(icon(name));
+  const batch = extras.batch ? escapeHtml(batchLine(extras.batch)) : "";
 
-  return `<!doctype html>
-<html lang="en-IN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow">
-<meta name="referrer" content="no-referrer">
-<title>Receipt ${escapeHtml(number)} | ${escapeHtml(business.name)}</title>
-<style>
-:root{--ink:#2b1d1a;--muted:#6f5f5a;--line:#eadfdb;--bg:#fbf7f5;--card:#fff;--accent:#b3261e;--ok:#1d6b3a}
-@media (prefers-color-scheme:dark){:root{--ink:#f3ebe8;--muted:#bfb0ab;--line:#3b302d;--bg:#191312;--card:#221a19;--accent:#ff8a80;--ok:#7fd49b}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{max-width:40rem;margin:0 auto;padding:24px 16px 48px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px}
-h1{font-size:1.5rem;margin:0 0 4px}
-.muted{color:var(--muted);font-size:.9rem}
-.test{background:#fff4ce;color:#5c4400;border-radius:10px;padding:10px 12px;margin:0 0 16px;font-weight:600}
-.badge{display:inline-block;border-radius:999px;padding:2px 10px;font-size:.85rem;font-weight:600;border:1px solid currentColor}
-.badge.paid{color:var(--ok)}.badge.refunded,.badge.partially_refunded{color:var(--accent)}
-dl{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;margin:16px 0}
-dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
-table{width:100%;border-collapse:collapse;margin:16px 0}
-th,td{padding:8px 0;border-bottom:1px solid var(--line);text-align:left;font-weight:400}
-td{text-align:right;white-space:nowrap;padding-left:12px}
-tr.total th,tr.total td{font-weight:700}
-.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
-.btn{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font:inherit;background:none;cursor:pointer}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.note{margin-top:16px;font-size:.95rem}
-ul{padding-left:20px}
-@media print{body{background:#fff;color:#000}.actions,.test-hide{display:none}.card{border:0;padding:0}}
-</style>
-</head>
-<body>
-<main>
-${test ? '<p class="test">Test payment: no real money was charged.</p>' : ""}
-<div class="card">
-<p class="muted">${escapeHtml(business.name)}${business.address ? ` · ${escapeHtml(business.address)}` : ""}${business.phone ? ` · ${escapeHtml(business.phone)}` : ""}</p>
-<h1>Payment receipt</h1>
-<span class="badge ${escapeHtml(order.status)}">${escapeHtml(STATUS_LABEL[order.status] ?? order.status)}</span>
-<dl>
+  const head = refunded
+    ? `<div class="paid-head is-refund"><span class="state-icon">${i("receipt")}</span><div><h1>Payment refunded</h1><p class="muted">This payment was refunded. The receipt below shows the details.</p></div></div>`
+    : `<div class="paid-head"><span class="state-icon">${i("check-circle")}</span><div><h1>${order.status === "partially_refunded" ? "Payment received, partly refunded" : "Payment received"}</h1><p class="muted">${firstName ? `Thank you, ${escapeHtml(firstName)}. ` : "Thank you. "}${learnLink ? "Your course is ready to watch." : "Your seat is booked."}</p></div></div>`;
+
+  const nextStep = refunded
+    ? ""
+    : learnLink
+      ? `<section class="card next-step" aria-labelledby="next-h"><h2 id="next-h">Your course is ready</h2>
+<p>Watch on your phone or laptop${extras.accessUntil ? `, until ${escapeHtml(formatIst(extras.accessUntil, false))}` : ""}, on up to ${MAX_DEVICES_PER_STUDENT} devices.${extras.batch ? ` Your studio batch: ${batch}.` : ""}</p>
+<div class="btn-row"><a class="btn" href="${escapeHtml(learnLink)}">${i("play-fill")}Start learning</a></div></section>`
+      : `<section class="card next-step" aria-labelledby="next-h"><h2 id="next-h">See you at the studio</h2>
+<p>${extras.batch ? `Your batch: ${batch}.` : "We'll confirm your batch dates on WhatsApp."}${business.address ? ` ${escapeHtml(business.address)}.` : ""}</p>
+${askLink ? `<div class="btn-row"><a class="btn btn-quiet" href="${escapeHtml(askLink)}" target="_blank" rel="noopener noreferrer">${i("whatsapp")}Message us</a></div>` : ""}</section>`;
+
+  const body = `${test ? `<p class="test-banner" role="note">${i("info")}Test payment: no real money was charged.</p>` : ""}
+${head}
+${nextStep}
+<section class="card" aria-labelledby="receipt-h">
+<p class="receipt-biz">${escapeHtml(business.name)}${business.address ? ` · ${escapeHtml(business.address)}` : ""}${business.phone ? ` · ${escapeHtml(business.phone)}` : ""}</p>
+<div class="receipt-title"><h2 id="receipt-h">Payment receipt</h2><span class="badge ${escapeHtml(order.status)}">${escapeHtml(STATUS_LABEL[order.status] ?? order.status)}</span></div>
+<dl class="facts">
 <dt>Receipt no.</dt><dd>${escapeHtml(number)}</dd>
 <dt>Date</dt><dd>${order.paidAt ? escapeHtml(formatIst(order.paidAt)) : ""}</dd>
 <dt>Name</dt><dd>${escapeHtml(receipt.buyer.name ?? "")}</dd>
-${receipt.buyer.phone ? `<dt>Phone</dt><dd>${escapeHtml(maskPhone(receipt.buyer.phone))}</dd>` : ""}
 <dt>Course</dt><dd>${escapeHtml(order.courseTitle)}</dd>
-${extras.batch ? `<dt>Batch</dt><dd>${escapeHtml(extras.batch.title)}, from ${escapeHtml(extras.batch.startsOn)}${extras.batch.endsOn ? ` to ${escapeHtml(extras.batch.endsOn)}` : ""}</dd>` : ""}
+${extras.batch ? `<dt>Batch</dt><dd>${batch}</dd>` : ""}
 ${receipt.method ? `<dt>Paid by</dt><dd>${escapeHtml(METHODS[receipt.method] ?? receipt.method)}</dd>` : ""}
-${order.razorpayPaymentId ? `<dt>Payment id</dt><dd>${escapeHtml(order.razorpayPaymentId)}</dd>` : ""}
-${extras.accessUntil ? `<dt>Access until</dt><dd>${escapeHtml(formatIst(extras.accessUntil, false))}</dd>` : ""}
+${order.razorpayPaymentId ? `<dt>Payment ID</dt><dd><code>${escapeHtml(order.razorpayPaymentId)}</code></dd>` : ""}
+${extras.accessUntil && extras.courseFormat !== "in_person" ? `<dt>Access until</dt><dd>${escapeHtml(formatIst(extras.accessUntil, false))}</dd>` : ""}
 </dl>
-<table><tbody>${rows}</tbody></table>
-${refunds ? `<ul class="note">${refunds}</ul>` : ""}
-${canRefund ? `<p class="note">Changed your mind? Refund requests are accepted until ${escapeHtml(formatIst(order.refundableUntil!))}. Message us on WhatsApp.</p>` : ""}
-<p class="note muted">Keep this page: it is your receipt. You can save it as a PDF with Print, or send the link to yourself on WhatsApp.</p>
-<div class="actions">
-${learnLink && order.status !== "refunded" ? `<a class="btn primary" href="${escapeHtml(learnLink)}">Start learning</a>` : ""}
-<a class="btn" href="${escapeHtml(shareLink)}" target="_blank" rel="noopener noreferrer">Share on WhatsApp</a>
-${askLink ? `<a class="btn" href="${escapeHtml(askLink)}" target="_blank" rel="noopener noreferrer">Message us</a>` : ""}
-<button class="btn" id="print" type="button">Print or save as PDF</button>
+<table class="amounts"><caption class="visually-hidden">Amounts</caption><tbody>${rows}</tbody></table>
+${refunds ? `<ul class="refunds">${refunds}</ul>` : ""}
+${canRefund ? `<p class="info keep">${i("info")}<span>Changed your mind? Refund requests are accepted until ${escapeHtml(formatIst(order.refundableUntil!))}. Message us on WhatsApp.</span></p>` : ""}
+<p class="muted small keep">Keep this page: it is your receipt. You can save it as a PDF with Print, or send the link to yourself on WhatsApp. ${order.razorpayPaymentId ? "Your payment ID also signs you in on a new device." : ""}</p>
+</section>
+<div class="btn-row no-print">
+<a class="btn btn-quiet" href="${escapeHtml(shareLink)}" target="_blank" rel="noopener noreferrer">${i("whatsapp")}Share on WhatsApp</a>
+${askLink && learnLink ? `<a class="btn btn-quiet" href="${escapeHtml(askLink)}" target="_blank" rel="noopener noreferrer">Message us</a>` : ""}
+<button class="btn btn-quiet" id="print" type="button">${i("download-simple")}Print or save as PDF</button>
 </div>
-</div>
-</main>
-<script>${PRINT_SCRIPT}</script>
-</body>
-</html>`;
+<script>${PRINT_SCRIPT}</script>`;
+
+  return markup(layout({ title: `Receipt ${number}`, business: frameBusiness(business) }, raw(body)));
 }
 
 /** The small page shown for a wrong link or an unpaid order. */
 export function renderReceiptMissing(): string {
-  return `<!doctype html><html lang="en-IN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Receipt not found</title>
-<style>body{margin:0;font:16px/1.5 system-ui,sans-serif;background:#fbf7f5;color:#2b1d1a}main{max-width:36rem;margin:0 auto;padding:48px 16px}@media (prefers-color-scheme:dark){body{background:#191312;color:#f3ebe8}}</style>
-</head><body><main><h1>Receipt not found</h1><p>This receipt link isn't valid, or the payment isn't complete yet. If you paid, wait a minute and open the link again, or message us on WhatsApp with your payment id.</p></main></body></html>`;
+  return markup(
+    messagePage(
+      { title: "Receipt not found", business: { name: FALLBACK_BUSINESS.name, whatsapp: null } },
+      "Receipt not found",
+      "This receipt link isn't valid, or the payment isn't complete yet. If you paid, wait a minute and open the link again, or message us on WhatsApp with your payment id.",
+      { href: "/signin", label: "Sign in to see your payments" },
+      { icon: "receipt", tone: "info" },
+    ),
+  );
 }

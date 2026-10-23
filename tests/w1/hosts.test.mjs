@@ -209,7 +209,7 @@ test("course host: /c/<own slug> → /, /c/<other> → hub, account pages → hu
     r = await route(postJson(path, {}, { host }));
     assert.equal(r.nextCalls, 1, path);
   }
-  for (const path of ["/api/me", "/api/admin/courses", "/api/auth/restore"]) {
+  for (const path of ["/api/me", "/api/admin/courses", "/api/auth/email-link"]) {
     r = await route(postJson(path, {}, { host }));
     assert.equal(r.res.status, 404, path);
     assert.equal(r.nextCalls, 0, path);

@@ -3,7 +3,7 @@
  * handleOrder and handleVerify). Kept here so scripts/test-checkout.mjs can import it in Node.
  *
  * Trust rules:
- * - The browser only sends optional buyer details (name, phone, email) and, after paying, the ids
+ * - The browser only sends buyer details (name, email, an optional phone) and, after paying, the ids
  *   Razorpay gave it. Amount, currency and course always come from src/data/course.ts.
  * - The enrollment cookie is issued only after Razorpay's signature checks out with the key secret
  *   and Razorpay's API confirms the payment, or, while the course is a demo, for a demo order or a
@@ -174,7 +174,7 @@ export function parseBuyer(input: unknown): BuyerResult {
   const email = text("email");
   if (email !== undefined) {
     if (email.length > 254 || !/^[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[A-Za-z]{2,}$/.test(email)) {
-      errors.email = "Enter an email like name@example.com, or leave it empty.";
+      errors.email = "Enter an email like name@example.com.";
     } else buyer.email = email;
   }
 

@@ -22,7 +22,7 @@ test("order: the amount comes from D1, whatever the browser sends", async (t) =>
     { mode: data.mode, keyId: data.keyId, orderId: data.orderId, amount: data.amount, currency: data.currency, testMode: data.testMode },
     { mode: "razorpay", keyId: TEST_ENV.RAZORPAY_KEY_ID, orderId: "order_Fake0001", amount: 120000, currency: "INR", testMode: true },
   );
-  assert.deepEqual(data.prefill, { name: "Asha Patel", contact: "+919876543210", email: "asha@example.com" });
+  assert.deepEqual(data.prefill, { name: "Asha Patel", email: "asha@example.com", contact: "+919876543210" });
   assert.equal(JSON.stringify(data).includes(TEST_ENV.RAZORPAY_KEY_SECRET), false);
   // Razorpay was asked for exactly the server's amount, with our order id as the receipt.
   assert.equal(fake.calls.length, 1);
@@ -45,6 +45,11 @@ test("order: checks the request and the buyer", async (t) => {
   const body = await readJson(bad);
   assert.equal(body.error, "invalid_details");
   assert.ok(body.fields.phone && body.fields.consent);
+  // The email is the account: required. The phone is optional.
+  const noEmail = await readJson(await handleLiveOrder(orderRequest(orderBody({ email: "" })), env, NOW));
+  assert.ok(noEmail.fields.email, "an order needs an email");
+  const badEmail = await readJson(await handleLiveOrder(orderRequest(orderBody({ email: "asha at example" })), env, NOW));
+  assert.ok(badEmail.fields.email);
   const cross = await handleLiveOrder(postJson("/api/order", orderBody(), { origin: "https://evil.example" }), env, NOW);
   assert.equal(cross.status, 403);
   const form = await handleLiveOrder(postForm("/api/order", { course: "online-basics" }), env, NOW);
@@ -88,7 +93,7 @@ test("order: rate limited per IP", async (t) => {
   const env = envFor(db);
   let last;
   for (let i = 0; i < 11; i++) {
-    last = await handleLiveOrder(orderRequest(orderBody({ phone: `98765432${String(i).padStart(2, "0")}` })), env, NOW);
+    last = await handleLiveOrder(orderRequest(orderBody({ email: `buyer${i}@example.com` })), env, NOW);
   }
   assert.equal(last.status, 429);
   assert.ok(Number(last.headers.get("Retry-After")) > 0);
@@ -103,15 +108,31 @@ test("order: Razorpay down marks our order failed and says so", async (t) => {
   assert.equal(db.get("SELECT status FROM orders").status, "failed");
 });
 
-test("order: an existing student keeps their name; another student's email isn't taken over", async (t) => {
+test("order: the account is found by email; a checkout never changes it; the phone never finds one", async (t) => {
   const db = await setupDb();
-  razorpay(t);
+  const fake = razorpay(t);
   db.sqlite.exec(`INSERT INTO students (id, name, phone, email, created_at, updated_at) VALUES
-    (70, 'Real Name', '+919876543210', NULL, ${NOW}, ${NOW}), (71, 'Other', '+919800000001', 'asha@example.com', ${NOW}, ${NOW})`);
-  const { res, data } = await createOrder(t, db, { body: orderBody({ name: "Someone Else" }) });
+    (70, 'Phone Owner', '+919876543210', 'owner@example.com', ${NOW}, ${NOW}), (71, 'Real Name', NULL, 'asha@example.com', ${NOW}, ${NOW})`);
+  // asha@example.com with student 70's phone: the order goes to the email's account (71), whose
+  // name and phone stay as they are; student 70 is untouched.
+  const { res, data } = await createOrder(t, db, { fake, body: orderBody({ name: "Someone Else" }) });
   assert.equal(res.status, 200);
-  assert.equal(db.get("SELECT student_id FROM orders WHERE id = ?", data.ref).student_id, 70);
-  assert.deepEqual({ ...db.get("SELECT name, email FROM students WHERE id = 70") }, { name: "Real Name", email: null });
+  assert.equal(db.get("SELECT student_id FROM orders WHERE id = ?", data.ref).student_id, 71);
+  assert.deepEqual({ ...db.get("SELECT name, phone, email FROM students WHERE id = 71") }, { name: "Real Name", phone: null, email: "asha@example.com" });
+  assert.deepEqual({ ...db.get("SELECT name, phone, email FROM students WHERE id = 70") }, { name: "Phone Owner", phone: "+919876543210", email: "owner@example.com" });
+  // A new email with a phone someone else has: a new account, without that phone (it's unique, and it never links accounts).
+  const fresh = await createOrder(t, db, { fake, body: orderBody({ email: "Bina@Example.com", name: "Bina" }) });
+  assert.equal(fresh.res.status, 200, JSON.stringify(fresh.data));
+  const bina = db.get("SELECT * FROM students WHERE id = (SELECT student_id FROM orders WHERE id = ?)", fresh.data.ref);
+  assert.deepEqual([bina.email, bina.phone, bina.name], ["bina@example.com", null, "Bina"]);
+  // A new email with a free phone keeps it as a contact detail; no phone at all is fine.
+  const chet = await createOrder(t, db, { fake, body: orderBody({ email: "chet@example.com", phone: "9811111111" }) });
+  assert.equal(db.get("SELECT phone FROM students WHERE email = 'chet@example.com'").phone, "+919811111111");
+  assert.equal(chet.res.status, 200);
+  const dev = await createOrder(t, db, { fake, body: { ...orderBody({ email: "dev@example.com" }), phone: undefined } });
+  assert.equal(dev.res.status, 200);
+  assert.equal(db.get("SELECT phone FROM students WHERE email = 'dev@example.com'").phone, null);
+  assert.deepEqual(dev.data.prefill, { name: "Asha Patel", email: "dev@example.com" });
 });
 
 test("verify: signature + Razorpay's record → paid, enrolled for 365 days, receipt link", async (t) => {
@@ -233,18 +254,18 @@ test("verify: live payments get consecutive invoice numbers per financial year",
   const payments = {};
   for (let i = 1; i <= 4; i++) payments[`pay_Live0000000${i}`] = { order_id: `order_Fake000${i}`, amount: 149999 };
   razorpay(t, { payments });
-  const pay = async (i, phone, now) => {
-    const order = await readJson(await handleLiveOrder(orderRequest(orderBody({ phone })), env, now));
+  const pay = async (i, email, now) => {
+    const order = await readJson(await handleLiveOrder(orderRequest(orderBody({ email })), env, now));
     const res = await handleLiveVerify(postJson("/api/verify", verifyBody(order.orderId, `pay_Live0000000${i}`, LIVE_ENV.RAZORPAY_KEY_SECRET)), env, now);
     assert.equal(res.status, 200);
     return db.get("SELECT invoice_no FROM orders WHERE id = ?", order.ref).invoice_no;
   };
-  assert.equal(await pay(1, "9800000001", NOW), "FBC/26-27/00001");
-  assert.equal(await pay(2, "9800000002", NOW + 10), "FBC/26-27/00002");
+  assert.equal(await pay(1, "b1@example.com", NOW), "FBC/26-27/00001");
+  assert.equal(await pay(2, "b2@example.com", NOW + 10), "FBC/26-27/00002");
   // 31 Mar 2027 23:59 IST, then 1 Apr 2027 00:01 IST: a new year starts at 1.
   const march31 = Date.UTC(2027, 2, 31, 18, 29) / 1000;
-  assert.equal(await pay(3, "9800000003", march31), "FBC/26-27/00003");
-  assert.equal(await pay(4, "9800000004", march31 + 120), "FBC/27-28/00001");
+  assert.equal(await pay(3, "b3@example.com", march31), "FBC/26-27/00003");
+  assert.equal(await pay(4, "b4@example.com", march31 + 120), "FBC/27-28/00001");
   assert.deepEqual(db.rows("SELECT fy, last FROM invoice_counters ORDER BY fy").map((r) => ({ ...r })), [
     { fy: "2026-27", last: 3 },
     { fy: "2027-28", last: 1 },
@@ -305,11 +326,11 @@ test("free: a 100% allow_free coupon enrolls without Razorpay, once", async (t) 
   assert.equal(db.get("SELECT used_count FROM coupons WHERE id = 3").used_count, 1);
   assert.equal(db.get("SELECT COUNT(*) AS n FROM orders").n, 0);
   // max_uses 1: the next student can't use it.
-  const other = await handleLiveOrder(orderRequest(orderBody({ coupon: "FREEPASS", phone: "9811111111", email: "b@example.com" })), env, NOW);
+  const other = await handleLiveOrder(orderRequest(orderBody({ coupon: "FREEPASS", email: "b@example.com" })), env, NOW);
   assert.equal(other.status, 400);
   assert.equal((await readJson(other)).error, "invalid_coupon");
   // A free course enrolls with no coupon and no keys at all.
-  const intro = await handleLiveOrder(orderRequest(orderBody({ course: "free-intro", phone: "9822222222", email: "" })), { DB: db }, NOW);
+  const intro = await handleLiveOrder(orderRequest(orderBody({ course: "free-intro", email: "c@example.com" })), { DB: db }, NOW);
   assert.equal((await readJson(intro)).mode, "free");
 });
 

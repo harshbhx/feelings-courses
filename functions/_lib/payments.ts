@@ -16,12 +16,16 @@
  * - fulfilOrder is idempotent: verify, the webhook, retries and replays enroll once.
  * - Live keys never sell a demo course; live keys need the legal pages confirmed.
  * - A student with an active enrollment can't start a second order for the same course.
+ * - The buyer is found by EMAIL (owner decision, 23 Oct 2026); typing an address proves nothing,
+ *   so a payment signs the paying device in only when claim.ts allows it, and the receipt and a
+ *   sign-in link always go to the account's email (signin-links.ts).
  */
 import type { CouponQuoteResponse, OrderResponse, VerifyResponse } from "../../src/shared/api.ts";
 import type { PaymentMode, QuoteFailure } from "../../src/shared/types.ts";
 import { MIN_CHARGE_PAISE } from "../../src/shared/constants.ts";
 import { bump, statDay } from "./analytics.ts";
 import { handleOrder, handleVerify, parseBuyer } from "./checkout.ts";
+import { purchaseOpensAccount } from "./claim.ts";
 import { ConfigError, config, razorpayMode, requireSecret } from "./config.ts";
 import { sha256Hex } from "./crypto.ts";
 import { maybeRunDaily } from "./daily.ts";
@@ -32,7 +36,7 @@ import { isUniqueViolation } from "./db/errors.ts";
 import { getSetting } from "./db/settings.ts";
 import { batch, changes, lastId } from "./db/tx.ts";
 import { hasDb, type Env } from "./env.ts";
-import { clientIp, error, errorResponse, isJson, json, methodNotAllowed, readBody, readJson, redirect, sameOrigin } from "./http.ts";
+import { error, errorResponse, isJson, json, methodNotAllowed, readBody, readJson, redirect, sameOrigin } from "./http.ts";
 import {
   fulfilOrderDb,
   getOrderByRazorpayId,
@@ -43,6 +47,7 @@ import {
   type PaymentKeys,
 } from "./orders.ts";
 import { normaliseCouponCode, quote } from "./pricing.ts";
+import { contactSubject, ipSubject } from "./guard.ts";
 import { hit } from "./ratelimit.ts";
 import {
   RazorpayError,
@@ -53,7 +58,8 @@ import {
   verifyWebhookSignature,
 } from "./razorpay.ts";
 import { receiptPath } from "./receipts.ts";
-import { issueLoginToken } from "./session.ts";
+import { issueLoginToken, readSession } from "./session.ts";
+import { sendEnrolledEmail, sendReceiptEmail } from "./signin-links.ts";
 import { NotImplementedError, type WaitUntil } from "./stub.ts";
 
 const RZP_ORDER = /^order_[A-Za-z0-9]{1,40}$/;
@@ -71,7 +77,7 @@ type Payload = Record<string, unknown>;
 // ---------------------------------------------------------------- routing between demo and live
 
 /** POST /api/order: the D1 flow for an OrderRequest (has `course`), else the demo checkout. */
-export async function routeOrder(request: Request, env: Env): Promise<Response> {
+export async function routeOrder(request: Request, env: Env, ctx?: WaitUntil): Promise<Response> {
   if (request.method !== "POST" || !hasDb(env)) return handleOrder(request, env);
   const text = await readBody(request.clone());
   if (text === null) return handleOrder(request, env); // over 16 KB: answered 413 there
@@ -81,17 +87,17 @@ export async function routeOrder(request: Request, env: Env): Promise<Response> 
   } catch {
     /* the demo handler answers bad JSON */
   }
-  if (body && typeof body === "object" && !Array.isArray(body) && "course" in body) return handleLiveOrder(request, env);
+  if (body && typeof body === "object" && !Array.isArray(body) && "course" in body) return handleLiveOrder(request, env, unixNow(), ctx);
   return handleOrder(request, env);
 }
 
 /** POST /api/verify: the D1 flow when D1 knows the Razorpay order, else the demo checkout. */
-export async function routeVerify(request: Request, env: Env): Promise<Response> {
+export async function routeVerify(request: Request, env: Env, ctx?: WaitUntil): Promise<Response> {
   if (request.method !== "POST" || !hasDb(env)) return handleVerify(request, env);
   const orderId = await peekRazorpayOrderId(request.clone());
   if (orderId && RZP_ORDER.test(orderId)) {
     try {
-      if (await getOrderByRazorpayId(env.DB, orderId)) return handleLiveVerify(request, env);
+      if (await getOrderByRazorpayId(env.DB, orderId)) return handleLiveVerify(request, env, unixNow(), ctx);
     } catch (err) {
       return errorResponse(err);
     }
@@ -121,7 +127,7 @@ export async function handleCouponQuote(request: Request, env: Env, now = unixNo
   if (!hasDb(env)) return error(503, "platform_not_configured", "This part of the site isn't set up yet.");
   const db: Db = env.DB;
   try {
-    const limited = await rateLimited(db, "coupon_quote_ip", clientIp(request), now);
+    const limited = await rateLimited(db, "coupon_quote_ip", ipSubject(request), now);
     if (limited) return limited;
     const body = await readJson(request);
     if (!body.ok) return body.response;
@@ -167,7 +173,7 @@ function parseBatchId(value: unknown): number | null | false {
   return typeof n === "number" && Number.isSafeInteger(n) && n > 0 ? n : false;
 }
 
-async function rateLimited(db: Db, rule: "order_ip" | "order_phone" | "coupon_quote_ip", subject: string, now: number): Promise<Response | null> {
+async function rateLimited(db: Db, rule: "order_ip" | "order_email" | "coupon_quote_ip", subject: string, now: number): Promise<Response | null> {
   const result = await hit(db, rule, subject, { now });
   if (result.allowed) return null;
   return error(
@@ -179,7 +185,7 @@ async function rateLimited(db: Db, rule: "order_ip" | "order_phone" | "coupon_qu
   );
 }
 
-export async function handleLiveOrder(request: Request, env: Env, now = unixNow()): Promise<Response> {
+export async function handleLiveOrder(request: Request, env: Env, now = unixNow(), ctx?: WaitUntil): Promise<Response> {
   if (request.method !== "POST") return methodNotAllowed();
   if (!sameOrigin(request)) return error(403, "cross_origin", "This request must come from the course site.");
   if (!isJson(request)) return error(415, "unsupported_media_type", "Send JSON.");
@@ -206,15 +212,18 @@ export async function handleLiveOrder(request: Request, env: Env, now = unixNow(
     if (!parsed.ok) Object.assign(fields, parsed.errors);
     const buyer = parsed.ok ? parsed.buyer : {};
     if (parsed.ok && !buyer.name) fields.name = "Enter your name.";
-    if (parsed.ok && !buyer.phone) fields.phone = "Enter your mobile number. Your access is linked to it.";
+    // The email is the account: the receipt and every sign-in link go there. The phone is optional.
+    if (parsed.ok && !buyer.email) fields.email = "Enter your email. Your receipt and sign-in link go there.";
     if (input.consent !== true) fields.consent = "Please accept the terms and the privacy policy.";
     if (Object.keys(fields).length) return error(400, "invalid_details", "Please check your details.", { fields });
 
-    // ---- rate limits (per IP, and per phone so one number can't be flooded with orders)
-    const byIp = await rateLimited(db, "order_ip", clientIp(request), now);
+    const email = buyer.email!.toLowerCase();
+
+    // ---- rate limits (per IP, and per email so one address can't be flooded with orders and mail)
+    const byIp = await rateLimited(db, "order_ip", ipSubject(request), now);
     if (byIp) return byIp;
-    const byPhone = await rateLimited(db, "order_phone", await sha256Hex(buyer.phone!), now);
-    if (byPhone) return byPhone;
+    const byEmail = await rateLimited(db, "order_email", await contactSubject(email), now);
+    if (byEmail) return byEmail;
 
     // ---- the course as D1 has it (also gives a clean 404 before any student row is written)
     const courseRow = await db
@@ -247,8 +256,8 @@ export async function handleLiveOrder(request: Request, env: Env, now = unixNow(
       }
     }
 
-    // ---- student (by phone), then the per-student checks
-    const studentId = await upsertStudent(db, { name: buyer.name!, phone: buyer.phone!, email: buyer.email ?? null }, now);
+    // ---- student (by email), then the per-student checks
+    const studentId = await upsertStudent(db, { name: buyer.name!, email, phone: buyer.phone ?? null }, now);
     const liveMode: PaymentMode = keys?.mode ?? "live";
     if (await hasActiveEnrollment(db, studentId, courseRow.id, liveMode, now)) {
       return error(409, "already_enrolled", "You already have this course. Open it from your account, or message us on WhatsApp.");
@@ -256,7 +265,7 @@ export async function handleLiveOrder(request: Request, env: Env, now = unixNow(
     const q = await quote(db, { courseSlug: course, batchId: batchId || undefined, couponCode, studentId, now });
     if (!q.ok) return quoteError(q.reason);
 
-    if (q.free) return freeEnrollment(env, db, { studentId, courseId: courseRow.id, courseSlug: course, quote: q, now });
+    if (q.free) return freeEnrollment(env, db, { studentId, courseId: courseRow.id, courseSlug: course, quote: q, now, ctx });
 
     // ---- paid: our order row first, then Razorpay's order, then link them
     if (q.amountPaise < MIN_CHARGE_PAISE) throw new Error("order: amount below the minimum charge");
@@ -303,7 +312,7 @@ export async function handleLiveOrder(request: Request, env: Env, now = unixNow(
       currency: "INR",
       name: business?.name ?? "Feelings Beauty Care",
       description: courseRow.title.slice(0, 250),
-      prefill: { name: buyer.name, contact: buyer.phone, ...(buyer.email ? { email: buyer.email } : {}) },
+      prefill: { name: buyer.name, email, ...(buyer.phone ? { contact: buyer.phone } : {}) },
       testMode: keys!.mode === "test",
       ref: orderId,
     };
@@ -336,45 +345,35 @@ async function countCheckout(db: Db, courseId: number, mode: PaymentMode, now: n
 }
 
 /**
- * Finds the student by phone, or creates one. An existing student's name and email are only
- * filled in when empty: someone typing another person's phone number can't rename them. An email
- * that already belongs to another student is left off.
+ * Finds the student by email, or creates one (owner decision, 23 Oct 2026: the email is the
+ * account). Typing an address proves nothing, so an existing account is never changed by a
+ * checkout: only an empty name is filled in. The phone is an optional contact detail: it is stored
+ * on a NEW account only, only when no other student has it (students.phone is unique), and it is
+ * never used to find an account.
  */
-export async function upsertStudent(db: Db, buyer: { name: string; phone: string; email: string | null }, now: number): Promise<number> {
-  const email = buyer.email?.trim().toLowerCase() || null;
-  const existing = await db.prepare("SELECT id FROM students WHERE phone = ?").bind(buyer.phone).first<{ id: number }>();
-  const emailFree = email
-    ? !(await db
-        .prepare("SELECT 1 AS taken FROM students WHERE email = ? AND (? IS NULL OR id <> ?)")
-        .bind(email, existing?.id ?? null, existing?.id ?? null)
-        .first())
-    : false;
+export async function upsertStudent(db: Db, buyer: { name: string; email: string; phone: string | null }, now: number): Promise<number> {
+  const email = buyer.email.trim().toLowerCase();
+  const existing = await db.prepare("SELECT id FROM students WHERE email = ? AND erased_at IS NULL").bind(email).first<{ id: number }>();
   if (existing) {
-    await db
-      .prepare("UPDATE students SET name = COALESCE(name, ?), email = COALESCE(email, ?), updated_at = ? WHERE id = ?")
-      .bind(buyer.name, emailFree ? email : null, now, existing.id)
-      .run()
-      .catch((err) => {
-        if (!isUniqueViolation(err)) throw err; // an email taken a moment ago: keep the row as it is
-      });
+    await db.prepare("UPDATE students SET name = COALESCE(name, ?), updated_at = ? WHERE id = ?").bind(buyer.name, now, existing.id).run();
     return existing.id;
   }
-  try {
-    const result = await db
-      .prepare("INSERT INTO students (name, phone, email, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
-      .bind(buyer.name, buyer.phone, emailFree ? email : null, now, now)
+  const insert = (phone: string | null) =>
+    db
+      .prepare(
+        "INSERT INTO students (name, phone, email, created_at, updated_at) " +
+          "SELECT ?, CASE WHEN ? IS NOT NULL AND NOT EXISTS (SELECT 1 FROM students WHERE phone = ?) THEN ? END, ?, ?, ?",
+      )
+      .bind(buyer.name, phone, phone, phone, email, now, now)
       .run();
-    return lastId(result);
+  try {
+    return lastId(await insert(buyer.phone));
   } catch (err) {
     if (!isUniqueViolation(err)) throw err;
-    // Two first orders from one phone at once, or the email was just taken: read the winner.
-    const row = await db.prepare("SELECT id FROM students WHERE phone = ?").bind(buyer.phone).first<{ id: number }>();
+    // Two first orders from one email at once: read the winner. Or the phone was taken a moment ago: leave it off.
+    const row = await db.prepare("SELECT id FROM students WHERE email = ? AND erased_at IS NULL").bind(email).first<{ id: number }>();
     if (row) return row.id;
-    const retry = await db
-      .prepare("INSERT INTO students (name, phone, email, created_at, updated_at) VALUES (?, ?, NULL, ?, ?)")
-      .bind(buyer.name, buyer.phone, now, now)
-      .run();
-    return lastId(retry);
+    return lastId(await insert(null));
   }
 }
 
@@ -400,7 +399,14 @@ export async function hasActiveEnrollment(db: Db, studentId: number, courseId: n
 async function freeEnrollment(
   env: Env,
   db: Db,
-  input: { studentId: number; courseId: number; courseSlug: string; quote: Extract<Awaited<ReturnType<typeof quote>>, { ok: true }>; now: number },
+  input: {
+    studentId: number;
+    courseId: number;
+    courseSlug: string;
+    quote: Extract<Awaited<ReturnType<typeof quote>>, { ok: true }>;
+    now: number;
+    ctx?: WaitUntil;
+  },
 ): Promise<Response> {
   const { studentId, courseId, quote: q, now } = input;
   const course = await db
@@ -461,8 +467,17 @@ async function freeEnrollment(
   if (!(await hasActiveEnrollment(db, studentId, courseId, "live", now))) return quoteError("coupon_used_up");
   // Recorded lessons open the course area; a studio-only booking has none, so it lands on the account.
   const target = course?.format === "in_person" ? "/account" : `/learn/${input.courseSlug}`;
-  const handoff = await handoffUrl(env, db, studentId, target);
-  return json({ mode: "free", redirect: handoff ?? "/thank-you" } satisfies OrderResponse);
+  // Typing an address proves nothing: the enrollment opens the account on this device only when
+  // the account holds nothing else and its email was never proven (claim.ts). Otherwise the
+  // owner of the address opens it from the email.
+  const opens = await purchaseOpensAccount(db, studentId, { orderId: null, courseId, since: now });
+  const handoff = opens ? await handoffUrl(env, db, studentId, target) : null;
+  // The account's email gets "you're enrolled" and a sign-in link in every case.
+  const mail = sendEnrolledEmail(env, studentId, courseId, now);
+  if (input.ctx) input.ctx.waitUntil(mail);
+  else await mail;
+  const checkEmail = `${config(env).hubOrigin}/signin?sent=1`;
+  return json({ mode: "free", redirect: handoff ?? (opens ? "/thank-you" : checkEmail) } satisfies OrderResponse);
 }
 
 // ---------------------------------------------------------------- POST /api/verify
@@ -493,7 +508,7 @@ type Confirmation =
   | { ok: true; redirect: string; receipt: string | null }
   | { ok: false; status: number; code: string; message: string };
 
-export async function handleLiveVerify(request: Request, env: Env, now = unixNow()): Promise<Response> {
+export async function handleLiveVerify(request: Request, env: Env, now = unixNow(), ctx?: WaitUntil): Promise<Response> {
   if (request.method !== "POST") return methodNotAllowed();
   if (!hasDb(env)) return error(503, "platform_not_configured", "This part of the site isn't set up yet.");
   const contentType = (request.headers.get("Content-Type") ?? "").toLowerCase();
@@ -512,7 +527,7 @@ export async function handleLiveVerify(request: Request, env: Env, now = unixNow
       if (!body.ok) return body.response;
       ids = body.value;
     }
-    const result = await confirmPayment(env, env.DB, ids, now);
+    const result = await confirmPayment(env, env.DB, ids, now, request, ctx);
     if (form) return redirect(request, result.ok ? result.redirect : "/payment-failed");
     if (!result.ok) return error(result.status, result.code, result.message);
     return json({ ok: true, redirect: result.redirect, ...(result.receipt ? { receipt: result.receipt } : {}) } satisfies VerifyResponse);
@@ -526,7 +541,7 @@ export async function handleLiveVerify(request: Request, env: Env, now = unixNow
 }
 
 /** Signature first (offline, cheap), then Razorpay's record of the payment, then fulfilment. */
-async function confirmPayment(env: Env, db: Db, ids: Payload, now: number): Promise<Confirmation> {
+async function confirmPayment(env: Env, db: Db, ids: Payload, now: number, request: Request, ctx?: WaitUntil): Promise<Confirmation> {
   const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = ids;
   if (
     typeof orderId !== "string" || !RZP_ORDER.test(orderId) ||
@@ -581,8 +596,26 @@ async function confirmPayment(env: Env, db: Db, ids: Payload, now: number): Prom
   // A sign-in link only right after the payment: an old (order, payment, signature) triple seen
   // later must not become a way into the student's account.
   const recent = fresh?.paid_at !== null && fresh?.paid_at !== undefined && now - fresh.paid_at <= HANDOFF_WINDOW;
-  const handoff = recent ? await handoffUrl(env, db, result.studentId, receiptRelative ?? "/account") : null;
-  return { ok: true, redirect: handoff ?? receipt ?? "/thank-you", receipt };
+  // Typing an email at checkout proves nothing, so a payment signs this device in only when the
+  // account holds nothing else and its email was never proven (claim.ts). Otherwise the receipt
+  // shows on screen, and the owner of the address opens the course from the email.
+  const opens =
+    recent && (await purchaseOpensAccount(db, result.studentId, { orderId: order.id, courseId: order.course_id, since: order.created_at }));
+  const handoff = opens ? await handoffUrl(env, db, result.studentId, receiptRelative ?? "/account") : null;
+
+  // The receipt and a sign-in link go to the account's email, once per order: whichever of
+  // verify and the webhook marked the order paid sends them.
+  if (!result.alreadyPaid) {
+    const mail = sendReceiptEmail(env, order.id, now);
+    if (ctx) ctx.waitUntil(mail);
+    else await mail;
+  }
+
+  if (handoff) return { ok: true, redirect: handoff, receipt };
+  // Already signed in as this student on this device (checkout on the hub): straight to the receipt.
+  const session = await readSession(env, request, now);
+  if (session?.studentId === result.studentId) return { ok: true, redirect: receipt ?? "/account", receipt };
+  return { ok: true, redirect: receipt ?? `${config(env).hubOrigin}/signin?sent=1`, receipt };
 }
 
 // ---------------------------------------------------------------- POST /api/razorpay/webhook
@@ -642,7 +675,12 @@ export async function handleWebhook(request: Request, env: Env, ctx?: WaitUntil,
     } catch {
       keys = null;
     }
-    await processWebhookEventDb(db, keys, eventId, now);
+    const outcome = await processWebhookEventDb(db, keys, eventId, now);
+    if (outcome.paidOrderId !== null) {
+      const mail = sendReceiptEmail(env, outcome.paidOrderId, now);
+      if (ctx) ctx.waitUntil(mail);
+      else await mail;
+    }
   } catch (err) {
     console.error(`webhook: ${type} ${eventId}: ${err instanceof Error ? err.message : "unknown error"}`);
     return error(500, "server_error", "Not processed. Please retry.");

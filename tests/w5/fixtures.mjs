@@ -58,10 +58,10 @@ export async function adminFixture(extraEnv = {}) {
 
 /** Inserts a student and returns its id. */
 export function addStudentRow(db, { name = "Riya Shah", phone = "+919876543210", email = null, createdAt = 1_760_000_000 } = {}) {
-  db.sqlite
+  const result = db.sqlite
     .prepare("INSERT INTO students (name, phone, email, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
     .run(name, phone, email, createdAt, createdAt);
-  return db.get("SELECT id FROM students WHERE phone = ?", phone).id;
+  return Number(result.lastInsertRowid);
 }
 
 /** Inserts a paid order (and its enrollment) and returns the order id. */

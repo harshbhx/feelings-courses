@@ -17,7 +17,7 @@ Each run leaves an audit log entry: `daily.run` with the counts, or `daily.faile
 | Where | What | Code |
 |---|---|---|
 | Every request | Odd methods (TRACE, WebDAV…) 405, URLs over 2,048 characters 414, NUL bytes 400, declared bodies over 256 KB 413 (upload parts 11 MB, the webhook 1 MB), before any database work | `functions/_lib/abuse.ts`, first step of `functions/_middleware.ts` |
-| Endpoints | Fixed-window limits in D1 (`RATE_LIMITS` in `config.ts`): admin login 5 / 15 min per IP and 20 / day overall, restore 5 / 15 min per IP and 5 / day per contact, orders 10 / 10 min per IP and 20 / day per phone, coupon quotes 20 / 10 min, page views 60 / min, certificate checks 30 / min | `functions/_lib/guard.ts` `enforceRateLimits()` over W0's `ratelimit.ts` |
+| Endpoints | Fixed-window limits in D1 (`RATE_LIMITS` in `config.ts`): admin login 5 / 15 min per IP and 20 / day overall, sign-in links 10 / 15 min per IP and 3 / 15 min and 10 / day per email, orders 10 / 10 min per IP and 20 / day per email, coupon quotes 20 / 10 min, page views 60 / min, certificate checks 30 / min | `functions/_lib/guard.ts` `enforceRateLimits()` over W0's `ratelimit.ts` |
 | Subjects | IPv4 as is; IPv6 per /64 (one home or phone), so rotating addresses doesn't reset a limit; phones and emails hashed before they're stored | `ipSubject()`, `contactSubject()` |
 | On a D1 error | Limits fail open (checkout keeps working) except where a guess is worse than an outage: pass `onError: "closed"` (admin login) | `enforceRateLimits()` |
 | Page views | `POST /api/t` is same-origin JSON only; bots, unknown or unpublished courses and floods are ignored without telling the caller | `functions/api/t.ts` |
