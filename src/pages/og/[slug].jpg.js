@@ -7,15 +7,15 @@
  * the founder's courses without one her cut-out portrait on blush. No words: WhatsApp, Instagram
  * and X print the page's title and description under the picture, and text drawn here would
  * depend on the build machine's fonts.
+ *
+ * Plain JavaScript: it runs only in Node at build time, and the Astro project has no Node typings.
  */
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import type { APIRoute } from "astro";
 import { courses } from "../../data/snapshot";
 import { site } from "../../data/site";
-import type { PublicCourse } from "../../shared/types";
 
 const W = 1200;
 const H = 630;
@@ -32,7 +32,8 @@ export function getStaticPaths() {
 }
 
 /** The logo's shape, filled white (logo.webp is the mark on transparency). */
-async function whiteLogo(width: number): Promise<{ input: Buffer; width: number; height: number }> {
+/** @param {number} width */
+async function whiteLogo(width) {
   const resized = sharp(path.join(assets, "brand", "logo.webp")).resize({ width });
   const { data, info } = await resized.ensureAlpha().extractChannel(3).raw().toBuffer({ resolveWithObject: true });
   const input = await sharp({ create: { width: info.width, height: info.height, channels: 3, background: "#ffffff" } })
@@ -42,7 +43,8 @@ async function whiteLogo(width: number): Promise<{ input: Buffer; width: number;
   return { input, width: info.width, height: info.height };
 }
 
-async function photo(course: PublicCourse): Promise<Buffer> {
+/** @param {import("../../shared/types").PublicCourse} course */
+async function photo(course) {
   const glimpse = course.details.glimpses.map((g) => path.join(assets, "glimpses", `${g.youtubeId}.webp`)).find((f) => existsSync(f));
   if (glimpse) {
     return sharp(await readFile(glimpse)).resize({ width: PHOTO_W, height: H, fit: "cover", position: "attention" }).png().toBuffer();
@@ -57,8 +59,9 @@ async function photo(course: PublicCourse): Promise<Buffer> {
     .toBuffer();
 }
 
-export const GET: APIRoute = async ({ props }) => {
-  const course = (props as { course: PublicCourse }).course;
+/** @type {import("astro").APIRoute} */
+export const GET = async ({ props }) => {
+  const course = props.course;
   const logo = await whiteLogo(420);
   const left = W - PHOTO_W;
   const logoLeft = Math.round((left - logo.width) / 2);

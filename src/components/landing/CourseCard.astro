@@ -47,7 +47,7 @@ const media = course.coverUrl
 
 const facts = [
   view.hasLessons && view.lessonsLabel,
-  view.hasLessons && view.totalMinutes > 0 && `${view.totalMinutes} min of video`,
+  view.hasLessons && view.totalMinutes > 0 && `${view.totalMinutes} min`,
   view.hasBatches && course.durationText,
   view.hasLessons && view.accessText && `${view.accessText} access`,
 ].filter((f): f is string => typeof f === "string" && f.length > 0);
