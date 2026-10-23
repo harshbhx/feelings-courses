@@ -269,8 +269,7 @@ main.wrap {
   font-weight: var(--weight-ui);
   transform: translateY(-200%);
 }
-.skip:focus,
-.skip:focus-visible {
+.skip:focus {
   transform: none;
   color: var(--white);
 }

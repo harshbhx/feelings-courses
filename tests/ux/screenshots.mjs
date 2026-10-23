@@ -39,10 +39,10 @@ try {
       if (overflow > 0) problems.push(`${file} @${viewport.name}: scrolls sideways by ${overflow}px`);
       await page.screenshot({ path: path.join(outDir, `${file.replace(/\.html$/, "")}-${viewport.name}.png`), fullPage: true });
       // The first Tab lands on the skip link, and it must be visible.
-      // The screenshot can leave the page without focus; give it back, as a real tab has.
-      await page.bringToFront();
-      await page.evaluate(() => window.focus());
       await page.keyboard.press("Tab");
+      // Reduced motion still runs a 0.01 ms transition on every property (the usual pattern), so
+      // read the style after two frames, not on the same tick as the focus change.
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const skip = await page.evaluate(() => {
         const el = document.activeElement;
         if (!el || !el.classList.contains("skip")) return "not the skip link";
