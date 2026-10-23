@@ -99,6 +99,7 @@ test("admin: create, fill, upload, publish; students, payments, backup", async (
   await page.locator("[data-signout]").first().click();
   await page.waitForURL(`${HUB}/admin**`);
   await page.goto(`${HUB}/admin/dashboard`);
-  await page.waitForURL(`${HUB}/admin?next=**`);
+  await page.waitForURL((url) => url.pathname === "/admin");
+  await expect(page.getByRole("heading", { name: "Course admin" })).toBeVisible();
   expectCleanBrowser(context, phone);
 });
