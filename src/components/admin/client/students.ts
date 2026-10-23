@@ -1,7 +1,8 @@
 /**
  * Students: the searchable list, "Add student", and the student drawer. Everything goes through
  * W5's admin API; one-time sign-in links and certificates are W3's (createAccessLink, issueCertificate
- * with the admin as the actor).
+ * with the admin as the actor). A student is their email (they sign in with links sent to it); the
+ * phone is a contact detail. "Edit details" corrects either.
  */
 import { MAX_DEVICES_PER_STUDENT } from "../../../shared/constants";
 import type { AdminStudent, AdminStudentRow, EnrollmentSummary, Unix } from "../../../shared/types";
@@ -135,8 +136,8 @@ function clearFilters(): void {
 
 function addStudentDialog(): void {
   const name = input({ maxlength: 80, autocomplete: "off", dataset: { field: "name" } });
+  const email = input({ type: "email", inputmode: "email", autocapitalize: "off", spellcheck: "false", dataset: { field: "email" } });
   const phone = input({ type: "tel", inputmode: "tel", placeholder: "98250 12345", dataset: { field: "phone" } });
-  const email = input({ type: "email", inputmode: "email", dataset: { field: "email" } });
   const course = select([{ value: "", label: "Don't give access yet" }], "", { dataset: { field: "courseId" } });
   void fillCourseSelect(course);
   formDialog({
@@ -145,16 +146,16 @@ function addStudentDialog(): void {
     submit: "Add student",
     body: [
       field({ label: "Name", control: name }),
-      field({ label: "Mobile number", control: phone, hint: "10 digits, or an international number starting with +." }),
-      field({ label: "Email", control: email, optional: true }),
+      field({ label: "Email", control: email, hint: "They sign in with it: we email them a link." }),
+      field({ label: "Mobile number", control: phone, optional: true, hint: "For WhatsApp. 10 digits, or an international number starting with +." }),
       field({ label: "Course access", control: course, hint: "Access lasts the course's access period (1 year by default)." }),
     ],
     onSubmit: async (d) => {
       const errors: Record<string, string> = {};
       if (!name.value.trim()) errors.name = "Write the student's name.";
-      const e164 = normalizePhone(phone.value);
-      if (!e164) errors.phone = "Enter a 10-digit mobile number, or an international number starting with +.";
-      if (email.value.trim() && !looksLikeEmail(email.value)) errors.email = "Enter an email like name@example.com.";
+      if (!looksLikeEmail(email.value)) errors.email = "Enter an email like name@example.com: they sign in with it.";
+      const e164 = phone.value.trim() ? normalizePhone(phone.value) : null;
+      if (phone.value.trim() && !e164) errors.phone = "Enter a 10-digit mobile number, or an international number starting with +.";
       if (Object.keys(errors).length) {
         setErrors(d.form, errors);
         return false;
@@ -162,8 +163,8 @@ function addStudentDialog(): void {
       try {
         const created = await admin("POST /api/admin/students", {}, {
           name: name.value.trim(),
-          phone: e164!,
-          ...(email.value.trim() ? { email: email.value.trim() } : {}),
+          email: email.value.trim(),
+          ...(e164 ? { phone: e164 } : {}),
           ...(course.value ? { courseId: Number(course.value) } : {}),
         });
         toast(`${created.name ?? "Student"} added.`);
@@ -385,19 +386,65 @@ async function accessLink(s: AdminStudent, out: HTMLElement, button: HTMLButtonE
   await busy(button, async () => {
     try {
       const r = await admin("POST /api/admin/students/:id/access-link", { id: s.id });
+      const sent = r.emailed
+        ? `Emailed to ${r.email}. It works once, until ${istDateTime(r.expiresAt)}.`
+        : r.email
+          ? `Couldn't email it just now. It works once, until ${istDateTime(r.expiresAt)}: share it on WhatsApp instead.`
+          : `No email on file: add one with "Edit details". The link works once, until ${istDateTime(r.expiresAt)}: share it on WhatsApp.`;
       fill(
         out,
-        h("p", { class: "field-hint", text: `A one-time sign-in link, valid until ${istDateTime(r.expiresAt)}. Send it on WhatsApp:` }),
+        h("p", { class: "field-hint", text: sent }),
         h(
           "div",
           { class: "btn-row" },
-          h("a", { class: "btn btn-primary btn-sm", href: r.whatsappUrl, target: "_blank", rel: "noopener" }, icon("whatsapp"), "Open WhatsApp"),
-          h("button", { type: "button", class: "btn btn-secondary btn-sm", onClick: () => void copyText(r.url, "Link copied") }, icon("copy"), "Copy link"),
+          h("a", { class: "btn btn-secondary btn-sm", href: r.whatsappUrl, target: "_blank", rel: "noopener" }, icon("whatsapp"), "Share on WhatsApp"),
+          h("button", { type: "button", class: "btn btn-ghost btn-sm", onClick: () => void copyText(r.url, "Link copied") }, icon("copy"), "Copy link"),
         ),
       );
+      if (r.emailed) toast("Sign-in link emailed.");
     } catch (err) {
       fill(out, h("p", { class: "field-hint", text: describeError(asApiError(err)).message }));
     }
+  });
+}
+
+/** Correct the name, the email (how they sign in) or the phone. */
+function editDetailsDialog(s: AdminStudent): void {
+  const name = input({ value: s.name ?? "", maxlength: 80, autocomplete: "off", dataset: { field: "name" } });
+  const email = input({ type: "email", inputmode: "email", value: s.email ?? "", autocapitalize: "off", spellcheck: "false", dataset: { field: "email" } });
+  const phone = input({ type: "tel", inputmode: "tel", value: s.phone ?? "", placeholder: "98250 12345", dataset: { field: "phone" } });
+  formDialog({
+    title: "Edit details",
+    intro: "A new email ends the sign-in links already sent. Devices stay signed in: sign them out too if the old email wasn't theirs.",
+    submit: "Save",
+    body: [
+      field({ label: "Name", control: name }),
+      field({ label: "Email", control: email, hint: "They sign in with it." }),
+      field({ label: "Mobile number", control: phone, optional: true }),
+    ],
+    onSubmit: async (d) => {
+      const errors: Record<string, string> = {};
+      if (!name.value.trim()) errors.name = "Write the student's name.";
+      if (!looksLikeEmail(email.value)) errors.email = "Enter an email like name@example.com.";
+      const e164 = phone.value.trim() ? normalizePhone(phone.value) : null;
+      if (phone.value.trim() && !e164) errors.phone = "Enter a 10-digit mobile number, or an international number starting with +.";
+      if (Object.keys(errors).length) {
+        setErrors(d.form, errors);
+        return false;
+      }
+      try {
+        await admin("PUT /api/admin/students/:id", { id: s.id }, { name: name.value.trim(), email: email.value.trim(), phone: e164 });
+        toast("Details saved.");
+        await refresh(s.id);
+        loadList();
+        return true;
+      } catch (err) {
+        const e = asApiError(err);
+        const unplaced = setErrors(d.form, e.fields);
+        if (!Object.keys(e.fields).length || Object.keys(unplaced).length) d.setMessage(describeError(e).message);
+        return false;
+      }
+    },
   });
 }
 
@@ -473,10 +520,10 @@ function renderStudent(s: AdminStudent): void {
     h(
       "dl",
       { class: "kv" },
+      h("dt", { text: "Email (sign-in)" }),
+      h("dd", { text: s.email ?? "None: add one so they can sign in" }),
       h("dt", { text: "Phone" }),
       h("dd", { text: prettyPhone(s.phone) }),
-      h("dt", { text: "Email" }),
-      h("dd", { text: s.email ?? "—" }),
       h("dt", { text: "Joined" }),
       h("dd", { text: istDate(s.createdAt) }),
     ),
@@ -486,6 +533,7 @@ function renderStudent(s: AdminStudent): void {
           { class: "contact-actions" },
           wa ? h("a", { class: "btn btn-secondary btn-sm", href: wa, target: "_blank", rel: "noopener" }, icon("whatsapp"), "WhatsApp") : null,
           s.phone ? h("button", { type: "button", class: "btn btn-ghost btn-sm", onClick: () => void copyText(s.phone!, "Phone copied") }, icon("copy"), "Copy phone") : null,
+          h("button", { type: "button", class: "btn btn-ghost btn-sm", onClick: () => editDetailsDialog(s) }, icon("pencil-simple"), "Edit details"),
         )
       : null,
   );
@@ -539,7 +587,7 @@ function renderStudent(s: AdminStudent): void {
                   type: "button",
                   class: "btn btn-ghost btn-sm",
                   onClick: async (ev: Event) => {
-                    const ok = await confirmDialog({ title: "Sign out every device?", body: "They'll need a sign-in link or their payment details to get back in.", confirm: "Sign out all" });
+                    const ok = await confirmDialog({ title: "Sign out every device?", body: "They'll need a new sign-in link (we email one when they ask) to get back in.", confirm: "Sign out all" });
                     if (!ok) return;
                     await busy(ev.currentTarget as HTMLButtonElement, async () => {
                       try {
@@ -560,7 +608,7 @@ function renderStudent(s: AdminStudent): void {
             "button",
             { type: "button", class: "btn btn-secondary btn-sm", onClick: (ev: Event) => void accessLink(s, linkOut, ev.currentTarget as HTMLButtonElement) },
             icon("link-simple"),
-            "Make a sign-in link",
+            "Email a sign-in link",
           ),
         )
       : null,

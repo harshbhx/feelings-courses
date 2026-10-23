@@ -1,7 +1,7 @@
 ---
 // Students: search, filter by course, page through (GET /api/admin/students), export CSV, add a
 // student who paid at the studio, and a detail drawer (?open=<id>) with access, payments, devices,
-// certificates, a WhatsApp sign-in link, and the DPDP erase. Phones are masked in the list.
+// certificates, an emailed sign-in link (also shareable on WhatsApp), "Edit details" and the DPDP erase. Phones are masked in the list.
 import Admin from "../../layouts/Admin.astro";
 import Icon from "../../components/Icon.astro";
 ---
@@ -9,7 +9,7 @@ import Icon from "../../components/Icon.astro";
 <Admin
   title="Students"
   active="students"
-  icons={["magnifying-glass", "download-simple", "plus", "whatsapp", "device-mobile", "certificate", "trash", "sign-out", "link-simple", "users-three", "calendar-check", "receipt", "x-circle", "arrow-right", "arrow-left"]}
+  icons={["magnifying-glass", "download-simple", "plus", "whatsapp", "device-mobile", "certificate", "trash", "sign-out", "link-simple", "users-three", "calendar-check", "receipt", "x-circle", "arrow-right", "arrow-left", "copy", "pencil-simple"]}
 >
   <header class="page-head">
     <div>
@@ -32,7 +32,7 @@ import Icon from "../../components/Icon.astro";
     <label class="search">
       <span class="visually-hidden">Search students</span>
       <Icon name="magnifying-glass" />
-      <input class="input" type="search" name="q" placeholder="Name, phone or email" autocomplete="off" maxlength="100" data-q />
+      <input class="input" type="search" name="q" placeholder="Name, email or phone" autocomplete="off" maxlength="100" data-q />
     </label>
     <label class="tb-select">
       <span class="visually-hidden">Course</span>
