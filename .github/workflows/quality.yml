@@ -1,0 +1,127 @@
+# Quality: Lighthouse (mobile and desktop) and an accessibility pass (axe, keyboard, reduced motion)
+# on every public, learner and admin page, plus the HTTP checks (security headers, caching,
+# robots, sitemaps, canonicals, structured data per host). Thresholds: 95 in every Lighthouse
+# category, Core Web Vitals within "good", JavaScript budgets, and zero axe violations.
+# docs/QUALITY.md has the scores and how to read a failure.
+#
+# Runs on pull requests and on demand (Actions → Quality → Run workflow, or
+# `gh workflow run quality.yml --ref <branch>`). It builds with the seed snapshot and serves the
+# build under `wrangler pages dev` in the runner; it never deploys and never touches Cloudflare.
+# Reports: `gh run download <run>` (lighthouse-mobile, lighthouse-desktop, a11y-http).
+name: Quality
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SNAPSHOT_SOURCE: seed
+  ASTRO_TELEMETRY_DISABLED: "1"
+  WRANGLER_SEND_METRICS: "false"
+
+jobs:
+  lighthouse:
+    name: Lighthouse (${{ matrix.preset }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [mobile, desktop]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build:fast
+
+      - name: Serve the build and the learner pages
+        run: tests/quality/serve.sh
+
+      - name: Lighthouse
+        env:
+          LH_PRESET: ${{ matrix.preset }}
+        run: |
+          mapfile -t plain < <(node tests/quality/pages.mjs plain)
+          mapfile -t admin < <(node tests/quality/pages.mjs admin)
+          npx -y @lhci/cli@0.15.1 collect --config=tests/quality/lighthouserc.cjs "${plain[@]}"
+          LH_ADMIN_COOKIE="$ADMIN_COOKIE" npx -y @lhci/cli@0.15.1 collect --additive --config=tests/quality/lighthouserc.cjs "${admin[@]}"
+
+      - name: Scores
+        if: always()
+        run: node tests/quality/lighthouse-summary.mjs ${{ matrix.preset }} | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Reports
+        if: always()
+        run: npx -y @lhci/cli@0.15.1 upload --config=tests/quality/lighthouserc.cjs
+
+      - name: Thresholds
+        run: npx -y @lhci/cli@0.15.1 assert --config=tests/quality/lighthouserc.cjs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-${{ matrix.preset }}
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            quality-report/
+            .lighthouseci/assertion-results.json
+            ${{ runner.temp }}/quality/*.log
+
+  a11y-http:
+    name: Accessibility and HTTP
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build:fast
+
+      - name: Serve the build and the learner pages
+        run: tests/quality/serve.sh
+
+      - name: Security headers, caching and search (per host)
+        if: always()
+        run: node tests/quality/headers.mjs | tee -a "$GITHUB_STEP_SUMMARY"; exit "${PIPESTATUS[0]}"
+
+      - name: Browser
+        if: always()
+        run: npm i --no-save playwright@1.48.2 @axe-core/playwright@4.10.2 && npx playwright install --with-deps chromium
+
+      - name: axe, keyboard and reduced motion
+        if: always()
+        run: node tests/quality/a11y.mjs quality-report | tee -a "$GITHUB_STEP_SUMMARY"; exit "${PIPESTATUS[0]}"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: a11y-http
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            quality-report/
+            ${{ runner.temp }}/quality/*.log
