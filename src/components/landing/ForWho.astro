@@ -58,7 +58,7 @@ const steps = [pay, studio, watch, certificate].filter((s): s is NonNullable<typ
 
     <div class="how" aria-labelledby="how-title">
       <h3 id="how-title" class="how-title" data-reveal>How it works</h3>
-      <ol class="steps" data-reveal="stagger">
+      <ol class:list={["steps", { "is-four": steps.length === 4 }]} data-reveal="stagger">
         {
           steps.map((step, i) => (
             <li class="step" style={`--i: ${i}`}>
@@ -242,6 +242,25 @@ const steps = [pay, studio, watch, certificate].filter((s): s is NonNullable<typ
       bottom: auto;
       width: auto;
       height: 1px;
+    }
+
+    /* Four steps (studio and online): two rows of two on tablets, one row of four from 64rem. */
+    .steps.is-four {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .steps.is-four .step:nth-child(2n)::before {
+      display: none;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .steps.is-four {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .steps.is-four .step:nth-child(2n):not(:last-child)::before {
+      display: block;
     }
   }
 
