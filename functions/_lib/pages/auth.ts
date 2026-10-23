@@ -131,8 +131,7 @@ function checkEmailPage(business: Business, email: string | null): Raw {
   <span class="state-icon">${icon("check-circle")}</span>
   <h1>Check your email</h1>
   <p>${email ? html`If <strong>${email}</strong> has a course with us, a sign-in link is on its way.` : "If that email has a course with us, a sign-in link is on its way."} Open it on this device. It works once, for ${LINK_MINUTES} minutes.</p>
-  <p class="muted small">Nothing after a few minutes? Look in Spam or Promotions, check the address, or <a href="/signin">try again</a>.</p>
-  ${help ? html`<p class="help-line">${icon("whatsapp")}<span><a href="${help}" target="_blank" rel="noopener noreferrer">Message us on WhatsApp</a> if it still doesn't come.</span></p>` : ""}
+  <p class="muted small">Nothing after a few minutes? Look in Spam or Promotions, check the address, or <a href="/signin">try again</a>.${help ? html` Still nothing? <a href="${help}" target="_blank" rel="noopener noreferrer">Message us on WhatsApp</a>.` : ""}</p>
 </section>`,
   );
 }
