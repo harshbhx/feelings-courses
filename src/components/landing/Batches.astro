@@ -22,6 +22,13 @@ interface Props {
 const { view } = Astro.props;
 const { course } = view;
 const ask = whatsappLink(`Hi ${view.teacherFirstName}, when is the next batch of the ${course.title}?`);
+const rows = course.batches.map((b) => ({
+  b,
+  seats: seatsLabel(b),
+  full: b.seatsLeft === 0,
+  few: b.seatsLeft !== null && b.seatsLeft > 0 && b.seatsLeft <= FEW_SEATS,
+  leaf: dayParts(b.startsOn),
+}));
 ---
 
 <section class="section batches" id="batches" aria-labelledby="batches-title">
@@ -37,11 +44,7 @@ const ask = whatsappLink(`Hi ${view.teacherFirstName}, when is the next batch of
     {
       course.batches.length > 0 ? (
         <ul class="batch-list" data-reveal="stagger">
-          {course.batches.map((b, i) => {
-            const seats = seatsLabel(b);
-            const full = b.seatsLeft === 0;
-            const few = !full && b.seatsLeft !== null && b.seatsLeft <= FEW_SEATS;
-            const leaf = dayParts(b.startsOn);
+          {rows.map(({ b, seats, full, few, leaf }, i) => {
             return (
               <li class:list={["batch", { "is-full": full }]} style={`--i: ${i}`}>
                 {leaf && (
