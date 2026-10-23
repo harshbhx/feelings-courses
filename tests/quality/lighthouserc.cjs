@@ -41,6 +41,8 @@ const assertions = {
   // Text and fonts.
   "font-display": min(1),
   "uses-text-compression": min(1),
+  // An accessible name that starts with the visible label (WCAG 2.5.3; not in the a11y score).
+  "label-content-name-mismatch": min(1),
   // Console errors are bugs.
   "errors-in-console": min(1),
 };
