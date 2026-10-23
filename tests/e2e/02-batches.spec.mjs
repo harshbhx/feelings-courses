@@ -1,7 +1,7 @@
 // Journey 2: an in-person course. Booking a studio batch pays the booking amount (deposit) online;
 // a batch with no seats left is refused at checkout even though the static page (built earlier)
 // still lists it; the buyer picks another batch and books it.
-import { checkout, expect, expectCleanBrowser, expectNoSideScroll, HUB, STUDIO_HOST, test } from "./fixtures.mjs";
+import { browserFetch, checkout, expect, expectCleanBrowser, expectNoSideScroll, HUB, STUDIO_HOST, test } from "./fixtures.mjs";
 
 const seats = async (ctl) =>
   Object.fromEntries((await ctl.sql("SELECT id, seats_taken FROM batches WHERE course_id = 41 ORDER BY id")).map((b) => [b.id, b.seats_taken]));
@@ -65,12 +65,9 @@ test("two buyers racing for one last seat: the batch is never silently overbooke
   );
   await page.goto(`${STUDIO_HOST}/`);
   const order = async (email) => {
-    const res = await page.request.post(`${STUDIO_HOST}/api/order`, {
-      data: { course: "studio", consent: true, name: "Race Buyer", email, batchId: 412 },
-      headers: { Origin: STUDIO_HOST },
-    });
-    expect(res.status(), await res.text()).toBe(200);
-    return res.json();
+    const res = await browserFetch(page, "/api/order", { method: "POST", body: { course: "studio", consent: true, name: "Race Buyer", email, batchId: 412 } });
+    expect(res.status, res.text).toBe(200);
+    return res.json;
   };
   const first = await order(buyer.email);
   const second = await order(buyer.email.replace(/^buyer-/, "racer-"));
@@ -83,8 +80,7 @@ test("two buyers racing for one last seat: the batch is never silently overbooke
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ orderId: placed.orderId }),
     })).json();
-    const res = await page.request.post(`${STUDIO_HOST}/api/verify`, { data: paid, headers: { Origin: STUDIO_HOST } });
-    return { status: res.status(), body: await res.json().catch(() => null) };
+    return browserFetch(page, "/api/verify", { method: "POST", body: paid });
   };
   const v1 = await verify(first);
   const v2 = await verify(second);

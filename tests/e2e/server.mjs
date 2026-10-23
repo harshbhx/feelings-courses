@@ -145,6 +145,8 @@ globalThis.fetch = async (input, init) => {
     deployHooks.push({ at: clock.now() });
     return json(200, { success: true, result: { id: `fake-build-${deployHooks.length}` } });
   }
+  // The site calling itself (the admin's domain check fetches a course host): served in-process.
+  if (url.hostname === "feelingsbeautycare.in" || url.hostname.endsWith(".feelingsbeautycare.in")) return site.fetch(request);
   if (url.hostname === "127.0.0.1" || url.hostname === "localhost") return realFetch(request);
   throw new TypeError(`e2e: the server tried to reach ${url.origin} (not faked)`);
 };

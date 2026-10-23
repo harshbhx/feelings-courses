@@ -41,7 +41,7 @@ export default defineConfig({
     launchOptions,
   },
   projects: [
-    { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 }, launchOptions } },
+    { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 }, launchOptions }, testIgnore: /mobile\.spec\.mjs$/ },
     {
       name: "mobile",
       // A 390px phone (the site's first check, CLAUDE.md rule 2), on Chromium.

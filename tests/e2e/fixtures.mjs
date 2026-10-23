@@ -214,3 +214,28 @@ export async function adminSignIn(page, next = "/admin/dashboard") {
 export async function syncClock(context) {
   await context.clock.install({ time: (await ctl.now()) * 1000 });
 }
+
+/**
+ * A request from inside the page (its host, its cookies, the browser's network). Never use
+ * page.request / context.request here: those run in Node, bypass the browser's host mapping and
+ * would reach the REAL *.feelingsbeautycare.in. `url` is a path on the page's own origin.
+ */
+export async function browserFetch(page, url, { method = "GET", body } = {}) {
+  return page.evaluate(
+    async ({ url, method, body }) => {
+      const res = await fetch(url, {
+        method,
+        credentials: "same-origin",
+        headers: body === undefined ? {} : { "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      const text = await res.text();
+      let json = null;
+      try {
+        json = JSON.parse(text);
+      } catch {}
+      return { status: res.status, json, text: json ? "" : text.slice(0, 300) };
+    },
+    { url, method, body },
+  );
+}

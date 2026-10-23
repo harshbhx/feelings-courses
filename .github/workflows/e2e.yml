@@ -47,6 +47,11 @@ jobs:
       - name: Chromium
         run: npx playwright install --with-deps chromium
 
+      # Safety net: anything outside the browser that resolves a site host (a test using
+      # page.request by mistake) reaches this machine, never the live site.
+      - name: Keep the site's hosts on this machine
+        run: echo "127.0.0.1 feelingsbeautycare.in courses.feelingsbeautycare.in glow.feelingsbeautycare.in studio.feelingsbeautycare.in party-e2e.feelingsbeautycare.in selfmakeup.feelingsbeautycare.in" | sudo tee -a /etc/hosts
+
       # The build fetches its content snapshot from the e2e server (the seeded courses), exactly as a
       # production build fetches it from the live site. That server is stopped after the build; the
       # journeys get a fresh one from playwright.config.mjs.

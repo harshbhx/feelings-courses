@@ -1,7 +1,7 @@
 // Journey 4: refunds (owner decision: within 24 hours of purchase). The admin refunds from the
 // Payments screen; Razorpay confirms with its webhook; the student's access ends and the receipt says
 // Refunded. After 24 hours the admin isn't offered a refund and the API refuses one; access stays.
-import { adminSignIn, buyGlow, expect, expectCleanBrowser, HUB, syncClock, test } from "./fixtures.mjs";
+import { adminSignIn, browserFetch, buyGlow, expect, expectCleanBrowser, HUB, syncClock, test } from "./fixtures.mjs";
 
 const orderStatus = async (ctl, id) => (await ctl.sql("SELECT status, refunded_paise FROM orders WHERE id = ?", [id]))[0];
 
@@ -54,12 +54,9 @@ test("after 24 hours there is no refund: not offered, refused by the API, access
 
   // Even a direct API call (an old tab, a wrong clock) is refused, and Razorpay is never asked.
   const refundsBefore = (await ctl.razorpay()).refunds.length;
-  const res = await admin.request.post(`${HUB}/api/admin/orders/${orderId}/refund`, {
-    data: { reason: "Too late", revoke: true },
-    headers: { Origin: HUB },
-  });
-  expect(res.status()).toBe(409);
-  expect((await res.json()).error).toBe("refund_window_closed");
+  const res = await browserFetch(admin, `/api/admin/orders/${orderId}/refund`, { method: "POST", body: { reason: "Too late", revoke: true } });
+  expect(res.status).toBe(409);
+  expect(res.json.error).toBe("refund_window_closed");
   expect((await ctl.razorpay()).refunds.length).toBe(refundsBefore);
   expect(await orderStatus(ctl, orderId)).toEqual({ status: "paid", refunded_paise: 0 });
 
