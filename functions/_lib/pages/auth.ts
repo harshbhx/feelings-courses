@@ -23,15 +23,20 @@ import {
   readSession,
   revokeSession,
   safeRedirectPath,
+  sessionToken,
 } from "../session.ts";
+import { MAX_DEVICES_PER_STUDENT } from "../../../src/shared/constants.ts";
 import {
+  callout,
   formFromSameSite,
   html,
+  icon,
   layout,
   loadBusiness,
   messagePage,
   page,
   pageRedirect,
+  raw,
   whatsappHref,
   type Business,
   type Raw,
@@ -41,14 +46,17 @@ import {
 export const CLEAR_LEGACY_COOKIE = `${LEGACY_ENROLL_COOKIE}=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; HttpOnly; Secure; SameSite=Lax`;
 
 const methodNotAllowedPage = (business: Business) =>
-  page(messagePage({ title: "Not allowed", business }, "Not allowed", "This page can't be used that way."), 405);
+  page(messagePage({ title: "Not allowed", business }, "Not allowed", "This page can't be used that way.", undefined, { icon: "warning-circle", tone: "warn" }), 405);
 
 function crossSite(business: Business): Response {
   return page(
-    messagePage({ title: "Please try again", business }, "Please try again", "That form came from another site, so nothing was changed.", {
-      href: "/signin",
-      label: "Go to sign in",
-    }),
+    messagePage(
+      { title: "Please try again", business },
+      "Please try again",
+      "That form came from another site, so nothing was changed.",
+      { href: "/signin", label: "Go to sign in" },
+      { icon: "warning-circle", tone: "warn" },
+    ),
     403,
   );
 }
@@ -68,6 +76,8 @@ interface SigninState {
   next: string;
   error?: string;
   field?: "contact" | "paymentId";
+  /** This browser still had a session cookie, but the session has ended (signed out elsewhere, or by the 2-device limit). */
+  ended?: boolean;
 }
 
 function signinForm(business: Business, state: SigninState): Raw {
@@ -76,9 +86,18 @@ function signinForm(business: Business, state: SigninState): Raw {
   return layout(
     { title: "Open your course", business },
     html`<section class="card narrow">
+  <span class="state-icon">${icon("lock-simple")}</span>
   <h1>Open your course on this device</h1>
   <p class="lead">Enter the phone number or email you paid with, and the payment ID from your receipt.</p>
-  ${state.error ? html`<p class="alert" id="form-error" role="alert">${state.error}</p>` : ""}
+  ${
+    state.ended && !state.error
+      ? callout(
+          "info",
+          html`This device was signed out. That happens when it is signed out from another device, or when you sign in on a new one: your course can be open on ${MAX_DEVICES_PER_STUDENT} devices at a time, and the one used least recently is signed out. Sign in again below.`,
+        )
+      : ""
+  }
+  ${state.error ? callout("alert", state.error, "form-error") : ""}
   <form method="post" action="/signin" class="form" novalidate>
     <input type="hidden" name="next" value="${state.next}">
     <label for="contact">Phone number or email</label>
@@ -86,12 +105,13 @@ function signinForm(business: Business, state: SigninState): Raw {
       value="${state.contact ?? ""}"${invalid("contact")}>
     <label for="paymentId">Payment ID</label>
     <input id="paymentId" name="paymentId" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" required
-      maxlength="44" placeholder="pay_…" value="${state.paymentId ?? ""}"${invalid("paymentId")}>
-    <p class="hint">It starts with <code>pay_</code>. You'll find it on your receipt page and in the SMS or email Razorpay sent after you paid.</p>
-    <button type="submit" class="btn">Continue</button>
+      maxlength="44" placeholder="pay_…" value="${state.paymentId ?? ""}" aria-describedby="paymentId-hint${state.field === "paymentId" ? " form-error" : ""}"${state.field === "paymentId" ? raw(` aria-invalid="true"`) : ""}>
+    <p class="hint" id="paymentId-hint">It starts with <code>pay_</code>. You'll find it on your receipt page and in the SMS or email Razorpay sent after you paid.</p>
+    <button type="submit" class="btn">Continue${icon("arrow-right")}</button>
   </form>
-  <p class="small">You can be signed in on 2 devices. Signing in here signs out the device you used least recently if you're already on 2.</p>
-  ${help ? html`<p class="small">Lost your payment ID? <a href="${help}" target="_blank" rel="noopener noreferrer">Message us on WhatsApp</a> and we'll send you a one-time sign-in link.</p>` : ""}
+  <hr class="divider">
+  <p class="help-line">${icon("device-mobile")}<span>You can be signed in on ${MAX_DEVICES_PER_STUDENT} devices. Signing in here signs out the device you used least recently if you're already on ${MAX_DEVICES_PER_STUDENT}.</span></p>
+  ${help ? html`<p class="help-line">${icon("whatsapp")}<span>Lost your payment ID? <a href="${help}" target="_blank" rel="noopener noreferrer">Message us on WhatsApp</a> and we'll send you a one-time sign-in link.</span></p>` : ""}
 </section>`,
   );
 }
@@ -99,7 +119,7 @@ function signinForm(business: Business, state: SigninState): Raw {
 /** Before the owner runs setup there is no D1, so no accounts: say so instead of failing. */
 export function notSetUp(business: Business): Response {
   return page(
-    messagePage({ title: "Not available yet", business }, "Not available yet", "Student accounts aren't set up on this site yet."),
+    messagePage({ title: "Not available yet", business }, "Not available yet", "Student accounts aren't set up on this site yet.", { href: "/", label: "See the courses" }, { icon: "clock", tone: "info" }),
     503,
   );
 }
@@ -111,7 +131,8 @@ export async function handleSignin(request: Request, env: Env, now = unixNow()):
   if (request.method === "GET" || request.method === "HEAD") {
     const next = nextPath(url.searchParams.get("next"));
     if (await readSession(env, request, now)) return pageRedirect(next, [], 302);
-    return page(signinForm(business, { next }), 200, [], request.method);
+    // A session cookie that no longer opens a session: say why this device has to sign in again.
+    return page(signinForm(business, { next, ended: sessionToken(request) !== null }), 200, [], request.method);
   }
   if (request.method !== "POST") return methodNotAllowedPage(business);
   if (!formFromSameSite(request)) return crossSite(business);
@@ -186,6 +207,14 @@ function expiredLink(business: Business): Response {
       "This link has expired",
       "Sign-in links work once, for a short time. You can sign in with your phone number or email and payment ID, or ask us on WhatsApp for a new link.",
       { href: "/signin", label: "Sign in" },
+      {
+        icon: "clock",
+        tone: "warn",
+        secondary: (() => {
+          const href = whatsappHref(business, "Hi Urmi, my sign-in link has expired. Can you send a new one?");
+          return href ? { href, label: "Ask for a new link", external: true } : undefined;
+        })(),
+      },
     ),
     410,
   );
@@ -195,13 +224,15 @@ function confirmPage(business: Business, token: string): Raw {
   return layout(
     { title: "Open your course", business },
     html`<section class="card narrow">
+  <span class="state-icon">${icon("lock-simple")}</span>
   <h1>Open your course on this device</h1>
   <p class="lead">This link signs you in once. Continue on the phone or computer where you want to watch.</p>
   <form method="post" action="/auth/continue" class="form">
     <input type="hidden" name="t" value="${token}">
-    <button type="submit" class="btn">Continue</button>
+    <button type="submit" class="btn">Continue${icon("arrow-right")}</button>
   </form>
-  <p class="small">You can be signed in on 2 devices. If you're already on 2, the one you used least recently is signed out.</p>
+  <hr class="divider">
+  <p class="help-line">${icon("device-mobile")}<span>You can be signed in on ${MAX_DEVICES_PER_STUDENT} devices. If you're already on ${MAX_DEVICES_PER_STUDENT}, the one you used least recently is signed out.</span></p>
 </section>`,
   );
 }
@@ -253,10 +284,11 @@ export async function handleLogout(request: Request, env: Env, now = unixNow()):
   return page(
     layout(
       { title: "Sign out", business, signedIn },
-      html`<section class="card narrow">
+      html`<section class="card narrow state tone-info">
+  <span class="state-icon">${icon("sign-out")}</span>
   <h1>Sign out of this device?</h1>
   <p>You can sign in again any time with your phone number or email and payment ID.</p>
-  <form method="post" action="/learn/logout" class="form"><button type="submit" class="btn">Sign out</button></form>
+  <form method="post" action="/learn/logout" class="btn-row"><button type="submit" class="btn">Sign out</button>${signedIn ? html`<a class="btn btn-quiet" href="/account">Stay signed in</a>` : ""}</form>
 </section>`,
     ),
     200,

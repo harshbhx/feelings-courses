@@ -1,0 +1,55 @@
+# Screenshots of the learner pages (sign-in, account, course, lesson, certificate, receipt and their
+# states) at 390px and 1280px, from static previews of the real Functions output. Runs on demand and
+# on pull requests that touch those pages; the pictures are a downloadable artifact
+# (gh run download <run> -n student-pages). Never deploys anything.
+name: Screenshots
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "functions/_lib/pages/**"
+      - "functions/_lib/receipts.ts"
+      - "public/app/**"
+      - "tests/ux/**"
+      - "scripts/preview-student-pages.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  student-pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Render the pages
+        run: node --experimental-strip-types --no-warnings --import ./tests/helpers/register.mjs scripts/preview-student-pages.mjs
+
+      - name: Browser
+        run: npm i --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
+
+      - name: Screenshots, sideways scroll and skip-link checks
+        run: node tests/ux/screenshots.mjs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: student-pages
+          path: |
+            preview/student
+            preview/screenshots
+          retention-days: 14
