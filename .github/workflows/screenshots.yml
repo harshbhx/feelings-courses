@@ -110,3 +110,41 @@ jobs:
             preview/public
             preview/sheets
           retention-days: 14
+
+  # The shared header and footer (tests/ux/header-footer.mjs): sticky-header shrink without layout
+  # shift, the phone and tablet menu (focus trap, Escape, inert page, 44px targets, reduced
+  # motion), axe-core on the header and footer, and contact sheets of every state
+  # (gh run download <run> -n header-footer).
+  header-footer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ASTRO_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci && npm i --no-save playwright@1.48.2 axe-core@4.10.2 && npx playwright install --with-deps chromium
+
+      - name: Build the showcase
+        run: |
+          node --experimental-strip-types --no-warnings --import ./tests/helpers/register.mjs tests/ux/public-fixture.mjs showcase
+          npx astro build && node scripts/csp.mjs
+
+      - name: Render the student pages
+        run: node --experimental-strip-types --no-warnings --import ./tests/helpers/register.mjs scripts/preview-student-pages.mjs
+
+      - name: Header and footer checks, pictures and contact sheets
+        run: node tests/ux/header-footer.mjs dist preview/student preview/header-footer
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: header-footer
+          path: preview/header-footer
+          retention-days: 14

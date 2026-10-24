@@ -342,10 +342,10 @@ const recorded = view.hasLessons;
       align-items: start;
     }
 
-    /* The outcomes stay in view beside a long list of lessons. */
+    /* The outcomes stay in view beside a long list of lessons, below the sticky header. */
     .outcomes-block {
       position: sticky;
-      top: var(--space-6);
+      top: calc(var(--header-h) + var(--space-5));
     }
   }
 

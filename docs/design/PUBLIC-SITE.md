@@ -48,6 +48,36 @@ nothing to say are left out (no batches on a recorded course, no teacher band fo
   another red button is on screen. Recorded courses say lessons and access; studio courses say the
   next batch's day and "Book a seat".
 
+## Header and footer
+
+One family with the main site (`harshbhx/feelings-beauty-care`, `Header.astro` and `Footer.astro`):
+the maroon logo, a white bar with a hairline, quiet pill links with a bindi under the current one,
+the "Menu" pill, and a maroon footer with small column titles.
+
+- **Header** (`src/components/landing/Header.astro`, every public page and the payment result
+  pages). Logo with a "Courses" tag; All courses (the hub, absolute, because on a course's own
+  subdomain `/` is that course), My courses (`/account`, which signs in first), Contact
+  (`/legal#contact`) and the main site; "Ask Urmi" on WhatsApp, never red (the one red button on a
+  course page is Enroll). Sticky: once the page scrolls it tucks 0.5rem above the top edge and the
+  logo settles by transform, so its height never changes and nothing below it moves. Below 64rem
+  the links live in a full-height menu: focus moves in and stays in the header, Escape closes it
+  and returns focus to the button, the page behind is inert, every target is 44px or more, and
+  with reduced motion it opens without animation.
+- **Footer** (`src/components/landing/Footer.astro`). `full`: brand block (Instagram, YouTube,
+  WhatsApp), Courses (All courses, My courses, Sign in, Check a certificate), The studio
+  (feelingsbeautycare.in, the makeup academy, Contact us), Visit (address, directions, hours,
+  phone), then copyright, the four policies and Back to top. `compact` (payment results, the
+  course area): one brand row, the main links and the same legal row. Hours and the map pin are
+  copied from the main site's `site.ts` (CONFIRM there).
+- **Course area** (`LearnHeader.astro`, `LearnFooter.astro`) and the **student pages** Functions
+  render (`functions/_lib/pages/html.ts`, `public/app/app.css`) use the same logo, tag, pill links
+  and maroon footer; the logo is `public/app/logo.webp` drawn as a mask (no inline style, CSP).
+- **Admin** keeps its own compact bar and sidebar.
+
+`.github/workflows/screenshots.yml`, job `header-footer` (`tests/ux/header-footer.mjs`), checks all
+of this in a browser at 390, 768 and 1280px and makes contact sheets
+(`gh run download <run id> -n header-footer`).
+
 ## Link previews
 
 Each course gets `/og/<slug>.jpg` (1200x630), made at build time by `src/pages/og/[slug].jpg.js`
