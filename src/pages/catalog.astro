@@ -39,7 +39,16 @@ const mainDuration = hours ? `${hours}${NB}h${mins ? `${NB}${mins}${NB}min` : ""
           <li>
             <a class="cat-card" href="/">
               <span class="cat-media">
-                <img src={mainCover.src} alt="" width="480" height="600" />
+                {/* The first card is the page's largest image (LCP): sized per screen, fetched first. */}
+                <img
+                  src={mainCover.src}
+                  srcset={mainCover.srcset || undefined}
+                  sizes="(min-width: 64rem) 22rem, (min-width: 40rem) 45vw, calc(100vw - 2.5rem)"
+                  alt=""
+                  width="480"
+                  height="600"
+                  fetchpriority="high"
+                />
               </span>
               <span class="cat-body">
                 <span class="cat-meta">{course.level} · {lessonCount} lessons · {mainDuration}</span>

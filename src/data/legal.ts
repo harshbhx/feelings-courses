@@ -215,7 +215,7 @@ export function legalDocs(settings: PublicSettings, hubHost: string = DEFAULT_HU
   const privacy: LegalDoc = {
     page: "privacy",
     title: LEGAL_TITLES.privacy,
-    summary: `What ${name} collects when you buy or take a course, why, who else sees it, how long it is kept, and your rights under India's Digital Personal Data Protection Act, 2023.`,
+    summary: `What ${name} collects when you buy or take a course, why, who sees it, how long it is kept, and your rights under India's DPDP Act, 2023.`,
     sections: [
       {
         heading: "Who is responsible",

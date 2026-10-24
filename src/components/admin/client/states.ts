@@ -65,7 +65,13 @@ export async function loadInto<T>(
   region.setAttribute("aria-busy", "true");
   // Lists get their placeholder and messages inside an <li>.
   const wrap = (node: HTMLElement) => (region.tagName === "UL" || region.tagName === "OL" ? h("li", { class: "state-li" }, node) : node);
-  if (!opts.quiet) fill(region, wrap(h("div", null, skeleton(opts.rows ?? 3, opts.kind ?? "rows"), h("p", { class: "visually-hidden", text: "Loading…" }))));
+  if (!opts.quiet) {
+    fill(region, wrap(h("div", null, skeleton(opts.rows ?? 3, opts.kind ?? "rows"), h("p", { class: "visually-hidden", text: "Loading…" }))));
+    // An empty or error state that replaces this placeholder keeps its height (admin.css, .state),
+    // so what follows the list doesn't jump up when the answer comes (layout shift).
+    if ((opts.kind ?? "rows") === "rows") region.style.setProperty("--skel-rows", String(opts.rows ?? 3));
+    else region.style.removeProperty("--skel-rows");
+  }
   try {
     const data = await load();
     region.removeAttribute("aria-busy");

@@ -1526,10 +1526,23 @@
 .state {
   display: grid;
   justify-items: center;
+  align-content: center;
   gap: var(--space-2);
+  /* As tall as the loading placeholder it replaces (--skel-rows rows of .skel-item, set by
+     loadInto in client/states.ts), so the content after it doesn't move when a list turns out
+     empty or fails to load. */
+  min-height: calc(2 * var(--card-pad) + var(--skel-rows, 0) * (3.6rem + 1px) + max(var(--skel-rows, 0) - 1, 0) * var(--space-3));
   padding: var(--space-7) var(--space-5);
   text-align: center;
   color: var(--text-muted);
+}
+
+/* A list region before its script runs: as tall as the loading placeholder the script puts in
+   (--skel-rows, set on the region in the page to the rows loadInto shows), so the content after
+   it doesn't move when the placeholder appears. */
+[data-region]:empty,
+[data-webhooks]:empty {
+  min-height: calc(2 * var(--card-pad) + var(--skel-rows, 0) * (3.6rem + 1px) + max(var(--skel-rows, 0) - 1, 0) * var(--space-3));
 }
 
 .state-icon {

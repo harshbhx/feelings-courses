@@ -39,7 +39,7 @@ const firstName = course.teacher.split(" ")[0];
     <ul class="setup-list" data-setup-list></ul>
   </section>
 
-  <div class="dash-range">
+  <div class="dash-range" data-await-setup>
     <h2 class="visually-hidden">Numbers</h2>
     <div class="segmented" role="group" aria-label="Period">
       <button type="button" aria-pressed="false" data-range="7">7 days</button>
@@ -48,7 +48,7 @@ const firstName = course.teacher.split(" ")[0];
     </div>
   </div>
 
-  <section class="kpis" aria-label="Numbers for the period" data-kpis aria-busy="true">
+  <section class="kpis" aria-label="Numbers for the period" data-kpis aria-busy="true" data-await-setup>
     <article class="card kpi">
       <h3 class="kpi-label">Revenue</h3>
       <p class="kpi-value" data-k="revenue">&nbsp;</p>
@@ -71,7 +71,7 @@ const firstName = course.teacher.split(" ")[0];
     </article>
   </section>
 
-  <div class="dash-grid">
+  <div class="dash-grid" data-await-setup>
     <div class="dash-col">
       <section class="card chart-card" aria-labelledby="chart-title">
         <div class="card-head no-rule">
@@ -146,6 +146,28 @@ const firstName = course.teacher.split(" ")[0];
 </script>
 
 <style is:global>
+  /* The setup card (above) appears only once settings and courses load. Until then what comes
+     after it is laid out but not painted, so it never visibly jumps down (layout shift). The
+     script adds .setup-known when it knows; the animation shows everything after 2 s regardless,
+     so a failed request or no JavaScript never hides the dashboard. */
+  [data-await-setup] {
+    animation: await-setup 0s linear 2s both;
+  }
+
+  .setup-known [data-await-setup] {
+    animation: none;
+  }
+
+  @keyframes await-setup {
+    from {
+      visibility: hidden;
+    }
+
+    to {
+      visibility: visible;
+    }
+  }
+
   /* ── Setup steps and site status ── */
   .setup-card,
   .site-card {
