@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { handleAccount } from "../../functions/_lib/pages/account.ts";
 import { handleContinue, handleLogout, handleSignin, nextPath } from "../../functions/_lib/pages/auth.ts";
-import { escapeHtml, formatRupees, html, markup } from "../../functions/_lib/pages/html.ts";
+import { escapeHtml, formatLongDate, formatRupees, html, markup } from "../../functions/_lib/pages/html.ts";
 import { learnSegments } from "../../functions/_lib/pages/learn.ts";
 import { handleVerifyPage } from "../../functions/_lib/pages/verify.ts";
 import { siteMiddleware, coursePath } from "../../functions/learn/_gate.ts";
@@ -293,7 +293,10 @@ test("gate with D1: certificate claim flow ends on the public verify page", asyn
   assert.ok(page.includes("Asha &lt;Patel&gt;"));
   assert.ok(page.includes("Self Makeup Masterclass"));
   assert.ok(page.includes("Certificate of completion from Feelings Beauty Care"));
-  assert.ok(page.includes("23 October 2026"));
+  // The claim runs on the real clock (siteMiddleware takes no clock), so the issue date is read back
+  // from D1 rather than fixed: a fixed "23 October 2026" failed on every later day.
+  const { issued_at: issuedAt } = db.sqlite.prepare("SELECT issued_at FROM certificates WHERE student_id = ?").get(ASHA.id);
+  assert.ok(page.includes(formatLongDate(issuedAt)), "shows the issue date");
   assert.equal(page.includes(ASHA.phone), false, "no contact details");
   assert.equal(page.includes(ASHA.email), false);
 });
