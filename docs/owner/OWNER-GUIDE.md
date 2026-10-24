@@ -20,6 +20,33 @@ Other pages in this folder:
 
 ---
 
+## Before you start: what is left for you (as of 24 Oct 2026)
+
+All the code is on one branch, `release/courses-v1`, with green checks, in the draft PR [#29](https://github.com/harshbhx/feelings-courses/pull/29). Already done for you: R2, Workers Paid and Email Sending are on in the **DualMind Labs** Cloudflare account (ID `ce26b52f735d01c85c31b3ff4c74d3bd`), and `courses@feelingsbeautycare.in` forwards to `info.feelingsbeautycare@gmail.com`. Nothing has been set up on Cloudflare for the course platform yet (no database, bucket or mailer), and production has not been touched.
+
+What only you can do, in this order:
+
+1. **Razorpay test keys** (A1): Test Mode → **Account & Settings** → **API Keys** → **Generate Test Key**. Key Id (`rzp_test_…`) and Key Secret go into `setup.local.json` only.
+2. **Cloudflare API token** (A2): a custom token named `feelings-courses setup`, Account Resources = **DualMind Labs**, with:
+   - Account → **Cloudflare Pages: Edit**
+   - Account → **D1: Edit**
+   - Account → **Workers R2 Storage: Edit**
+   - Account → **Workers Scripts: Edit**
+   - optional, only for `--add-domain`: Zone → **Zone: Read** and Zone → **DNS: Edit**, for the zone `feelingsbeautycare.in` only
+   - only if the mailer upload fails with an auth error: Account → **Email Sending: Edit** (not expected to be needed)
+3. **Deploy hook** (A4): **Workers & Pages** → `feelings-courses` → **Settings** → **Builds** → **Deploy hooks** → **Add deploy hook**, name `publish`, branch `main`.
+4. **courses@ replies** (A3b step 3): already forwarding to the salon inbox. Only if replies should reach Urmi's own inbox: add and verify her address under **Email Routing** → **Destination addresses**, then edit the `courses@` rule.
+5. **Fill in `setup.local.json`** on the laptop (A5): account ID above, the token, the Razorpay test keys, the deploy hook URL. The file is in `.gitignore`.
+6. **Setup on the preview** (A6), from the `release/courses-v1` branch:
+   `npm ci`, then `npm run setup -- --check`, `npm run setup -- --env preview --dry-run`, `npm run setup -- --env preview`. Then **Retry deployment** on the `release/courses-v1` preview so it gets the bindings, and test there.
+7. **Switch to `main`**: mark PR #29 **Ready for review** and **Merge pull request**. Cloudflare then builds production from the new code (still without bindings, so it shows the public pages and the demo checkout until step 8).
+8. **Setup on production, only after step 7**: `npm run setup -- --dry-run`, then `npm run setup`. Then the test webhook (A7), **Retry deployment** on production (A8), the first admin sign-in (A9) and [RAZORPAY-TEST-CHECKLIST.md](RAZORPAY-TEST-CHECKLIST.md).
+9. **Before real money** (Part C): the legal wording ([LEGAL-QUESTIONS.md](LEGAL-QUESTIONS.md)), real courses and fees, Razorpay KYC and live keys.
+
+Why production waits for step 7: the demo now on `main` reads `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`. Set on production before the switch, they would turn the demo's built-in test sheet into Razorpay test checkout on its next build.
+
+---
+
 ## Part A: one-time setup (Harsh, on the laptop)
 
 You need: this repo, Node 22 or newer, and logins for Cloudflare (the account that has `feelingsbeautycare.in`) and Razorpay.
