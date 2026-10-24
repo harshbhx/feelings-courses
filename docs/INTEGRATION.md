@@ -1,8 +1,10 @@
 # Integration of W0 to W7 (W8)
 
-Branch `feat/integration-w0-w7`. It is the combined result of all the platform workstreams (W0 to W7, including W6's real admin UI), plus the glue between them, so the whole diff can be read and tested in one place. Draft PR into `main`. Nothing here is merged anywhere else.
+Branch `feat/integration-w0-w7` ([#17](https://github.com/harshbhx/feelings-courses/pull/17)). It is the combined result of all the platform workstreams (W0 to W7, including W6's real admin UI), plus the glue between them, so the whole diff can be read and tested in one place.
 
-**CI not run (GitHub Actions is blocked by billing).** Run locally with Node 24: `tsc -p functions` (clean), `astro check` (0 errors), `tests/**/*.test.mjs` (376 pass), `scripts/test-checkout.mjs` (42 pass) and `scripts/test-learn.mjs` (20 pass). No build, no Playwright, no `check-dist.mjs` against a real `dist/` (the VM rule).
+**Where it went (24 Oct 2026):** this branch, the round-2 PRs and email sign-in (#19 to #23), and the five PRs on top of them (#24 to #28) are all merged into **`release/courses-v1`**, the one branch that becomes `main` through the draft PR [#29](https://github.com/harshbhx/feelings-courses/pull/29). Merge order, overlaps and fixes: `docs/RELEASE-MERGE.md`.
+
+**CI:** GitHub Actions runs on this repo since 22 Oct 2026. The integration branch went green that night (CI: check, Functions type check, tests, `build:fast`, `check-dist.mjs`), and the release branch runs CI, Verify (full build plus a `wrangler pages dev` smoke test), E2E (Playwright journeys), Quality (Lighthouse and axe) and Screenshots. `docs/CI-FIRST-RUN.md` explains each workflow and how to read a failure.
 
 ## 1. Merge order
 
@@ -106,13 +108,13 @@ Nothing was found that changes a frozen signature or the schema. No new migratio
 
 ## 6. Pre-go-live checklist for Harsh
 
-In order. Nothing here has been done to the Cloudflare or Razorpay accounts.
+In order. Nothing here has been done to the Cloudflare or Razorpay accounts, except the `courses@` Email Routing rule (23 Oct, PR #27). The plain-language, click-by-click version is `docs/owner/OWNER-GUIDE.md` ("Before you start: what is left for you" lists the exact remaining steps).
 
-1. **GitHub billing:** fix it (GitHub → Settings → Billing) so Actions runs. Then re-run CI on this PR: check, Functions type check, tests, `build:fast` and `check-dist.mjs`. That is the first full build of the combined code: `docs/CI-FIRST-RUN.md` lists what was checked before it and how to read each failure, and the `full-verify` label runs the longer Verify workflow (full build plus a `wrangler pages dev` smoke test).
-2. **Choose how to merge.** Either review and merge the individual PRs in the order of section 1 and close this one, or merge #10 into `main` and then this PR (it contains all of them, plus the fixes in section 4). If you go one by one, the section 4 fixes still have to land, so take them from this branch.
+1. **GitHub Actions:** done. CI runs on every PR; the release branch is checked by all five workflows (`docs/RELEASE-MERGE.md`, section 5).
+2. **Switch `main` to the release:** mark [#29](https://github.com/harshbhx/feelings-courses/pull/29) ready and merge it (a merge commit). It contains every PR from #10 to #28 plus the fixes in section 4 and `docs/RELEASE-MERGE.md`. Then close #10 to #28 as included.
 3. **Legal wording (W7, #13):** confirm the points listed in that PR. They are the grievance officer, the 2-working-day refund start, the 7/30-day rights answers, batch cancellation, and adults only. Then tick "legal confirmed" in the admin.
-4. **Email (Cloudflare Email Sending):** the Workers Paid plan on the account, `feelingsbeautycare.in` onboarded in Email Service → Email Sending (same account as the Pages project), an Email Routing rule for `courses@`, and Workers Scripts: Edit on the setup token (`docs/owner/OWNER-GUIDE.md` A3b, `docs/platform/EMAIL.md`).
-5. **Setup, preview first:** put the Razorpay **test** keys in `setup.local.json`, enable R2, create the deploy hook, then run `npm run setup -- --check`, then `--dry-run`, then `--env preview`, then production. The plain-language version, with the test checklist, rollback plan, monitoring and the legal wording questions, is in `docs/owner/` (start at `OWNER-GUIDE.md`).
+4. **Email (Cloudflare Email Sending):** checked on 23 Oct (PR #27): Workers Paid is on, `feelingsbeautycare.in` is onboarded for Email Sending in the same account as the Pages project (DualMind Labs), and `courses@` forwards to `info.feelingsbeautycare@gmail.com`. Left: Workers Scripts: Edit on the setup token (`docs/owner/OWNER-GUIDE.md` A2, `docs/platform/EMAIL.md`).
+5. **Setup, preview first:** put the Razorpay **test** keys, the Cloudflare token and the deploy hook in `setup.local.json` (R2 is already on), then run `npm run setup -- --check`, `--env preview --dry-run`, `--env preview`. **Production only after step 2** (the switch to `main`): `--dry-run`, then the real run. The plain-language version, with the test checklist, rollback plan, monitoring and the legal wording questions, is in `docs/owner/` (start at `OWNER-GUIDE.md`).
 6. **Razorpay dashboard (test mode):**
    - webhook URL `https://courses.feelingsbeautycare.in/api/razorpay/webhook`, with the secret the setup script wrote;
    - events `payment.captured`, `payment.failed`, `order.paid`, `refund.processed` and `refund.failed`;
@@ -147,7 +149,7 @@ In order. Nothing here has been done to the Cloudflare or Razorpay accounts.
 - **Email depends on Cloudflare Email Sending** (public beta): without the onboarded domain or Workers Paid, sign-in links don't arrive (the admin can still copy a link and share it on WhatsApp). The mailer Worker's logs show Email Service error codes.
 - **A refund removes access when Razorpay confirms it** (the `refund.processed` webhook, or "Sync with Razorpay" in the admin). Refunds start as pending. If the webhook is missing, access stays until a sync.
 - **Video access lasts up to 60 seconds after a refund or sign-out.** W4 reuses a passed check for 60 s in each isolate. The course area and the play API refuse at once.
-- **Checkout UI and the whole admin UI haven't been seen in a browser.** No build or Playwright ran on the VM. `astro check` type-checks the scripts, but the checkout's batch picker, coupon field and checkbox, and every admin screen (W6), need a look at 390px and up (checklist steps 6 and 7).
+- **Checkout UI and the admin UI are tested in a real browser only against fakes.** E2E (`docs/E2E.md`) clicks through buying (batches, coupons), learning, certificates, refunds, devices and the admin in Chromium, including a 390px phone, and Quality runs axe and Lighthouse on every admin page. Real Razorpay, real email and a real phone are still only covered by checklist steps 7 and 8, on the preview after setup.
 - **W5's admin order views** keep their own SQL mapping, next to W2's `loadAdminOrder` and `toOrderSummary` (two mappings of the same rows). The admin UI now only sees W5's (sync answers with it too); settling on one server mapping is a follow-up.
 - **The admin's course addresses** show production's hosts for the moment before `GET /api/admin/me` answers; the screens that list addresses wait for it, so this only matters if that request fails.
 - **W6 follow-ups still open:** no live preview of an unpublished course (needs a preview route), and the Cloudflare deep link depends on Cloudflare's dashboard URL format.
