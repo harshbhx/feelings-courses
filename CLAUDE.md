@@ -1,15 +1,18 @@
 # Feelings Courses: project notes
 
-The online makeup course of Feelings Beauty Care (Jamnagar; ladies' parlour, bridal studio and makeup academy run by Urmi Mengar since 2009). This repo is the course's own small site on **courses.feelingsbeautycare.in**:
-- a landing page for people arriving from Instagram, where the course is promoted with short glimpses of its video lessons;
-- a checkout with Razorpay;
-- a gated course area where buyers watch the lessons.
+The online makeup course of Feelings Beauty Care (Jamnagar; ladies' parlour, bridal studio and makeup academy run by Urmi Mengar since 2009). This repo is the academy's course platform on **courses.feelingsbeautycare.in** (plus a subdomain per course):
+- a catalog and a landing page per course for people arriving from Instagram, where courses are promoted with short glimpses of their video lessons;
+- a checkout with Razorpay (coupons, studio batches, receipts, refunds within 24 hours);
+- student accounts with emailed sign-in links, a course area with recorded lessons on R2, progress and certificates;
+- an admin at `/admin` for the academy.
 
 The main site is a separate repo, `harshbhx/feelings-beauty-care` (live on feelingsbeautycare.in). Its brand system was copied here: tokens, fonts, global and motion CSS, icons, logo and CSP script. Read its `docs/03-design-system.md` for the look. Never copy the old dark-and-gold site.
 
-## Status: DEMO (since 2026-10-20)
+## Status: DEMO until the owner runs setup (24 Oct 2026)
 
-Built to show the client before they confirm anything:
+All the platform work is merged into one branch, `release/courses-v1` (`docs/RELEASE-MERGE.md`), which the owner merges into `main` himself. Nothing is set up on Cloudflare yet; the owner's remaining steps are in `docs/owner/OWNER-GUIDE.md` ("Before you start"). Never deploy, run `npm run setup` against Cloudflare or push to `main` on the owner's behalf.
+
+The site was built to show the client before they confirm anything:
 - **Content:** everything in `src/data/course.ts` is example content while `course.demo` is true. That covers price, modules, lessons, duration, certificate and access.
 - **Visible:** a ribbon on every page says it's a demo.
 - **Search:** demo content is noindexed page by page (`<meta name="robots">` from `src/lib/seo.ts`); preview builds and `*.pages.dev` are noindex as a whole (W1).
@@ -22,12 +25,12 @@ When the client confirms a value, change it in `course.ts`, never in a page. Onl
 - Astro 5, static output, plain CSS with tokens. No UI or CSS framework, no animation library. Same versions as the main site: Astro 5.18.2, Node 22.
 - Plus Jakarta Sans via Fontsource (`src/styles/fonts.css`). Weights only through the tokens `--weight-body|ui|strong|display`.
 - Icons only through `src/components/Icon.astro` (Phosphor SVGs in `src/icons/`).
-- Cloudflare Pages Functions in `functions/` for checkout and gating. They have their own `functions/tsconfig.json`; the root tsconfig excludes `functions/`.
+- Cloudflare Pages Functions in `functions/` for the checkout, webhooks, sign-in, student pages, media, certificates and the admin API, on D1 and R2; the mailer Worker in `workers/mailer/`. Functions have their own `functions/tsconfig.json`; the root tsconfig excludes `functions/`.
 - `scripts/csp.mjs` is the last build step. It hashes inline scripts and writes the Content-Security-Policy into `dist/_headers`. A new outside origin, such as Razorpay's checkout, must be added to `policy()` there.
 
 ## Contracts between the parts
 
-The site is becoming the production course platform (8 workstreams, W0 to W7). **The full list of shared types, tables, helpers and stubs, and which workstream owns each, is in `docs/platform/CONTRACTS.md`.** Read it before touching a shared file.
+The platform was built in 8 workstreams (W0 to W7) and combined in W8 (`docs/INTEGRATION.md`). **The full list of shared types, tables, helpers and stubs, and which workstream owns each, is in `docs/platform/CONTRACTS.md`.** Read it before touching a shared file.
 
 - **Owner decisions (plan section 10), already in the contracts:**
   - the admin picks every course's subdomain (no hard-coded slugs);
@@ -45,7 +48,7 @@ The site is becoming the production course platform (8 workstreams, W0 to W7). *
   - `config.ts` for env, cookies, TTLs and rate-limit rules;
   - `crypto.ts`, `ratelimit.ts`;
   - `env.ts` (`Env`): read secrets with `requireSecret()`, because they are missing until the owner runs setup.
-- **Stubs:** W0 froze the signatures of `session.ts`, `orders.ts`, `pricing.ts`, `media.ts`, `play.ts`, `certificates.ts`, `analytics.ts`, `daily.ts`, `rebuild.ts`, `snapshot.ts` and `hosts.ts`. On the integration branch every one is filled (W1 to W7); `docs/INTEGRATION.md` lists the merge order, what was settled between workstreams and the go-live checklist.
+- **Stubs:** W0 froze the signatures of `session.ts`, `orders.ts`, `pricing.ts`, `media.ts`, `play.ts`, `certificates.ts`, `analytics.ts`, `daily.ts`, `rebuild.ts`, `snapshot.ts` and `hosts.ts`. Every one is now filled (W1 to W7); `docs/INTEGRATION.md` lists the merge order, what was settled between workstreams and the go-live checklist.
 - **Content at build time:**
   - `scripts/snapshot.mjs` fetches the live snapshot on `main`, falling back to the seed on a 404 and failing the build on a 5xx.
   - `src/data/snapshot.ts` serves it to pages.
@@ -56,7 +59,7 @@ The site is becoming the production course platform (8 workstreams, W0 to W7). *
   - Course facts in `src/data/course.ts`. Business facts in `src/data/site.ts`, kept in sync with the main site.
 - **Student identity (owner decision, 23 Oct 2026):** a student IS their email. Sign-in is a single-use emailed link (15 minutes, `functions/_lib/signin-links.ts`); the phone is an optional contact field and never finds or opens an account. A purchase signs the paying device in only under `functions/_lib/claim.ts` (a new account whose email was never proven). Email goes out through Cloudflare Email Sending via the mailer Worker (`workers/mailer/`, `functions/_lib/email.ts`, `docs/platform/EMAIL.md`); no other email provider. Threat model: `docs/SECURITY-REVIEW.md`, "Email identity".
 - **Student pages' look:** the pages Functions render (sign-in, account, course area, certificates, receipts) share `public/app/app.css` and the frame in `functions/_lib/pages/html.ts`; no inline style on them (CSP). `scripts/preview-student-pages.mjs` writes every state to static HTML; `docs/design/LEARNER-UX.md` has the design notes and the screenshot workflow.
-- **Tests:** `npm test` runs `tests/**/*.test.mjs` (Node 22.13+ `node:test`, D1 shim on `node:sqlite`, fakes for R2 and Razorpay in `tests/helpers/`) plus the two suites in `scripts/`. CI (`.github/workflows/ci.yml`) runs check, the Functions type check, tests and the build on every PR. Quality (`.github/workflows/quality.yml`, `docs/QUALITY.md`) runs Lighthouse (mobile and desktop, 95 in every category), axe, a keyboard and motion pass, and header, caching and per-host SEO checks on every public, learner and admin page; a new page goes in `tests/quality/pages.mjs`.
+- **Tests:** `npm test` runs `tests/**/*.test.mjs` (Node 22.13+ `node:test`, D1 shim on `node:sqlite`, fakes for R2 and Razorpay in `tests/helpers/`) plus the two suites in `scripts/`. Tests that go through code on the real clock must not assert a fixed date. CI (`.github/workflows/ci.yml`) runs check, the Functions type check, tests and the build on every PR. E2E (`.github/workflows/e2e.yml`, `docs/E2E.md`) runs Playwright journeys against the real Functions and build with fakes at the edges. Verify (`verify.yml`, the `full-verify` label) adds the full build under `wrangler pages dev`. Quality (`.github/workflows/quality.yml`, `docs/QUALITY.md`) runs Lighthouse (mobile and desktop, 95 in every category), axe, a keyboard and motion pass, and header, caching and per-host SEO checks on every public, learner and admin page; a new page goes in `tests/quality/pages.mjs`.
 
 ## Payments (Razorpay)
 
@@ -77,7 +80,8 @@ The site is becoming the production course platform (8 workstreams, W0 to W7). *
 
 ## Deploy
 
-- Cloudflare Pages **Git integration** from GitHub `harshbhx/feelings-courses`. Pages project `feelings-courses`; `main` deploys to courses.feelingsbeautycare.in. Branches get preview URLs.
+- Cloudflare Pages **Git integration** from GitHub `harshbhx/feelings-courses`. Pages project `feelings-courses`; `main` deploys to courses.feelingsbeautycare.in. Branches get preview URLs. No GitHub workflow deploys anything.
+- Bindings, variables and secrets come only from `npm run setup` (`scripts/setup.mjs`), run by the owner from a local, gitignored `setup.local.json`. Never commit that file or any key, token or hook URL.
 - **Never run `wrangler pages deploy`.** It creates a Direct Upload project, which can't be switched to Git integration later.
 
 ## Git
