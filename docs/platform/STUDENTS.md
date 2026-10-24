@@ -87,7 +87,7 @@ The threat model and the tests are in [SECURITY-REVIEW.md](../SECURITY-REVIEW.md
 - **Rendered pages:**
   - every value is escaped (`html```), in emails too;
   - the CSP allows no inline script or style;
-  - `no-store`, `noindex`, `frame-ancestors 'none'`, and `Referrer-Policy: no-referrer`, so tokens and course paths never leak in a Referer.
+  - `no-store`, `noindex`, `frame-ancestors 'none'`, and `Referrer-Policy: same-origin`, so tokens and course paths never leak in a Referer to another site. Not `no-referrer`: with it, browsers send `Origin: null` on the pages' own form posts, and the CSRF check above refuses them (the e2e journeys caught this).
 - **Redirects** after sign-in accept same-site paths only (`safeRedirectPath`: no `//`, `/\`, schemes or control characters).
 - **Receipts** show the buyer's name only: no phone, no email.
 - **Audit log:** `student.email_link` (`sent` true/false), `student.handoff_signin`, `student.link_signin` (`firstProof` on the first proof), `student.access_link` (`emailed`), `order.receipt_email`, `student.update_details` (which fields changed, never the values), `certificate.issue` and `student.update_profile`. No email address, phone number or token is ever logged.
