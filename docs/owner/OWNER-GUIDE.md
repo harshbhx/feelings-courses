@@ -48,6 +48,8 @@ Also copy the **Account ID**: **Workers & Pages** → right-hand side → **Acco
 
 ### A3. Turn on R2 (the storage for videos and backups)
 
+**Checked 23 Oct 2026: already done.** `feelingsbeautycare.in`, the `feelings-courses` Pages project, Email Sending and R2 all live in the **DualMind Labs** account (ID `ce26b52f735d01c85c31b3ff4c74d3bd`), and R2 is already on there (the salon app's `fbc-staff-media` bucket). Skip A3 and steps 1 and 2 of A3b on that account; the steps below are for a fresh account.
+
 1. Cloudflare dashboard → **R2 object storage** → **Purchase R2 Plan** / **Enable R2**.
 2. It asks for a card. The course site stays inside the free allowance (10 GB stored, a million uploads and ten million reads a month, downloads are never charged). Nothing is charged unless that is passed. [MONITORING.md](MONITORING.md) shows how to see the usage.
 3. Don't create buckets yourself: the script does that with the right names.
@@ -58,7 +60,7 @@ Students sign in with a link we email them, and get their receipt by email. Clou
 
 1. **Workers Paid plan** on this Cloudflare account (**Workers & Pages** → **Plans**). Sending to any address needs it; 3,000 emails a month are included. If the salon app (Feelings Staff) already runs on this account, it is already on.
 2. **Compute** → **Email Service** → **Email Sending** → **Onboard Domain** → `feelingsbeautycare.in` → **Done**. Cloudflare adds its own records on a `cf-bounce` sub-domain; the existing email forwarding keeps working. Wait until it shows **Verified** (usually minutes). If the domain is already listed there (the salon app did it), skip this step. It must be the **same Cloudflare account** as the `feelings-courses` Pages project.
-3. Replies: emails come from `courses@feelingsbeautycare.in`. **Email Service** → **Email Routing** → **Routing rules** → **Create address**: `courses` → send to Urmi's inbox, so a student who replies reaches someone.
+3. Replies: emails come from `courses@feelingsbeautycare.in`. **Email Service** → **Email Routing** → **Routing rules** → **Create address**: `courses` → send to Urmi's inbox, so a student who replies reaches someone. (Done 23 Oct 2026: `courses@` forwards to `info.feelingsbeautycare@gmail.com`, the same verified inbox as the salon app's `staff@`. Change the destination there if replies should go elsewhere.)
 
 The setup script (A6) does the rest. To use another sender, set `"email": { "from": "…@feelingsbeautycare.in" }` in `setup.local.json` and add the same routing rule for it. More in [docs/platform/EMAIL.md](../platform/EMAIL.md).
 
@@ -94,7 +96,7 @@ What to look for in the plan:
 - `binding DB … add` the first time, `keep` after that. If you ever see **CHANGE** or **STOP**, don't continue: an existing database would be swapped. Read [ROLLBACK.md](ROLLBACK.md) first.
 - No secret is ever printed. If you see one, stop and tell Harsh's assistant only the line's first words, not the value.
 
-Then production:
+Then production, but only after this code is on `main`. The project's production environment is what `main` deploys, and the demo now on `main` reads `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`: with them set, its next deployment would swap the built-in demo checkout for real Razorpay test checkout.
 
 ```sh
 npm run setup -- --dry-run
