@@ -1,0 +1,71 @@
+# Checks every pull request and every push to main. CI never deploys: Cloudflare Pages builds
+# from GitHub on its own. The longer, on-demand run (a real `wrangler pages dev` smoke test and
+# the artifacts) is verify.yml. docs/CI-FIRST-RUN.md explains how to read a failure.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # Pinned: ubuntu-latest is moving to Ubuntu 26 (beta) from 19 Oct 2026.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      # Builds in CI always use the seed snapshot (never the live site).
+      SNAPSHOT_SOURCE: seed
+      ASTRO_TELEMETRY_DISABLED: "1"
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Fails when package-lock.json doesn't match package.json. postinstall embeds
+      # migrations/*.sql into functions/_generated/migrations.ts.
+      - name: Install
+        run: npm ci
+
+      - name: Type check (Astro)
+        run: npm run check
+
+      - name: Type check (Pages Functions)
+        run: npx tsc -p functions --noEmit
+
+      - name: Tests
+        run: npm test
+
+      # The migrations through the runtime's migrate.ts on workerd's D1 (D1's real SQLite limits).
+      - name: Migrations on D1
+        run: node --experimental-strip-types --no-warnings --import ./tests/helpers/register.mjs scripts/ci/d1-check.mjs
+
+      # Bundles functions/ the way Pages does. Fails on an import the Workers runtime can't resolve;
+      # the size limit is the Workers free plan's 3 MB (gzipped).
+      - name: Bundle Pages Functions
+        run: |
+          npx wrangler pages functions build functions --outdir "$RUNNER_TEMP/functions" --compatibility-date 2026-10-01
+          raw=$(wc -c < "$RUNNER_TEMP/functions/index.js")
+          gz=$(gzip -9c "$RUNNER_TEMP/functions/index.js" | wc -c)
+          echo "Functions bundle: $raw bytes, $gz gzipped"
+          test "$gz" -lt 3000000
+
+      - name: Build
+        run: npm run build:fast
+
+      # scripts/check-dist.mjs (W7): _headers with the hashed CSP, _routes.json, required pages,
+      # canonicals, no GSTIN on public pages, build.json and domains.json shapes.
+      - name: Check dist
+        run: node scripts/check-dist.mjs

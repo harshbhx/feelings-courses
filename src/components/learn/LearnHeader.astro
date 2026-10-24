@@ -1,26 +1,32 @@
 ---
-// The course area's header: the logo (back to the course home) and help on WhatsApp.
-// The logo file is drawn as a CSS mask in maroon, the same way as on the main site.
+// The course area's header, in the same family as the public header (landing/Header.astro) and
+// the main site's: the maroon logo with a "Course" tag (back to the course home), quiet pill links
+// and help on WhatsApp. Sticky; the course area has no menu, so phones keep the logo and Help, and
+// "All courses" joins from tablets (the footer carries it on phones).
 import Icon from "../Icon.astro";
-import logo from "../../assets/brand/logo.webp";
+import Logo from "../landing/Logo.astro";
 import { whatsappLink } from "../../lib/whatsapp";
 import { site } from "../../data/site";
+import { buildEnv } from "../../lib/build-env";
+import { hubOrigin } from "../../lib/seo";
+
+const hub = hubOrigin(buildEnv);
 ---
 
 <header class="learn-header">
   <div class="container bar">
     <a class="brand" href="/learn">
-      <span
-        class="logo"
-        style={`--logo-url: url(${logo.src}); aspect-ratio: ${logo.width} / ${logo.height};`}
-        aria-hidden="true"></span>
+      <Logo width="var(--logo-w)" decorative />
       <span class="visually-hidden">{site.name}: </span>
       <span class="brand-tag">Course</span>
     </a>
-    <a class="btn btn-secondary btn-sm help" href={whatsappLink()} target="_blank" rel="noopener">
-      <Icon name="whatsapp" />
-      Help<span class="visually-hidden"> on WhatsApp (opens WhatsApp)</span>
-    </a>
+    <nav class="links" aria-label="Course area">
+      <a class="nav-link wide-only" href={`${hub}/`}>All courses</a>
+      <a class="btn btn-secondary btn-sm help" href={whatsappLink()} target="_blank" rel="noopener">
+        <Icon name="whatsapp" />
+        Help<span class="visually-hidden"> on WhatsApp (opens WhatsApp)</span>
+      </a>
+    </nav>
   </div>
 </header>
 
@@ -31,6 +37,7 @@ import { site } from "../../data/site";
     z-index: 30;
     background: var(--bg);
     border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow-header);
     view-transition-name: learn-header;
   }
 
@@ -43,6 +50,7 @@ import { site } from "../../data/site";
   }
 
   .brand {
+    --logo-w: 6.5rem;
     display: inline-flex;
     align-items: center;
     gap: var(--space-3);
@@ -51,21 +59,43 @@ import { site } from "../../data/site";
     text-decoration: none;
   }
 
-  .logo {
-    display: block;
-    width: 7.25rem;
-    background-color: var(--bg-deep);
-    -webkit-mask: var(--logo-url) center / contain no-repeat;
-    mask: var(--logo-url) center / contain no-repeat;
-  }
-
   .brand-tag {
     padding-left: var(--space-3);
     border-left: 1px solid var(--border-strong);
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
     font-weight: var(--weight-strong);
+    letter-spacing: 0.06em;
     line-height: 1.6;
+    text-transform: uppercase;
     color: var(--text-muted);
+  }
+
+  .links {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .nav-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 0.875rem;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    color: var(--text-body);
+    text-decoration: none;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .nav-link:hover {
+    background: var(--bg-tint);
+    color: var(--text);
+  }
+
+  .wide-only {
+    display: none;
   }
 
   .help {
@@ -73,15 +103,12 @@ import { site } from "../../data/site";
   }
 
   @media (min-width: 48rem) {
-    .logo {
-      width: 8.5rem;
+    .brand {
+      --logo-w: 8rem;
     }
-  }
 
-  @media (forced-colors: active) {
-    .logo {
-      forced-color-adjust: none;
-      background-color: CanvasText;
+    .wide-only {
+      display: inline-flex;
     }
   }
 </style>

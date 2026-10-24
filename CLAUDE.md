@@ -1,18 +1,21 @@
 # Feelings Courses: project notes
 
-The online makeup course of Feelings Beauty Care (Jamnagar; ladies' parlour, bridal studio and makeup academy run by Urmi Mengar since 2009). This repo is the course's own small site on **courses.feelingsbeautycare.in**:
-- a landing page for people arriving from Instagram, where the course is promoted with short glimpses of its video lessons;
-- a checkout with Razorpay;
-- a gated course area where buyers watch the lessons.
+The online makeup course of Feelings Beauty Care (Jamnagar; ladies' parlour, bridal studio and makeup academy run by Urmi Mengar since 2009). This repo is the academy's course platform on **courses.feelingsbeautycare.in** (plus a subdomain per course):
+- a catalog and a landing page per course for people arriving from Instagram, where courses are promoted with short glimpses of their video lessons;
+- a checkout with Razorpay (coupons, studio batches, receipts, refunds within 24 hours);
+- student accounts with emailed sign-in links, a course area with recorded lessons on R2, progress and certificates;
+- an admin at `/admin` for the academy.
 
 The main site is a separate repo, `harshbhx/feelings-beauty-care` (live on feelingsbeautycare.in). Its brand system was copied here: tokens, fonts, global and motion CSS, icons, logo and CSP script. Read its `docs/03-design-system.md` for the look. Never copy the old dark-and-gold site.
 
-## Status: DEMO (since 2026-10-20)
+## Status: DEMO until the owner runs setup (24 Oct 2026)
 
-Built to show the client before they confirm anything:
+All the platform work is merged into one branch, `release/courses-v1` (`docs/RELEASE-MERGE.md`), which the owner merges into `main` himself. Nothing is set up on Cloudflare yet; the owner's remaining steps are in `docs/owner/OWNER-GUIDE.md` ("Before you start"). Never deploy, run `npm run setup` against Cloudflare or push to `main` on the owner's behalf.
+
+The site was built to show the client before they confirm anything:
 - **Content:** everything in `src/data/course.ts` is example content while `course.demo` is true. That covers price, modules, lessons, duration, certificate and access.
 - **Visible:** a ribbon on every page says it's a demo.
-- **Search:** the site is noindexed (meta tag plus `X-Robots-Tag` in `public/_headers`).
+- **Search:** demo content is noindexed page by page (`<meta name="robots">` from `src/lib/seo.ts`); preview builds and `*.pages.dev` are noindex as a whole (W1).
 - **Payments:** test mode only.
 
 When the client confirms a value, change it in `course.ts`, never in a page. Only set `demo: false` when everything in `toConfirm` is confirmed **and** live payment keys are agreed with the owner.
@@ -22,26 +25,45 @@ When the client confirms a value, change it in `course.ts`, never in a page. Onl
 - Astro 5, static output, plain CSS with tokens. No UI or CSS framework, no animation library. Same versions as the main site: Astro 5.18.2, Node 22.
 - Plus Jakarta Sans via Fontsource (`src/styles/fonts.css`). Weights only through the tokens `--weight-body|ui|strong|display`.
 - Icons only through `src/components/Icon.astro` (Phosphor SVGs in `src/icons/`).
-- Cloudflare Pages Functions in `functions/` for checkout and gating. They have their own `functions/tsconfig.json`; the root tsconfig excludes `functions/`.
+- Cloudflare Pages Functions in `functions/` for the checkout, webhooks, sign-in, student pages, media, certificates and the admin API, on D1 and R2; the mailer Worker in `workers/mailer/`. Functions have their own `functions/tsconfig.json`; the root tsconfig excludes `functions/`.
 - `scripts/csp.mjs` is the last build step. It hashes inline scripts and writes the Content-Security-Policy into `dist/_headers`. A new outside origin, such as Razorpay's checkout, must be added to `policy()` there.
 
 ## Contracts between the parts
 
-Three parts were built in parallel. Keep these boundaries:
+The platform was built in 8 workstreams (W0 to W7) and combined in W8 (`docs/INTEGRATION.md`). **The full list of shared types, tables, helpers and stubs, and which workstream owns each, is in `docs/platform/CONTRACTS.md`.** Read it before touching a shared file.
 
-| Part | Owns |
-|---|---|
-| Landing page | `src/pages/index.astro`, `src/components/landing/*` |
-| Checkout and enrollment | `functions/api/*`, `functions/_lib/*` (including `enrollment.ts`), `src/components/checkout/*`, `src/pages/thank-you.astro`, `src/pages/payment-failed.astro`, Razorpay origins in `scripts/csp.mjs` |
-| Course area and deploy | `src/pages/learn/*`, `functions/learn/*`, `src/components/learn/*`, README deploy notes |
-
-- **Enroll buttons:** any element with `data-enroll` opens checkout. On the landing page they are plain links to `#pricing`, so they still work without JS. The checkout component (`src/components/checkout/Checkout.astro`) is included once on the landing page and binds to every `[data-enroll]`.
-- **Enrollment cookie:** see `functions/_lib/enrollment.ts`. Checkout issues it after a verified payment. The course area's middleware only calls `verifyEnrollment()`.
-- **Course data:** every part reads `src/data/course.ts`; nobody retypes course facts. Business facts are in `src/data/site.ts`, copied from the main site; keep them in sync.
+- **Owner decisions (plan section 10), already in the contracts:**
+  - the admin picks every course's subdomain (no hard-coded slugs);
+  - academy courses are `hybrid` (batches and recorded lessons);
+  - fees come from the admin;
+  - refunds within 24 hours of purchase;
+  - **no GSTIN and no tax lines anywhere** (invoice numbers stay);
+  - 365 days of access;
+  - 2 devices per student.
+- **Shared contracts:** `src/shared/types.ts` (data), `src/shared/api.ts` (one request and one response type per endpoint, plus the `Endpoints` map) and `src/shared/constants.ts`. Change them only through a coordinator-approved PR.
+- **Database:** Cloudflare D1. The schema is in `migrations/*.sql` (wrangler's format), and the runtime migrates itself on the first request (`functions/_lib/migrate.ts`, statements embedded by `scripts/embed-migrations.mjs`). Migrations are additive only. Only the coordinator adds new ones.
+- **Data access:** code takes the `Db` interface (`functions/_lib/db/d1.ts`). Writes that belong together go in one `batch()` (`db/tx.ts`). Every admin write is logged with `db/audit.ts`. Settings go through `db/settings.ts`.
+- **Functions helpers:**
+  - `functions/_lib/http.ts` for responses and bodies;
+  - `config.ts` for env, cookies, TTLs and rate-limit rules;
+  - `crypto.ts`, `ratelimit.ts`;
+  - `env.ts` (`Env`): read secrets with `requireSecret()`, because they are missing until the owner runs setup.
+- **Stubs:** W0 froze the signatures of `session.ts`, `orders.ts`, `pricing.ts`, `media.ts`, `play.ts`, `certificates.ts`, `analytics.ts`, `daily.ts`, `rebuild.ts`, `snapshot.ts` and `hosts.ts`. Every one is now filled (W1 to W7); `docs/INTEGRATION.md` lists the merge order, what was settled between workstreams and the go-live checklist.
+- **Content at build time:**
+  - `scripts/snapshot.mjs` fetches the live snapshot on `main`, falling back to the seed on a 404 and failing the build on a 5xx.
+  - `src/data/snapshot.ts` serves it to pages.
+  - The landing pages (`/` and `/c/<slug>`, `src/components/landing/CourseLanding.astro`) read the snapshot and mount `<Checkout course settings platform>`, which sends W2's `OrderRequest`. Without D1 the server answers with the demo flow, so the demo keeps working.
+- **Demo parts still live until the owner runs setup (no D1 bound):**
+  - Enroll buttons: `data-enroll` opens `src/components/checkout/Checkout.astro`; the result pages read `src/data/course.ts`.
+  - The `fbc_enroll` cookie (`functions/_lib/enrollment.ts`), which W3 replaces with D1 sessions.
+  - Course facts in `src/data/course.ts`. Business facts in `src/data/site.ts`, kept in sync with the main site.
+- **Student identity (owner decision, 23 Oct 2026):** a student IS their email. Sign-in is a single-use emailed link (15 minutes, `functions/_lib/signin-links.ts`); the phone is an optional contact field and never finds or opens an account. A purchase signs the paying device in only under `functions/_lib/claim.ts` (a new account whose email was never proven). Email goes out through Cloudflare Email Sending via the mailer Worker (`workers/mailer/`, `functions/_lib/email.ts`, `docs/platform/EMAIL.md`); no other email provider. Threat model: `docs/SECURITY-REVIEW.md`, "Email identity".
+- **Student pages' look:** the pages Functions render (sign-in, account, course area, certificates, receipts) share `public/app/app.css` and the frame in `functions/_lib/pages/html.ts`; no inline style on them (CSP). `scripts/preview-student-pages.mjs` writes every state to static HTML; `docs/design/LEARNER-UX.md` has the design notes and the screenshot workflow.
+- **Tests:** `npm test` runs `tests/**/*.test.mjs` (Node 22.13+ `node:test`, D1 shim on `node:sqlite`, fakes for R2 and Razorpay in `tests/helpers/`) plus the two suites in `scripts/`. Tests that go through code on the real clock must not assert a fixed date. CI (`.github/workflows/ci.yml`) runs check, the Functions type check, tests and the build on every PR. E2E (`.github/workflows/e2e.yml`, `docs/E2E.md`) runs Playwright journeys against the real Functions and build with fakes at the edges. Verify (`verify.yml`, the `full-verify` label) adds the full build under `wrangler pages dev`. Quality (`.github/workflows/quality.yml`, `docs/QUALITY.md`) runs Lighthouse (mobile and desktop, 95 in every category), axe, a keyboard and motion pass, and header, caching and per-host SEO checks on every public, learner and admin page; a new page goes in `tests/quality/pages.mjs`.
 
 ## Payments (Razorpay)
 
-**Test mode only while `course.demo` is true.**
+**Test mode only while `course.demo` is true.** The platform's live flow on D1 (prices from D1, the webhook, refunds within 24 hours, invoice numbers and on-screen receipts) is described in `docs/platform/PAYMENTS.md`. The demo flow below keeps answering until D1 is set up.
 - **Flow:** `POST /api/order` creates a Razorpay order on the server, using the secret key. The browser opens Razorpay Checkout. `POST /api/verify` checks Razorpay's signature (HMAC-SHA256 of `order_id|payment_id` with the key secret) and only then issues the enrollment cookie. Amounts always come from `course.ts` on the server, never from the browser.
 - **Secrets:** `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `ENROLL_SECRET`. The owner sets them in the Cloudflare dashboard (Pages project → Settings → Variables and Secrets). Secrets never go in the repo or through the assistant.
 - **Razorpay test mode without a secret (`razorpay-test`):** while `course.demo` is true and no Key Secret is set, checkout opens Razorpay's real Checkout in Test Mode with the public test Key ID committed in `src/data/payments.ts` (owner-approved, not a secret), without an order. `/api/verify` can't verify those payments (no secret), so it accepts any well-formed `pay_…` id: acceptable only for the demo. Never possible once `demo` is false. Never commit a Key Secret.
@@ -58,7 +80,8 @@ Three parts were built in parallel. Keep these boundaries:
 
 ## Deploy
 
-- Cloudflare Pages **Git integration** from GitHub `harshbhx/feelings-courses`. Pages project `feelings-courses`; `main` deploys to courses.feelingsbeautycare.in. Branches get preview URLs.
+- Cloudflare Pages **Git integration** from GitHub `harshbhx/feelings-courses`. Pages project `feelings-courses`; `main` deploys to courses.feelingsbeautycare.in. Branches get preview URLs. No GitHub workflow deploys anything.
+- Bindings, variables and secrets come only from `npm run setup` (`scripts/setup.mjs`), run by the owner from a local, gitignored `setup.local.json`. Never commit that file or any key, token or hook URL.
 - **Never run `wrangler pages deploy`.** It creates a Direct Upload project, which can't be switched to Git integration later.
 
 ## Git

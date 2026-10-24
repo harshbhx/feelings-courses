@@ -1,10 +1,8 @@
-// POST /api/verify: checks a finished payment and only then issues the enrollment cookie.
-// Razorpay: signature (HMAC-SHA256 of order_id|payment_id with the key secret) plus Razorpay's own
-// record of the payment. Demo course without a Key Secret: a demo order, or a Razorpay test payment
-// id ("razorpay-test"), which can't be verified without the secret; see checkout.ts for why that is
-// acceptable only for the demo.
-// The logic lives in functions/_lib/checkout.ts, where scripts/test-checkout.mjs tests it.
-import { handleVerify } from "../_lib/checkout.ts";
-import type { CheckoutEnv } from "../_lib/checkout.ts";
+// POST /api/verify: checks a finished payment. When D1 knows the Razorpay order, the live flow in
+// functions/_lib/payments.ts: Razorpay's signature (HMAC-SHA256 of order_id|payment_id with the key
+// secret), then Razorpay's record of the payment, then fulfilOrder (idempotent with the webhook).
+// Otherwise the demo checkout in functions/_lib/checkout.ts answers as before.
+import { routeVerify } from "../_lib/payments.ts";
+import type { Env } from "../_lib/env.ts";
 
-export const onRequest: PagesFunction<CheckoutEnv> = ({ request, env }) => handleVerify(request, env);
+export const onRequest: PagesFunction<Env> = (ctx) => routeVerify(ctx.request, ctx.env, { waitUntil: (p) => ctx.waitUntil(p) });

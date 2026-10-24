@@ -1,0 +1,155 @@
+---
+// Not found. Its presence also tells Cloudflare Pages this is not a single-page app: without a
+// 404.html, Pages answers unknown paths with the home page and a 200, and the course-host router
+// (functions/_lib/hosts.ts) could not tell a missing course from a real one.
+//
+// The way back: the published courses by name (from the build's snapshot), the catalog and
+// WhatsApp. Every link is absolute on the hub, since course hosts serve this page too.
+import Base from "../layouts/Base.astro";
+import Icon from "../components/Icon.astro";
+import Header from "../components/landing/Header.astro";
+import Footer from "../components/landing/Footer.astro";
+import { courses } from "../data/snapshot";
+import { site } from "../data/site";
+import { buildEnv } from "../lib/build-env";
+import { FORMAT_LABEL } from "../lib/course-view";
+import { hubOrigin } from "../lib/seo";
+import { whatsappLink } from "../lib/whatsapp";
+
+const hub = hubOrigin(buildEnv);
+const firstName = site.founder.split(" ")[0];
+const list = courses.slice(0, 6);
+---
+
+<Base title={`Page not found | ${site.name}`} description="This page doesn't exist." canonical={`${hub}/404`} noindex demo={false}>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <Header />
+  <main id="main" class="nf">
+    <div class="container-narrow nf-inner">
+      <p class="nf-code" aria-hidden="true" data-code="404"></p>
+      <h1>This page isn’t here<span class="bindi" aria-hidden="true"></span></h1>
+      <p class="lead">The link may be old or incomplete. {list.length > 0 ? "These are the courses open now:" : "New courses are on their way."}</p>
+
+      {
+        list.length > 0 && (
+          <ul class="nf-list" aria-label="Courses">
+            {list.map((course) => (
+              <li>
+                <a href={course.canonicalUrl}>
+                  <span class="nf-title">{course.title}</span>
+                  <span class="nf-meta">{FORMAT_LABEL[course.format]}</span>
+                  <Icon name="arrow-right" />
+                </a>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+
+      <div class="btn-row">
+        <a class="btn btn-primary" href={`${hub}/`}>
+          {list.length > 1 ? "See all courses" : "Go to the courses"}
+          <Icon name="arrow-right" />
+        </a>
+        <a class="btn btn-secondary" href={whatsappLink(`Hi ${firstName}, a link to your course didn't open. Can you send it again?`)} target="_blank" rel="noopener">
+          <Icon name="whatsapp" />
+          Ask on WhatsApp
+        </a>
+      </div>
+    </div>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .nf {
+    padding-block: var(--space-7) var(--section-y);
+  }
+
+  .nf-inner {
+    display: grid;
+    gap: var(--space-5);
+    justify-items: start;
+  }
+
+  /* The code as a large, quiet numeral: blush on white, so it never competes with the heading. */
+  /* Drawn from the attribute, so it is pure decoration (no text for assistive tech or contrast checks). */
+  .nf-code::before {
+    content: attr(data-code);
+  }
+
+  .nf-code {
+    margin-bottom: calc(var(--space-5) * -1);
+    color: var(--bg-tint);
+    font-family: var(--font-display);
+    font-size: clamp(5.5rem, 4rem + 8vw, 10rem);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.05em;
+    line-height: 0.9;
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+  }
+
+  .nf-list {
+    display: grid;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--border-strong);
+  }
+
+  .nf-list li {
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .nf-list a {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title icon"
+      "meta icon";
+    align-items: center;
+    column-gap: var(--space-4);
+    min-height: 3.5rem;
+    padding-block: var(--space-3);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .nf-title {
+    grid-area: title;
+    color: var(--text);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-strong);
+    line-height: 1.3;
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+
+  .nf-meta {
+    grid-area: meta;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+  }
+
+  .nf-list :global(.icon) {
+    grid-area: icon;
+    color: var(--accent);
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+
+  .nf-list a:hover .nf-title {
+    color: var(--accent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .nf-list a:hover :global(.icon) {
+      transform: translateX(3px);
+    }
+  }
+
+  .btn-row .btn-secondary :global(.icon) {
+    color: var(--bg-deep);
+  }
+</style>

@@ -8,6 +8,8 @@ export interface GlimpseCover {
   id: string;
   label: string;
   src: string;
+  /** Responsive sizes (glimpse-covers.ts); empty when there is no local copy. */
+  srcset?: string;
 }
 
 let map: Record<string, GlimpseCover> | null = null;
@@ -24,10 +26,10 @@ export function glimpseCovers(): Record<string, GlimpseCover> {
   return map;
 }
 
-/** The image URL and alt text for a course cover. */
-export function coverImage(cover: Cover, title: string): { src: string; alt: string } {
+/** The image URL, its responsive sizes when there are any, and alt text for a course cover. */
+export function coverImage(cover: Cover, title: string): { src: string; alt: string; srcset?: string } {
   if (cover.kind === "upload") return { src: cover.dataUrl, alt: `Cover photo for ${title}` };
   const g = glimpseCovers()[cover.id];
-  if (g) return { src: g.src, alt: g.label };
+  if (g) return { src: g.src, alt: g.label, srcset: g.srcset || undefined };
   return { src: `https://i.ytimg.com/vi/${encodeURIComponent(cover.id)}/hqdefault.jpg`, alt: `Cover for ${title}` };
 }

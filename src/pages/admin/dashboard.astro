@@ -1,135 +1,144 @@
 ---
-// Dashboard (DEMO): this month's numbers, a 30-day sales chart, recent test payments, how far
-// students have got. All example data from src/lib/demo-store.ts, filled in by the browser,
-// because the numbers are relative to today.
+// Dashboard: what needs doing (setup steps), the site's publish state, numbers for the last 7, 30
+// or 90 days against the period before (GET /api/admin/stats, India-time days), daily revenue,
+// recent payments and the courses. Everything is loaded by the script: the page holds no data.
 import Admin from "../../layouts/Admin.astro";
 import Icon from "../../components/Icon.astro";
-import CoverData from "../../components/admin/CoverData.astro";
 import { course } from "../../data/course";
 
 const firstName = course.teacher.split(" ")[0];
 ---
 
-<Admin title="Dashboard" active="dashboard" icons={["trend-up", "trend-down", "arrow-right", "ticket"]}>
+<Admin
+  title="Dashboard"
+  active="dashboard"
+  icons={["trend-up", "trend-down", "arrow-right", "ticket", "circle", "plus", "book-open-text", "users-three", "receipt"]}
+>
   <header class="page-head">
     <div>
       <p class="dash-date" data-today>&nbsp;</p>
       <h1 class="page-title" data-greeting data-name={firstName}>Welcome back, {firstName}</h1>
-      <p class="demo-note">
-        <Icon name="info" />
-        Example numbers that show how your dashboard works. Payments are in test mode.
-      </p>
     </div>
     <div class="page-actions">
       <a class="btn btn-secondary" href="/catalog">
         <Icon name="storefront" />
         Catalog
       </a>
-      <a class="btn btn-primary" href="/admin/courses/edit">
+      <a class="btn btn-primary" href="/admin/courses?new=1">
         <Icon name="plus" />
         New course
       </a>
     </div>
   </header>
 
-  <section class="kpis" aria-label="This month so far">
+  <section class="card card-pad setup-card" aria-labelledby="setup-title" data-setup hidden>
+    <div class="setup-head">
+      <h2 class="card-title" id="setup-title">Getting ready to sell</h2>
+      <p class="card-sub" data-setup-sub></p>
+    </div>
+    <ul class="setup-list" data-setup-list></ul>
+  </section>
+
+  <div class="dash-range" data-await-setup>
+    <h2 class="visually-hidden">Numbers</h2>
+    <div class="segmented" role="group" aria-label="Period">
+      <button type="button" aria-pressed="false" data-range="7">7 days</button>
+      <button type="button" aria-pressed="true" data-range="30">30 days</button>
+      <button type="button" aria-pressed="false" data-range="90">90 days</button>
+    </div>
+  </div>
+
+  <section class="kpis" aria-label="Numbers for the period" data-kpis aria-busy="true" data-await-setup>
     <article class="card kpi">
-      <h2 class="kpi-label">Revenue this month</h2>
+      <h3 class="kpi-label">Revenue</h3>
       <p class="kpi-value" data-k="revenue">&nbsp;</p>
       <p class="kpi-meta" data-k="revenue-meta">&nbsp;</p>
     </article>
     <article class="card kpi">
-      <h2 class="kpi-label">Enrollments</h2>
-      <p class="kpi-value" data-k="enrollments">&nbsp;</p>
-      <p class="kpi-meta" data-k="enrollments-meta">&nbsp;</p>
+      <h3 class="kpi-label">Paid orders</h3>
+      <p class="kpi-value" data-k="orders">&nbsp;</p>
+      <p class="kpi-meta" data-k="orders-meta">&nbsp;</p>
     </article>
     <article class="card kpi">
-      <h2 class="kpi-label">Visitors to enrollment</h2>
+      <h3 class="kpi-label">Checkout to payment</h3>
       <p class="kpi-value" data-k="rate">&nbsp;</p>
       <p class="kpi-meta" data-k="rate-meta">&nbsp;</p>
     </article>
     <article class="card kpi">
-      <h2 class="kpi-label">Top coupon</h2>
-      <p class="kpi-value kpi-code" data-k="coupon">&nbsp;</p>
-      <p class="kpi-meta" data-k="coupon-meta">&nbsp;</p>
+      <h3 class="kpi-label">Course page views</h3>
+      <p class="kpi-value" data-k="views">&nbsp;</p>
+      <p class="kpi-meta" data-k="views-meta">&nbsp;</p>
     </article>
   </section>
 
-  <div class="dash-grid">
+  <div class="dash-grid" data-await-setup>
     <div class="dash-col">
-    <section class="card chart-card" aria-labelledby="chart-title">
-      <div class="card-head no-rule">
-        <div>
-          <h2 class="card-title" id="chart-title">Sales, last 30 days</h2>
-          <p class="card-sub" data-chart-sub>&nbsp;</p>
+      <section class="card chart-card" aria-labelledby="chart-title">
+        <div class="card-head no-rule">
+          <div>
+            <h2 class="card-title" id="chart-title" data-chart-title>Revenue per day</h2>
+            <p class="card-sub" data-chart-sub>&nbsp;</p>
+          </div>
+          <p class="chart-total num" data-chart-total></p>
         </div>
-        <p class="chart-total num" data-chart-total></p>
-      </div>
-      <div
-        class="chart"
-        data-chart
-        tabindex="0"
-        role="group"
-        aria-label="Daily sales chart. Use the left and right arrow keys to read each day."
-      >
-        <div class="chart-tip" data-tip hidden></div>
-      </div>
-      <p class="visually-hidden" aria-live="polite" data-chart-live></p>
-      <details class="chart-table">
-        <summary>Show the numbers</summary>
-        <div class="table-wrap">
-          <table>
-            <caption class="visually-hidden">Daily sales, last 30 days (demo data)</caption>
-            <thead>
-              <tr>
-                <th scope="col">Day</th>
-                <th scope="col">Visitors</th>
-                <th scope="col">Enrollments</th>
-                <th scope="col">Revenue</th>
-              </tr>
-            </thead>
-            <tbody data-chart-rows></tbody>
-          </table>
+        <div class="chart" data-chart tabindex="0" role="group" aria-label="Revenue per day. Use the left and right arrow keys to read each day.">
+          <div class="chart-tip" data-tip hidden></div>
         </div>
-      </details>
-    </section>
-
-    <section class="card card-pad progress-card" aria-labelledby="progress-title">
-      <div class="progress-head">
-        <h2 class="card-title" id="progress-title">How far students have got</h2>
-        <p class="card-sub" data-progress-sub>&nbsp;</p>
-      </div>
-      <div class="split" data-split aria-hidden="true"></div>
-      <ul class="split-legend" data-split-legend></ul>
-    </section>
+        <p class="visually-hidden" aria-live="polite" data-chart-live></p>
+        <details class="chart-table">
+          <summary>Show the numbers</summary>
+          <div class="table-wrap">
+            <table>
+              <caption class="visually-hidden">Daily numbers</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Day</th>
+                  <th scope="col">Views</th>
+                  <th scope="col">Checkouts</th>
+                  <th scope="col">Paid</th>
+                  <th scope="col">Revenue</th>
+                </tr>
+              </thead>
+              <tbody data-chart-rows></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
     </div>
 
     <div class="dash-col">
-    <section class="card recent-card" aria-labelledby="recent-title">
-      <div class="card-head">
-        <h2 class="card-title" id="recent-title">Recent payments</h2>
-        <a class="link-btn" href="/admin/payments">
-          View all
-          <Icon name="arrow-right" />
-        </a>
-      </div>
-      <ul class="rows recent" data-recent></ul>
-      <p class="card-foot">Test mode: no real money moves in the demo.</p>
-    </section>
+      <section class="card card-pad site-card" aria-labelledby="site-title">
+        <div class="setup-head">
+          <h2 class="card-title" id="site-title">Website</h2>
+          <p class="card-sub" data-site-detail>&nbsp;</p>
+        </div>
+        <p class="site-state" data-site-state>&nbsp;</p>
+        <div data-site-action></div>
+      </section>
 
-    <section class="card courses-card" aria-labelledby="courses-title">
-      <div class="card-head">
-        <h2 class="card-title" id="courses-title">Your courses</h2>
-        <a class="link-btn" href="/admin/courses">
-          Manage
-          <Icon name="arrow-right" />
-        </a>
-      </div>
-      <ul class="rows mini-courses" data-courses></ul>
-    </section>
+      <section class="card recent-card" aria-labelledby="recent-title">
+        <div class="card-head">
+          <h2 class="card-title" id="recent-title">Recent payments</h2>
+          <a class="link-btn" href="/admin/payments">
+            View all
+            <Icon name="arrow-right" />
+          </a>
+        </div>
+        <ul class="rows recent" data-recent></ul>
+      </section>
+
+      <section class="card courses-card" aria-labelledby="courses-title">
+        <div class="card-head">
+          <h2 class="card-title" id="courses-title">Your courses</h2>
+          <a class="link-btn" href="/admin/courses">
+            Manage
+            <Icon name="arrow-right" />
+          </a>
+        </div>
+        <ul class="rows mini-courses" data-courses></ul>
+      </section>
     </div>
   </div>
-  <CoverData />
 </Admin>
 
 <script>
@@ -137,6 +146,126 @@ const firstName = course.teacher.split(" ")[0];
 </script>
 
 <style is:global>
+  /* The setup card (above) appears only once settings and courses load. Until then what comes
+     after it is laid out but not painted, so it never visibly jumps down (layout shift). The
+     script adds .setup-known when it knows; the animation shows everything after 2 s regardless,
+     so a failed request or no JavaScript never hides the dashboard. */
+  [data-await-setup] {
+    animation: await-setup 0s linear 2s both;
+  }
+
+  .setup-known [data-await-setup] {
+    animation: none;
+  }
+
+  @keyframes await-setup {
+    from {
+      visibility: hidden;
+    }
+
+    to {
+      visibility: visible;
+    }
+  }
+
+  /* ── Setup steps and site status ── */
+  .setup-card,
+  .site-card {
+    display: grid;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .site-card {
+    margin-bottom: 0;
+  }
+
+  .setup-head {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .setup-list {
+    list-style: none;
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  @media (min-width: 48rem) {
+    .setup-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-1) var(--space-5);
+    }
+  }
+
+  .setup-list a,
+  .setup-list span.setup-done {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.75rem;
+    color: var(--text);
+    font-weight: var(--weight-ui);
+    text-decoration: none;
+  }
+
+  .setup-list a:hover {
+    color: var(--accent);
+  }
+
+  .setup-list .icon {
+    flex: none;
+    width: 1.2rem;
+    height: 1.2rem;
+    color: var(--border-control);
+  }
+
+  .setup-list .setup-done {
+    color: var(--text-muted);
+  }
+
+  .setup-list .setup-done .icon {
+    color: var(--maroon-800);
+  }
+
+  .site-state {
+    color: var(--text);
+    font-size: var(--text-base);
+    font-weight: var(--weight-strong);
+  }
+
+  .dash-range {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--space-3);
+  }
+
+  .mini-course {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--card-pad);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .mini-course:hover {
+    background: var(--bg-soft);
+  }
+
+  .mini-course strong {
+    display: block;
+    color: var(--text);
+    font-weight: var(--weight-strong);
+    overflow-wrap: anywhere;
+  }
+
+  .mini-course span.sub {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
   .dash-date {
     color: var(--text-muted);
     font-weight: var(--weight-ui);
@@ -470,67 +599,10 @@ const firstName = course.teacher.split(" ")[0];
     font-weight: var(--weight-ui);
   }
 
-  /* ── Progress split ── */
-  .progress-card {
-    display: grid;
-    gap: var(--space-4);
-  }
-
-  .progress-head {
-    display: grid;
-    gap: var(--space-1);
-  }
-
-  .split {
-    display: flex;
-    gap: 2px;
-    height: 0.75rem;
-  }
-
-  .split > span {
-    flex: var(--n, 1) 1 0;
-    min-width: 0.25rem;
-    background: var(--c);
-  }
-
-  .split > span:first-child {
-    border-radius: var(--radius-pill) 0 0 var(--radius-pill);
-  }
-
-  .split > span:last-child {
-    border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
-  }
-
-  .split-legend {
-    list-style: none;
-    display: grid;
-    gap: var(--space-2);
-  }
-
-  .split-legend li {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--space-3);
-  }
-
-  .split-legend .key {
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: 3px;
-    background: var(--c);
-  }
-
-  .split-legend b {
-    color: var(--text);
-    font-weight: var(--weight-strong);
-    font-variant-numeric: tabular-nums;
-  }
-
   /* ── Your courses ── */
   .mini-courses > li > a {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) var(--card-pad);

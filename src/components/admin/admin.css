@@ -1,5 +1,5 @@
 /*
-  Course admin (demo): the shell and shared pieces. Colours, type, space and radii come from
+  Course admin: the shell and shared pieces. Colours, type, space and radii come from
   tokens.css only. Global on purpose: much of the admin's markup is built in the browser, where
   Astro's scoped styles can't reach.
 
@@ -195,20 +195,16 @@
   color: var(--maroon-800);
 }
 
-/* The "Demo data" badge: always on screen, explains itself when tapped. */
-.demo-badge {
+/* The payment-mode badge ("Test mode", "Payments not set up"): only when it matters. */
+.mode-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
   min-height: 2.75rem;
-  padding: 0 0.85rem;
-  border: 0;
-  background: none;
-  font: inherit;
-  cursor: pointer;
+  padding: 0 0.35rem;
+  text-decoration: none;
 }
 
-.demo-badge > span {
+.mode-badge > span {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
@@ -223,7 +219,7 @@
   white-space: nowrap;
 }
 
-.demo-badge > span::before {
+.mode-badge > span::before {
   content: "";
   width: 0.45rem;
   height: 0.45rem;
@@ -231,8 +227,66 @@
   background: var(--accent);
 }
 
-.demo-badge:hover > span {
+.mode-badge[data-tone="off"] > span {
+  background: var(--bg);
+  color: var(--text-muted);
+}
+
+.mode-badge[data-tone="off"] > span::before {
+  background: none;
+  border: 1.5px solid var(--border-control);
+}
+
+.mode-badge:hover > span {
   border-color: var(--maroon-800);
+}
+
+/* "Publish changes": saved edits that aren't on the live site yet. */
+.publish-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  margin-block: 0.25rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.publish-chip:hover {
+  background: var(--bg-tint);
+}
+
+.publish-chip[data-state="building"] {
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+  cursor: progress;
+}
+
+.chip-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .publish-chip[data-state="building"] .chip-dot {
+    animation: chip-pulse 1.4s var(--ease-out) infinite;
+  }
+
+  @keyframes chip-pulse {
+    50% {
+      opacity: 0.25;
+    }
+  }
 }
 
 /* ── Sidebar (desktop) and tab bar (phones) ────────────────────── */
@@ -489,8 +543,9 @@
   color: var(--text);
 }
 
-/* Demo-data note under a page title. */
-.demo-note {
+/* A small note under a page title. */
+.demo-note,
+.page-note {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
@@ -499,7 +554,8 @@
   font-weight: var(--weight-ui);
 }
 
-.demo-note .icon {
+.demo-note .icon,
+.page-note .icon {
   width: 1rem;
   height: 1rem;
   margin-top: 0.1rem;
@@ -1365,7 +1421,7 @@
   flex: 1 1 0;
 }
 
-/* Page-level notice (storage blocked). */
+/* Page-level notice (platform not set up, warnings). */
 .notice {
   display: flex;
   align-items: flex-start;
@@ -1386,12 +1442,685 @@
 
 @media (forced-colors: active) {
   .pill::before,
-  .demo-badge > span::before {
+  .mode-badge > span::before {
     forced-color-adjust: none;
     background: CanvasText;
   }
 
   .meter > span {
     background: CanvasText;
+  }
+}
+
+/* ══ Real admin: shared pieces for screens built in the browser ══ */
+
+/* ── Loading placeholders ─────────────────────────────────────── */
+
+.skel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--card-pad);
+}
+
+.skel-item {
+  display: grid;
+  gap: 0.5rem;
+  padding: var(--space-3) 0;
+}
+
+.skel-item + .skel-item {
+  border-top: 1px solid var(--border);
+}
+
+.skel-cards {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  padding: 0;
+}
+
+.skel-cards .skel-item {
+  padding: var(--card-pad);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.skel-cards .skel-item + .skel-item {
+  border-top: 1px solid var(--border);
+}
+
+.skel-block .skel-item {
+  min-height: 8rem;
+}
+
+.skel-line {
+  display: block;
+  height: 0.8rem;
+  border-radius: var(--radius-pill);
+  background: var(--bg-tint);
+}
+
+.skel-line.w-60 {
+  width: 60%;
+}
+
+.skel-line.w-35 {
+  width: 35%;
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skel-line {
+    animation: skel-fade 1.3s var(--ease-out) infinite alternate;
+    animation-delay: calc(var(--i, 0) * 120ms);
+  }
+
+  @keyframes skel-fade {
+    to {
+      opacity: 0.45;
+    }
+  }
+}
+
+/* ── Error and empty states ───────────────────────────────────── */
+
+.state {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--space-2);
+  /* As tall as the loading placeholder it replaces (--skel-rows rows of .skel-item, set by
+     loadInto in client/states.ts), so the content after it doesn't move when a list turns out
+     empty or fails to load. */
+  min-height: calc(2 * var(--card-pad) + var(--skel-rows, 0) * (3.6rem + 1px) + max(var(--skel-rows, 0) - 1, 0) * var(--space-3));
+  padding: var(--space-7) var(--space-5);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* A list region before its script runs: as tall as the loading placeholder the script puts in
+   (--skel-rows, set on the region in the page to the rows loadInto shows), so the content after
+   it doesn't move when the placeholder appears. */
+[data-region]:empty,
+[data-webhooks]:empty {
+  min-height: calc(2 * var(--card-pad) + var(--skel-rows, 0) * (3.6rem + 1px) + max(var(--skel-rows, 0) - 1, 0) * var(--space-3));
+}
+
+.state-icon {
+  width: 2rem;
+  height: 2rem;
+  color: var(--border-control);
+}
+
+.state-error .state-icon {
+  color: var(--accent);
+}
+
+.state-setup .state-icon,
+.state-coming .state-icon {
+  color: var(--maroon-800);
+}
+
+.state-title {
+  color: var(--text);
+  font-size: var(--text-base);
+  font-weight: var(--weight-strong);
+}
+
+.state-text {
+  max-width: 34rem;
+}
+
+.state .btn {
+  margin-top: var(--space-2);
+}
+
+/* ── Busy buttons ─────────────────────────────────────────────── */
+
+.btn.is-busy,
+.icon-btn.is-busy,
+.link-btn.is-busy {
+  position: relative;
+  cursor: progress;
+}
+
+.btn.is-busy::after {
+  content: "";
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn.is-busy::after {
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+}
+
+/* ── Dialog and drawer extras ─────────────────────────────────── */
+
+.dlg-form {
+  width: min(100% - 2rem, 32rem);
+}
+
+.dlg-text {
+  color: var(--text-body);
+}
+
+.dlg-message:empty {
+  display: none;
+}
+
+.drawer-title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.drawer .dlg-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 0 calc(var(--space-5) * -1) calc((var(--space-6) + env(safe-area-inset-bottom)) * -1);
+  padding: var(--space-3) var(--space-5) calc(var(--space-3) + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.switch-row > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+/* Radio cards: a choice that needs a sentence (course format, discount kind). */
+.choice-grid {
+  display: grid;
+  gap: var(--space-2);
+}
+
+@media (min-width: 40rem) {
+  .choice-grid.cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .choice-grid.cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.choice {
+  position: relative;
+  display: grid;
+  gap: 0.2rem;
+  padding: var(--space-3) var(--space-4) var(--space-3) 2.75rem;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.choice input {
+  position: absolute;
+  top: 0.95rem;
+  left: 1rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.choice strong {
+  color: var(--text);
+  font-weight: var(--weight-strong);
+}
+
+.choice span {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.choice:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--bg-tint);
+}
+
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ── Data lists that become tables on wide screens ────────────── */
+
+.dt {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dt th {
+  padding: var(--space-3) var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.dt td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.dt tr:last-child td {
+  border-bottom: 0;
+}
+
+.dt .num,
+.dt th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dt-row-btn {
+  display: grid;
+  gap: 0.1rem;
+  min-height: 2.75rem;
+  align-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: var(--weight-strong);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dt-row-btn:hover {
+  color: var(--accent);
+}
+
+.dt-sub {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+}
+
+.dt tbody tr:hover {
+  background: var(--bg-soft);
+}
+
+/* Phones: each row is a small card; the header row is hidden and cells carry their own labels. */
+@media (max-width: 47.99rem) {
+  .dt thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .dt,
+  .dt tbody,
+  .dt tr,
+  .dt td {
+    display: block;
+  }
+
+  .dt tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem var(--space-3);
+    padding: var(--space-3) var(--card-pad);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .dt tr:last-child {
+    border-bottom: 0;
+  }
+
+  .dt td {
+    padding: 0;
+    border: 0;
+  }
+
+  .dt td[data-label]:not(.dt-main)::before {
+    content: attr(data-label) " ";
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+  }
+
+  .dt td.dt-main {
+    grid-column: 1 / -1;
+  }
+
+  .dt .num {
+    text-align: left;
+  }
+}
+
+/* ── Pager ─────────────────────────────────────────────────────── */
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--card-pad);
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-weight: var(--weight-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.pager-btns {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ── Key-value details (drawers) ──────────────────────────────── */
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+}
+
+.kv dt {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+  padding-top: 0.15rem;
+}
+
+.kv dd {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.kv code,
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+}
+
+.section-title {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.005em;
+}
+
+.sub-list {
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sub-item {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.sub-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.admin .btn-sm {
+  min-height: 2.75rem;
+  padding: 0.4rem 0.85rem;
+  font-size: var(--text-xs);
+}
+
+/* Pills with a tone (status chips in lists). */
+.pill-wait::before {
+  border-color: var(--maroon-800);
+  background: linear-gradient(90deg, var(--maroon-800) 50%, transparent 50%);
+}
+
+.pill-bad {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pill-bad::before {
+  border-color: var(--accent);
+}
+
+/* ── Setup steps (Cloudflare helper) ──────────────────────────── */
+
+.steps {
+  list-style: none;
+  counter-reset: step;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.steps > li {
+  counter-increment: step;
+  position: relative;
+  display: grid;
+  gap: 0.25rem;
+  padding-left: 2.5rem;
+  min-height: 1.75rem;
+}
+
+.steps > li::before {
+  content: counter(step);
+  position: absolute;
+  top: -0.05rem;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--bg-tint);
+  color: var(--maroon-800);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+}
+
+.steps strong {
+  color: var(--text);
+  font-weight: var(--weight-strong);
+}
+
+.steps p {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.copy-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: 0.25rem 0.25rem 0.25rem 0.75rem;
+  border: 1px dashed var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+}
+
+.copy-line code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--text-sm);
+}
+
+/* ── Upload progress ──────────────────────────────────────────── */
+
+.upl {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-soft);
+}
+
+.upl-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.upl-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: var(--weight-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upl progress {
+  width: 100%;
+  height: 0.5rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--bg-tint);
+  overflow: hidden;
+  appearance: none;
+}
+
+.upl progress::-webkit-progress-bar {
+  background: var(--bg-tint);
+  border-radius: var(--radius-pill);
+}
+
+.upl progress::-webkit-progress-value {
+  background: var(--maroon-800);
+  border-radius: var(--radius-pill);
+}
+
+.upl progress::-moz-progress-bar {
+  background: var(--maroon-800);
+  border-radius: var(--radius-pill);
+}
+
+.upl-text {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A file input dressed as a button (the input stays focusable and labelled). */
+.file-btn {
+  position: relative;
+  display: inline-flex;
+  overflow: hidden;
+}
+
+.file-btn input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
+}
+
+.file-btn:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-pill);
+}
+
+/* Section nav inside long screens (the course editor). */
+.in-page-nav {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0 calc(var(--page-pad) * -1) var(--space-4);
+  padding: 0 var(--page-pad);
+  overflow-x: auto;
+  scrollbar-width: none;
+  position: relative;
+}
+
+.in-page-nav a {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 0.85rem;
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-weight: var(--weight-strong);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.in-page-nav a:hover {
+  background: var(--bg-tint);
+  color: var(--text);
+}
+
+.state-li {
+  list-style: none;
+}
+
+.stack-sm {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* Small phones: the top bar keeps the logo, the publish chip, the mode badge and Settings in 390px. */
+@media (max-width: 29.99rem) {
+  .tb-app span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .tb-right {
+    min-width: 0;
+    gap: 0;
+  }
+
+  .publish-chip {
+    padding: 0 0.65rem;
+  }
+
+  .mode-badge > span {
+    padding: 0.3rem 0.55rem;
   }
 }

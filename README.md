@@ -1,96 +1,71 @@
 # Feelings Courses
 
-The makeup course of Feelings Beauty Care, on courses.feelingsbeautycare.in. It has three parts:
-- a landing page for people arriving from Instagram;
-- a Razorpay checkout, in test mode for now;
-- a gated course area where buyers watch the lessons.
+The course platform of Feelings Beauty Care (Jamnagar) on **courses.feelingsbeautycare.in**, with a subdomain per course:
+- **public site:** a catalog of courses and a landing page per course (online, at the studio, or both), with legal pages and per-host SEO;
+- **checkout:** Razorpay, with coupons, batches for studio courses, receipts and refunds within 24 hours;
+- **students:** sign-in with a single-use emailed link, the course area with recorded lessons on R2, progress, certificates with a public check page, and an account page with receipts;
+- **admin** (`/admin`): courses, lessons and video uploads, students, payments and refunds, coupons, settings, backups and the activity log.
 
-**Status: demo.** The price and lessons are examples until the client confirms them. Read `CLAUDE.md` first.
+It runs on Cloudflare Pages (static Astro build plus Pages Functions) with D1, R2 and a small mailer Worker on Cloudflare Email Sending.
+
+**Status (24 Oct 2026):** all the work is on `release/courses-v1` (draft PR [#29](https://github.com/harshbhx/feelings-courses/pull/29)), which becomes `main` when the owner merges it. Nothing is set up on Cloudflare yet, so the site runs its **demo** flow (example course, test payments only, a demo ribbon) until the owner runs the setup script. The owner's remaining steps: `docs/owner/OWNER-GUIDE.md`, "Before you start".
+
+Read `CLAUDE.md` before changing code.
+
+## Develop
+
+Node 22.13 or newer.
 
 ```bash
-npm install
-npm run dev     # http://localhost:4321
-npm run build   # astro check + build + CSP hashes (what Cloudflare runs)
-npm run test:learn   # course-area gate tests (Node 22, no packages)
+npm ci
+npm run dev          # http://localhost:4321 (the Astro pages)
+npm run dev:full     # the build under wrangler pages dev, with local D1 and R2 (Functions included)
+npm run check        # astro check
+npm run typecheck    # Pages Functions
+npm test             # unit, integration, checkout and course-area tests (node:test, D1 on node:sqlite)
+npm run build        # what Cloudflare Pages runs: snapshot, astro check, build, CSP hashes
 ```
 
-## Course area
+Heavier checks run in GitHub Actions on every pull request; none of them deploys:
 
-- `/learn` is the dashboard and `/learn/<slug>` one page per lesson. Titles and minutes come from `src/data/course.ts`; slugs and lesson video ids are in `src/data/lessons.ts`.
-- **Gate:** every request for `/learn`, `/learn/*`, `/learn.html` and `/learn/*.html` must pass `verifyEnrollment()` (`functions/_lib/enrollment.ts`). Otherwise it gets a 302 to `/?locked=1#pricing`. Gated pages are sent with `Cache-Control: private, no-store`. The files are `functions/learn/_middleware.ts`, `functions/learn.ts`, `functions/learn.html.ts` and the shared `functions/learn/_gate.ts`. The root `functions/_middleware.ts` gates percent-encoded spellings such as `/%6cearn`: Pages routes Functions by the raw path but serves files by the decoded one. It makes every request run through Functions. `/learn/logout` clears the enrollment cookie and goes home.
-- **Progress** is saved in the buyer's browser only (localStorage `fbc-progress`).
-- **Lesson videos:** none exist yet. Each lesson plays a clearly labelled studio clip from `course.glimpses` instead. To add a real video, set its `videoId` in `src/data/lessons.ts`.
+| Workflow | What |
+|---|---|
+| CI | install, type checks, tests, migrations on D1, Functions bundle, build, `check-dist.mjs` |
+| E2E | Playwright journeys in Chromium against the real Functions and build, with fake Razorpay, email, D1 and R2 (`docs/E2E.md`) |
+| Quality | Lighthouse mobile and desktop (95 in every category), axe, keyboard and motion, headers and SEO (`docs/QUALITY.md`) |
+| Screenshots | learner and public pages at 390 and 1280 px, as an artifact |
+| Verify | on the `full-verify` label: everything CI does, plus the full build under `wrangler pages dev` with a smoke test |
+
+`docs/CI-FIRST-RUN.md` explains how to read a failure.
+
+## Layout
+
+| Path | What |
+|---|---|
+| `src/pages/`, `src/components/` | the public site and the admin UI (Astro) |
+| `functions/` | Pages Functions: checkout, Razorpay webhook, sign-in, account, course area, media, certificates, admin API |
+| `functions/_lib/` | shared server code (`db/`, `pages/` for the server-rendered student pages, `admin/`) |
+| `migrations/` | the D1 schema; the site applies them itself on the first request |
+| `workers/mailer/` | the mailer Worker (Cloudflare Email Sending, sends as `courses@`) |
+| `scripts/` | build steps (`snapshot.mjs`, `csp.mjs`), `setup.mjs` (Cloudflare setup), backups, checks |
+| `src/shared/` | the shared types, API shapes and constants (the contracts) |
+| `tests/` | unit and integration tests, `e2e/` (Playwright), `quality/`, `ux/` |
+
+## Docs
+
+- `docs/owner/`: the owner guide (setup, everyday admin work, going live), the Razorpay test checklist, rollback, monitoring, legal questions and the setup script reference.
+- `docs/platform/`: contracts, hosts, payments, students, media and email.
+- `docs/ops/`: runbook, backups, the Cloudflare API notes.
+- `docs/design/`: the public site and learner pages.
+- `docs/INTEGRATION.md` (how the workstreams were combined), `docs/RELEASE-MERGE.md` (the release branch), `docs/SECURITY-REVIEW.md`.
 
 ## Deploy
 
-- **Cloudflare Pages project `feelings-courses`.** It is Git-integrated with GitHub `harshbhx/feelings-courses`, and the owner created it. Build command `npm run build`, output folder `dist`, Node 22. Pages picks up `functions/` by itself.
-- **Branches:** `main` deploys to production. Every other branch gets a preview at `https://<branch>.feelings-courses.pages.dev`, for example `feat-learn.feelings-courses.pages.dev`.
-- **Custom domain:** courses.feelingsbeautycare.in is attached in the Pages project under Custom domains. The feelingsbeautycare.in zone is on Cloudflare, so Cloudflare adds the DNS record itself when the owner activates the domain.
-- **Secrets:** `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `ENROLL_SECRET`. The checkout part owns them. The owner sets them in the Pages project under Settings → Variables and Secrets. Values never go in the repo.
-- **Headers and redirects:** `public/_headers`, plus the Content-Security-Policy that `scripts/csp.mjs` writes at build time. `public/_redirects` has the Instagram short links: `/ig` (bio) and `/reel`.
-- **Never run `wrangler pages deploy`.** It makes a Direct Upload project, which can't be switched back to Git integration. Push to GitHub instead.
+- **Cloudflare Pages project `feelings-courses`**, Git-integrated with this repo. Build `npm run build`, output `dist`, Node 22. `main` deploys to production; every other branch gets a preview at `https://<branch>.feelings-courses.pages.dev` (slashes become hyphens).
+- **Never run `wrangler pages deploy`.** It makes a Direct Upload project, which can't go back to Git integration. Push to GitHub instead.
+- **Bindings, variables and secrets** are set per environment by `npm run setup` (`scripts/setup.mjs`, `docs/owner/SETUP.md`): bindings `DB` (D1), `MEDIA` (R2) and `MAILER` (the mailer Worker); variables `APP_ENV`, `HUB_HOST`, `APEX_DOMAIN`, `RAZORPAY_KEY_ID`, `EMAIL_PROVIDER`; secrets `APP_SECRET`, `ADMIN_PASSWORD_HASH`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `MAILER_KEY` and, on production, `DEPLOY_HOOK_URL`. The owner supplies only the Razorpay keys, a Cloudflare token and the deploy hook, in a local `setup.local.json` that git ignores. Values never go in the repo.
+- **Before setup** (no D1 bound) the site keeps the old demo flow: the checkout answers in demo or Razorpay test mode from `src/data/course.ts` and `ENROLL_SECRET`, and the account, course area and admin say they aren't set up yet. `docs/platform/PAYMENTS.md` describes the live flow; the demo's payment modes are in `functions/_lib/checkout.ts` (`paymentMode()`).
 
-## Payments
+### Razorpay test payments
 
-Checkout runs in one of three modes. The server picks the mode from the Cloudflare secrets and `course.demo` (`functions/_lib/checkout.ts`, `paymentMode()`); the browser never chooses it. The amount always comes from `src/data/course.ts`, in every mode.
-
-| Mode | When | What the buyer sees | How the payment is checked |
-|---|---|---|---|
-| **Razorpay** | `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are both set | Razorpay Checkout, with UPI, cards and netbanking. | Fully: a server-side order, Razorpay's signature, and Razorpay's own record of the payment. |
-| **Razorpay test** (`razorpay-test`) | `course.demo` is true, no Key Secret is set, and a test Key ID exists: `RAZORPAY_KEY_ID` (`rzp_test_…`) if set, otherwise the committed one below | Razorpay's real Checkout in **Test Mode**, without an order. Before it opens, checkout says "Test payment by Razorpay. No money is charged." | **Not checked.** See below. |
-| **Demo** | `course.demo` is true, no Key Secret, and no test Key ID. Also the Razorpay test mode's fallback in Instagram's and Facebook's in-app browsers | A built-in sheet labelled "Test payment: no money is charged". Nothing goes to Razorpay. In the in-app fallback, a note says to open the page in Chrome to try Razorpay's test checkout. | Not needed: no money is involved. |
-
-While `course.demo` is true, only **Test Mode** keys (`rzp_test_…`) work. Live keys (`rzp_live_…`) are refused with a 503 until the course goes live, even a live Key ID on its own. Once `demo` is false, it's the other way round: test keys are refused, so test payments can't unlock the real course. The Razorpay test and Demo modes don't exist then: the live course needs both keys and `ENROLL_SECRET`.
-
-### The committed test Key ID
-
-`src/data/payments.ts` has `RAZORPAY_TEST_KEY_ID = "rzp_test_1DP5mmOlF5G5ag"`. It is a **public Test Mode Key ID**, not a secret: Razorpay Checkout sends a Key ID to the browser anyway, and a test key can't move money. The owner approved committing it on 2026-10-21. It lets the demo open Razorpay's real Checkout before the client has a Razorpay account. **There is no Key Secret for it, and a Key Secret never goes in the repo.**
-
-**Switched off on 2026-10-21** (`USE_COMMITTED_TEST_KEY = false`): the account behind that sample key has no payment methods turned on, so Razorpay's Checkout showed only "No appropriate payment method found". Without keys in Cloudflare the demo now uses the built-in sheet (UPI, card, netbanking). Setting your own test `RAZORPAY_KEY_ID` in Cloudflare opens Razorpay's test Checkout again; setting both keys gives the fully checked flow.
-
-**What "not checked" means.** Without a Key Secret, the server can't create a Razorpay order, so there is no signature, and it can't ask Razorpay's API about the payment either. `/api/verify` accepts any payment id shaped like Razorpay's (`pay_` and 14 letters or digits) and unlocks the course for it. So someone could type one in and get the demo course for free. That is acceptable only for the demo: the demo sheet unlocks it for free anyway, and Test Mode moves no money. It is impossible once `course.demo` is false, and as soon as the Key Secret is set the full Razorpay mode takes over. Payments in this mode also have no order, and Razorpay's docs say such payments can't be captured: in Test Mode that changes nothing.
-
-**Instagram and Facebook.** Their in-app browsers can't show Checkout in a frame. The Razorpay mode works round that with Razorpay's redirect flow (`callback_url`), but Razorpay's docs list `order_id` as mandatory and don't document that flow without one. So in those browsers the Razorpay test mode opens the demo sheet instead, with a note to open the page in Chrome.
-
-**Going live.** Set a new `ENROLL_SECRET` when the course goes live (or set it then for the first time), so enrollments from test payments stop working.
-
-### Turn on Razorpay test mode
-
-1. Create a free account at [razorpay.com](https://razorpay.com). Test Mode works before KYC.
-2. In the Razorpay Dashboard, switch to **Test Mode**. Open **Account & Settings → API Keys** (older dashboards: **Settings → API Keys**) and generate a key. Razorpay shows the **Key Id** (`rzp_test_…`) and the **Key Secret**. The secret is shown only once, so keep it somewhere safe.
-3. Make an enrollment secret: any long random string, for example from `openssl rand -hex 32`.
-4. In the Cloudflare dashboard, open **Workers & Pages → feelings-courses → Settings → Variables and Secrets**. Add three variables of type **Secret**, for Production and for Preview:
-   - `RAZORPAY_KEY_ID`: the Key Id;
-   - `RAZORPAY_KEY_SECRET`: the Key Secret;
-   - `ENROLL_SECRET`: the random string.
-5. Secrets apply to new deployments only. Open **Deployments**, then **Retry deployment** on the latest one (or push a commit).
-6. On the site, tap **Enroll**: Razorpay's window should open with "Test Mode" on it.
-
-Secrets never go in the repo, in a `.env` file that is committed, or in a chat with an assistant.
-
-### Test payments (Test Mode only)
-
-From [Razorpay's test integration docs](https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/test-integration/):
-
-- **UPI:** `success@razorpay` succeeds, `failure@razorpay` fails.
-- **Cards:** any future expiry date and any CVV.
-
-  | Card | Number |
-  |---|---|
-  | Visa (India) | `4100 2800 0000 1007` |
-  | Mastercard (India) | `5500 6700 0000 1002` |
-  | RuPay (India) | `6527 6589 0000 1005` |
-  | Mastercard (international) | `5555 5555 5555 4444` |
-  | Visa (international) | `4012 8888 8888 1881` |
-
-- **Netbanking and wallets:** pick any bank; a mock page offers **Success** and **Failure**.
-
-### How a payment is checked (Razorpay mode)
-
-1. `POST /api/order` creates a Razorpay order on the server. The amount comes from `src/data/course.ts`, never from the browser.
-2. Razorpay Checkout opens in the browser. In Instagram's and Facebook's in-app browsers, where its window can't open in a frame, Razorpay sends the buyer back to `/api/verify` instead (`callback_url`).
-3. `POST /api/verify` checks Razorpay's signature (HMAC-SHA256 of `order_id|payment_id` with the key secret). It then asks Razorpay for the payment and checks its status, order and amount. Only then does it set the enrollment cookie and send the buyer to `/thank-you`.
-
-In the Razorpay test mode, `POST /api/order` returns the Key ID, amount and prefill with no order id, Checkout's handler gets a `razorpay_payment_id`, and the browser posts `{ mode: "razorpay-test", razorpay_payment_id }` to `/api/verify`, which checks only the id's shape (see above).
-
-The site stores nothing about the buyer. Name, phone and email only prefill Razorpay's form, and Razorpay keeps the payment record. Run the checkout tests with `npm run test:checkout`.
+In Razorpay's Test Mode: UPI `success@razorpay` succeeds and `failure@razorpay` fails; cards such as Visa `4100 2800 0000 1007` or Mastercard `5500 6700 0000 1002` with any future expiry and any CVV; netbanking shows a mock bank page. The full test plan is `docs/owner/RAZORPAY-TEST-CHECKLIST.md`.

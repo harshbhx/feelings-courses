@@ -1,0 +1,21 @@
+{
+  "//": "Copy to setup.local.json (never committed) and fill in. docs/owner/OWNER-GUIDE.md (Part A) explains each value.",
+  "cloudflare": {
+    "accountId": "32 hex characters: dashboard → Workers & Pages → Account ID",
+    "apiToken": "an API token with Account: Cloudflare Pages Edit, D1 Edit, Workers R2 Storage Edit, Workers Scripts Edit (plus Zone Read + DNS Edit only for --add-domain)",
+    "project": "feelings-courses",
+    "location": "apac"
+  },
+  "razorpay": {
+    "keyId": "rzp_test_… (rzp_live_… only for npm run go-live)",
+    "keySecret": "the key secret Razorpay shows once when the key is generated"
+  },
+  "deployHookUrl": "https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/…",
+  "email": {
+    "//": "Optional. The sender of sign-in links and receipts: an address on apexDomain, which must be onboarded in Email Service → Email Sending.",
+    "from": "courses@feelingsbeautycare.in",
+    "fromName": "Feelings Beauty Care"
+  },
+  "hubHost": "courses.feelingsbeautycare.in",
+  "apexDomain": "feelingsbeautycare.in"
+}

@@ -1,17 +1,41 @@
 ---
-// Questions from course.faqs. Native <details>: keyboard and screen-reader support for free, and
-// it works without JS. Answers open smoothly where the browser supports it (motion.css).
-import { course } from "../../data/course";
+// Questions from the course's details.faqs. Native <details>: keyboard and screen-reader support
+// for free, and it works without JS. Answers open smoothly where the browser supports it (motion.css).
+import Icon from "../Icon.astro";
+import Avatar from "./Avatar.astro";
+import { site } from "../../data/site";
+import { whatsappLink } from "../../lib/whatsapp";
+import type { PublicCourse } from "../../shared/types";
+
+interface Props {
+  course: PublicCourse;
+}
+
+const { course } = Astro.props;
+const faqs = course.details.faqs;
+const firstName = course.teacher.split(" ")[0] ?? course.teacher;
+// The founder's face beside the question link; another teacher's course gets the icon alone.
+const showFace = course.teacher === site.founder;
 ---
 
 <section class="section faq" id="faq" aria-labelledby="faq-title">
   <div class="container faq-grid">
     <div class="faq-head" data-reveal>
       <h2 id="faq-title">Questions<span class="bindi" aria-hidden="true"></span></h2>
+      <p class="faq-ask">
+        {showFace && <Avatar size="2.75rem" />}
+        <span>
+          Something else?
+          <a href={whatsappLink(`Hi ${firstName}, I have a question about the ${course.title}.`)} target="_blank" rel="noopener">
+            <Icon name="whatsapp" />
+            Ask {firstName} on WhatsApp
+          </a>
+        </span>
+      </p>
     </div>
     <div class="faq-list" data-reveal="stagger">
       {
-        course.faqs.map((f, i) => (
+        faqs.map((f, i) => (
           <details style={`--i: ${i}`}>
             <summary>
               <span>{f.q}</span>
@@ -29,6 +53,49 @@ import { course } from "../../data/course";
   .faq-grid {
     display: grid;
     gap: var(--space-6) var(--space-8);
+  }
+
+  .faq-head {
+    display: grid;
+    gap: var(--space-4);
+    align-content: start;
+  }
+
+  .faq-ask {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+  }
+
+  .faq-ask > span {
+    display: grid;
+  }
+
+  .faq-ask a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    min-height: 2.75rem;
+    color: var(--text);
+    font-size: var(--text-base);
+    font-weight: var(--weight-strong);
+    text-decoration: underline;
+    text-decoration-color: var(--border-strong);
+    text-underline-offset: 0.2em;
+  }
+
+  .faq-ask a:hover {
+    color: var(--accent);
+    text-decoration-color: currentColor;
+  }
+
+  .faq-ask :global(.icon) {
+    width: 1.1em;
+    height: 1.1em;
+    color: var(--bg-deep);
   }
 
   .faq-list {

@@ -6,17 +6,29 @@
  * screen, so a view never shows two red buttons. An IntersectionObserver does all the measuring.
  * Without JS it stays hidden: the page's own buttons still work.
  */
-import { course } from "../../data/course";
-import { accessLabel, lessonsLabel } from "./facts";
+import { formatDay, nextOpenBatch, type CourseView } from "../../lib/course-view";
+
+interface Props {
+  view: CourseView;
+}
+
+const { view } = Astro.props;
+// Studio courses name their next batch's start; recorded ones their lessons and access.
+const next = view.hasBatches ? nextOpenBatch(view.course.batches) : null;
+const meta = next
+  ? [`Next batch ${formatDay(next.startsOn).replace(/ \d{4}$/, "")}`, view.depositDisplay && `Book with ${view.depositDisplay}`].filter(Boolean).join(" · ")
+  : view.hasLessons
+    ? [view.lessonsLabel, view.accessLabel].filter(Boolean).join(" · ")
+    : [view.course.durationText, view.depositDisplay && `Book with ${view.depositDisplay}`].filter(Boolean).join(" · ");
 ---
 
 <aside class="enroll-bar" aria-label="Enroll" data-enroll-bar>
   <div class="bar-inner">
     <p class="bar-text">
-      <span class="bar-price">{course.price.display}</span>
-      <span class="bar-meta">{lessonsLabel} · {accessLabel}</span>
+      <span class="bar-price">{view.priceDisplay}</span>
+      {meta && <span class="bar-meta">{meta}</span>}
     </p>
-    <a class="btn btn-primary bar-enroll" href="#pricing" data-enroll>Enroll</a>
+    <a class="btn btn-primary bar-enroll" href="#pricing" data-enroll>{view.depositDisplay || !view.hasLessons ? "Book a seat" : "Enroll"}</a>
   </div>
 </aside>
 

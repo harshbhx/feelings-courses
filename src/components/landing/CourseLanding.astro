@@ -1,0 +1,115 @@
+---
+/**
+ * One course's landing page, from its snapshot entry: the same sections the demo landing page had,
+ * worded for the course's format (recorded lessons, studio batches, or both).
+ *
+ * Rendered at /c/<slug> on the hub for every published course; functions/_lib/hosts.ts serves that
+ * page at <slug>.feelingsbeautycare.in/ once the domain is attached. The hub's / renders it too
+ * while only one course is published (the page Instagram links point at today).
+ *
+ * Checkout (W8 integration): <Checkout course settings platform /> on every course that can be
+ * bought. The order names the course and W2 prices it from D1; without D1 (the seed snapshot) the
+ * server answers with the demo flow, so the demo course keeps working. A course that can't be
+ * booked online (a real course without the live platform, or a studio course with no open batch)
+ * keeps the price card and a WhatsApp booking note instead.
+ */
+import Base from "../../layouts/Base.astro";
+import Reveal from "./Reveal.astro";
+import Header from "./Header.astro";
+import Hero from "./Hero.astro";
+import Glimpses from "./Glimpses.astro";
+import Curriculum from "./Curriculum.astro";
+import Batches from "./Batches.astro";
+import Teacher from "./Teacher.astro";
+import ForWho from "./ForWho.astro";
+import Pricing from "./Pricing.astro";
+import Faq from "./Faq.astro";
+import FinalCta from "./FinalCta.astro";
+import EnrollBar from "./EnrollBar.astro";
+import Footer from "./Footer.astro";
+import ViewBeacon from "./ViewBeacon.astro";
+import Checkout from "../checkout/Checkout.astro";
+import { site } from "../../data/site";
+import { snapshotSource } from "../../data/snapshot";
+import { buildEnv } from "../../lib/build-env";
+import { courseView } from "../../lib/course-view";
+import { courseDescription, courseIndexable, courseJsonLd, courseTitle } from "../../lib/seo";
+import { whatsappLink } from "../../lib/whatsapp";
+import type { PublicCourse, PublicSettings } from "../../shared/types";
+
+interface Props {
+  course: PublicCourse;
+  settings: PublicSettings;
+}
+
+const { course, settings } = Astro.props;
+const view = courseView(course);
+const details = course.details;
+const showCurriculum = details.outcomes.length > 0 || course.modules.some((m) => m.lessons.length > 0);
+// The portrait and the studio's facts belong to the founder; another teacher gets no such section.
+const showTeacher = course.teacher === site.founder;
+// The snapshot came from the live D1: the platform (W2 orders, coupons) is set up.
+const platform = snapshotSource !== "seed";
+// Online booking: the demo course always (it falls back to the demo flow without D1); a real course
+// once the platform is live; a studio-only course needs an open batch with a seat.
+const bookable = course.format !== "in_person" || course.batches.some((b) => b.seatsLeft !== 0);
+const sellable = (course.isDemo || platform) && bookable;
+---
+
+<Base
+  title={courseTitle(course, settings.business.name || site.name)}
+  description={courseDescription(course)}
+  canonical={course.canonicalUrl}
+  noindex={!courseIndexable(course, buildEnv)}
+  demo={course.isDemo}
+  image={course.ogImageUrl ?? `/og/${course.slug}.jpg`}
+  imageAlt={course.ogImageUrl ? course.title : `${course.title}: ${site.name} logo beside a photo from the course`}
+  jsonLd={courseJsonLd(course, settings.business)}
+>
+  <Reveal />
+  <a class="skip-link" href="#main">Skip to content</a>
+  <Header />
+  <main id="main">
+    <Hero view={view} />
+    <Glimpses course={course} />
+    {showCurriculum && <Curriculum view={view} />}
+    {view.hasBatches && <Batches view={view} />}
+    {showTeacher && <Teacher teacher={course.teacher} />}
+    {(details.forWho.length > 0 || view.hasLessons || view.hasBatches) && <ForWho view={view} />}
+    <Pricing view={view} />
+    {
+      !sellable && (
+        <p class="container booking-note" role="note">
+          Online booking opens soon.{" "}
+          <a href={whatsappLink(`Hi ${view.teacherFirstName}, I would like to join the ${course.title}.`)} target="_blank" rel="noopener">
+            Message us on WhatsApp
+          </a>{" "}
+          to book your seat today.
+        </p>
+      )
+    }
+    {details.faqs.length > 0 && <Faq course={course} />}
+    <FinalCta view={view} />
+    {sellable && <Checkout course={course} settings={settings} platform={platform} />}
+  </main>
+  <EnrollBar view={view} />
+  <Footer />
+  <ViewBeacon courseId={course.id} />
+</Base>
+
+<style is:global>
+  /* In-page links (See all lessons, Enroll without JS) glide instead of jumping. */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+</style>
+
+<style>
+  .booking-note {
+    margin-block: var(--space-5);
+    color: var(--text-body);
+    text-align: center;
+  }
+</style>

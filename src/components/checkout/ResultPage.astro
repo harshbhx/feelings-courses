@@ -1,9 +1,9 @@
 ---
-// The frame of /thank-you and /payment-failed: the logo back to the course page, one centred
-// column for the message, and the studio's phone number underneath. Each page fills the slot.
-import { getImage } from "astro:assets";
+// The frame of /thank-you and /payment-failed: the site's header, one centred column for the
+// message, the studio's phone number underneath, and the compact footer. Each page fills the slot.
 import Base from "../../layouts/Base.astro";
-import logo from "../../assets/brand/logo.webp";
+import Header from "../landing/Header.astro";
+import Footer from "../landing/Footer.astro";
 import { site } from "../../data/site";
 
 interface Props {
@@ -12,60 +12,23 @@ interface Props {
 }
 
 const { title, description } = Astro.props;
-// The logo as a CSS mask, so it shows in the brand's maroon (as on the landing page and main site).
-const mask = await getImage({ src: logo, width: 360, format: "webp", quality: 80 });
 ---
 
 <Base title={title} description={description}>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="rp-header">
-    <div class="container-narrow">
-      <a class="rp-home" href="/" aria-label={`${site.name}: back to the course page`}>
-        <span class="rp-logo" style={`--logo-url: url(${mask.src}); aspect-ratio: ${logo.width} / ${logo.height};`}></span>
-      </a>
-    </div>
-  </header>
+  <Header />
   <main id="main" class="rp-main" tabindex="-1">
     <div class="container-narrow rp-column">
       <slot />
-    </div>
-  </main>
-  <footer class="rp-footer">
-    <div class="container-narrow">
-      <p class="small muted">
-        {site.name}, {site.address.city}. Questions? Call <a href={`tel:${site.phone.tel}`}>{site.phone.display}</a>.
+      <p class="small muted rp-help">
+        Questions? Call <a href={`tel:${site.phone.tel}`}>{site.phone.display}</a>.
       </p>
     </div>
-  </footer>
+  </main>
+  <Footer variant="compact" bleed={false} />
 </Base>
 
 <style>
-  .rp-header {
-    padding-block: var(--space-4);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .rp-home {
-    display: inline-flex;
-    align-items: center;
-    min-height: 2.75rem;
-  }
-
-  .rp-logo {
-    display: block;
-    width: 8.75rem;
-    background-color: var(--maroon-800);
-    -webkit-mask: var(--logo-url) center / contain no-repeat;
-    mask: var(--logo-url) center / contain no-repeat;
-  }
-
-  @media (forced-colors: active) {
-    .rp-logo {
-      forced-color-adjust: none;
-      background-color: CanvasText;
-    }
-  }
-
   .rp-main {
     padding-block: var(--section-y-tight);
   }
@@ -80,8 +43,8 @@ const mask = await getImage({ src: logo, width: 360, format: "webp", quality: 80
     max-width: 36rem;
   }
 
-  .rp-footer {
-    padding-block: var(--space-6);
+  .rp-help {
+    padding-top: var(--space-4);
     border-top: 1px solid var(--border);
   }
 

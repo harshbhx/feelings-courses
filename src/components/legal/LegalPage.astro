@@ -1,0 +1,146 @@
+---
+/**
+ * One legal document (src/data/legal.ts) as a page: title, last-updated date, the draft note while
+ * the owner hasn't confirmed the wording, the sections, and links to the other policies.
+ * Canonical on the hub (/legal/<page>); course hosts serve the same page at /<page>.
+ */
+import Base from "../../layouts/Base.astro";
+import Header from "../landing/Header.astro";
+import Footer from "../landing/Footer.astro";
+import { LEGAL_TITLES, LEGAL_UPDATED, type LegalDoc } from "../../data/legal";
+import { site } from "../../data/site";
+import { LEGAL_PAGES } from "../../shared/constants";
+import { formatDay } from "../../lib/course-view";
+
+interface Props {
+  doc: LegalDoc;
+  confirmed: boolean;
+  hubOrigin: string;
+  noindex: boolean;
+}
+
+const { doc, confirmed, hubOrigin, noindex } = Astro.props;
+const others = LEGAL_PAGES.filter((p) => p !== doc.page);
+---
+
+<Base title={`${doc.title} | ${site.name}`} description={doc.summary} canonical={`${hubOrigin}/legal/${doc.page}`} noindex={noindex} demo={false}>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <Header />
+  <main id="main" class="legal">
+    <article class="container-narrow">
+      <header class="legal-head">
+        <p class="eyebrow">{site.name}</p>
+        <h1>{doc.title}<span class="bindi" aria-hidden="true"></span></h1>
+        <p class="lead">{doc.summary}</p>
+        <p class="legal-updated">Last updated {formatDay(LEGAL_UPDATED)}</p>
+        {
+          !confirmed && (
+            <p class="legal-draft" role="note">
+              Draft: {site.name} is still reviewing this wording, and it may change before courses go on sale.
+            </p>
+          )
+        }
+      </header>
+
+      {
+        doc.sections.map((section) => (
+          <section class="legal-section">
+            <h2>{section.heading}</h2>
+            {section.paragraphs?.map((p) => <p>{p}</p>)}
+            {section.items && (
+              <ul>
+                {section.items.map((item) => (
+                  <li>{item}</li>
+                ))}
+              </ul>
+            )}
+            {section.note && <p>{section.note}</p>}
+          </section>
+        ))
+      }
+
+      <nav class="legal-nav" aria-label="Other policies">
+        <h2 class="visually-hidden">Other policies</h2>
+        <ul>
+          {
+            others.map((p) => (
+              <li>
+                <a href={`/legal/${p}`}>{LEGAL_TITLES[p]}</a>
+              </li>
+            ))
+          }
+          <li><a href="/legal">All policies and contact</a></li>
+        </ul>
+      </nav>
+    </article>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .legal {
+    padding-block: var(--space-6) var(--section-y);
+  }
+
+  .legal-head {
+    display: grid;
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+  }
+
+  .legal-head h1 {
+    font-size: clamp(2rem, 1.6rem + 2vw, 3rem);
+  }
+
+  .legal-updated {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  .legal-draft {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--bg-tint);
+    color: var(--text);
+    font-size: var(--text-sm);
+  }
+
+  .legal-section {
+    display: grid;
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+    color: var(--text-body);
+  }
+
+  .legal-section h2 {
+    color: var(--text);
+    font-size: var(--text-xl);
+  }
+
+  .legal-section ul {
+    display: grid;
+    gap: var(--space-2);
+    padding-left: 1.25rem;
+  }
+
+  .legal-section li {
+    list-style: disc;
+  }
+
+  .legal-nav ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-5);
+    margin: 0;
+    padding: var(--space-5) 0 0;
+    border-top: 1px solid var(--border);
+    list-style: none;
+  }
+
+  .legal-nav a {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+  }
+</style>

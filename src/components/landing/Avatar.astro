@@ -3,7 +3,7 @@
 // portrait the main site uses as Urmi on its About page. For the "ask Urmi" moments.
 import { getImage } from "astro:assets";
 import face from "../../assets/photos/urmi-mengar-face.webp";
-import { course } from "../../data/course";
+import { site } from "../../data/site";
 
 interface Props {
   /** Rendered size, any CSS length (it also sets the srcset's sizes). */
@@ -30,7 +30,7 @@ const [avif, webp] = await Promise.all([
       sizes={size}
       width={face.width}
       height={face.height}
-      alt={decorative ? "" : course.teacher}
+      alt={decorative ? "" : site.founder}
       loading="lazy"
       decoding="async"
     />

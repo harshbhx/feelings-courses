@@ -7,13 +7,52 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   X-Frame-Options: SAMEORIGIN
   Strict-Transport-Security: max-age=31536000
-  # Demo: the whole site stays out of search until the client confirms the course.
-  X-Robots-Tag: noindex
+  # Search: each page decides with <meta name="robots"> (src/lib/seo.ts: demo content and preview
+  # builds are noindex). Preview hosts (*.pages.dev) also get X-Robots-Tag from
+  # functions/_lib/hosts.ts, which adds these headers to every response that passes through Functions.
 
 # Hashed build assets never change, so cache them for a year.
 /_astro/*
   Cache-Control: public, max-age=31536000, immutable
 
+# Files with fixed names that change rarely or never: the student pages' fonts, the icons and the
+# share image. A day fresh, then served from cache while it revalidates for a week. (Pages joins
+# two Cache-Control rules that match one path into one broken value, so these paths never overlap
+# another Cache-Control rule. /app/app.css and /app/learn.js keep Pages' default, revalidated on
+# every visit, because a deploy changes them under the same name.)
+/app/fonts/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=604800
+/favicon.ico
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/favicon.svg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/favicon-32.png
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/favicon-48.png
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/apple-touch-icon.png
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/og.jpg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
 # The course area is personal: never cache it in shared caches.
 /learn*
   Cache-Control: private, no-store
+  X-Robots-Tag: noindex, nofollow
+
+# Personal and operational pages never appear in search. (X-Frame-Options: DENY for these is set
+# by functions/_lib/hosts.ts: a second value here would be joined to the /* one and break both.)
+/admin*
+  X-Robots-Tag: noindex, nofollow
+/thank-you*
+  X-Robots-Tag: noindex
+/payment-failed*
+  X-Robots-Tag: noindex
+
+# Build manifests: always revalidate (the admin polls build.json after a publish).
+/build.json
+  Cache-Control: no-cache
+/domains.json
+  Cache-Control: no-cache
+/sitemap.xml
+  Cache-Control: public, max-age=3600

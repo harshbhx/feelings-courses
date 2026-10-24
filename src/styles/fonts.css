@@ -2,8 +2,15 @@
    Fontsource's wght.css and wght-italic.css also declare Cyrillic and Vietnamese, which no page
    uses (checked on 2026-10-20): those four rules were inlined into every page for nothing.
    Latin Extended stays for the rupee sign (₹) in the blog. The rules and unicode ranges are
-   Fontsource's own; the files come from the package, so Vite fingerprints them as before and the
-   preload in Base.astro still points at the same Latin file. */
+   Fontsource's own; the files come from the package, so Vite fingerprints them as before.
+
+   "Plus Jakarta Sans Fallback" (last rule) is the system font shown until the web font arrives
+   (font-display: swap), resized to Plus Jakarta Sans' width and line metrics, so the swap
+   doesn't reflow the text (layout shift). Measured on 2026-10-23 against Arial's metrics
+   (Liberation Sans): average advance 0.5033 vs 0.4945 em, ascent 1.038 em, descent 0.222 em.
+   The Latin file is deliberately not preloaded: on a slow phone connection the preload competed
+   with the render-blocking CSS and made the first paint about 150 ms later in Lighthouse, while
+   the matched fallback already keeps the swap from moving anything (docs/QUALITY.md). */
 
 @font-face {
   font-family: "Plus Jakarta Sans Variable";
@@ -39,4 +46,13 @@
   font-weight: 200 800;
   src: url("../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-italic.woff2") format("woff2-variations");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans Fallback";
+  src: local("Arial"), local("ArialMT"), local("Helvetica"), local("Liberation Sans"), local("Roboto");
+  size-adjust: 101.8%;
+  ascent-override: 102%;
+  descent-override: 21.8%;
+  line-gap-override: 0%;
 }

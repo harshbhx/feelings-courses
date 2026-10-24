@@ -1,8 +1,10 @@
 ---
-// The course admin's layout (DEMO). Its own shell, not the landing page's: a top bar with the
-// "Demo data" badge, a bottom tab bar on phones and tablets, a sidebar from 64rem (1024px).
-// Always noindexed. No real sign-in: a "signed in" flag in sessionStorage, checked before paint
-// by the small inline script below (scripts/csp.mjs hashes it; it is the same on every page).
+// The course admin's layout. Its own shell, not the landing page's: a top bar, a bottom tab bar on
+// phones and tablets, a sidebar from 64rem (1024px). Always noindexed.
+//
+// Sign-in is real (W5's admin API): the page itself holds no data, every screen loads it from
+// /api/admin/* with the HttpOnly admin cookie, and a 401 sends the owner to /admin (client/api.ts).
+// The shell script checks the session, shows the payment-mode badge and the "Publish changes" chip.
 import "../styles/fonts.css";
 import "../styles/tokens.css";
 import "../styles/global.css";
@@ -14,14 +16,14 @@ import IconSprite from "../components/admin/IconSprite.astro";
 import { site } from "../data/site";
 import { course } from "../data/course";
 
-export type NavKey = "dashboard" | "courses" | "students" | "payments" | "coupons" | "settings";
+export type NavKey = "dashboard" | "courses" | "students" | "payments" | "coupons" | "settings" | "activity";
 
 interface Props {
   title: string;
   active?: NavKey;
-  /** The sign-in screen: no shell, no guard. */
+  /** The sign-in screen: no shell. */
   bare?: boolean;
-  /** Hide the phone tab bar (the editor shows its own Save bar there). */
+  /** Hide the phone tab bar (a screen with its own bottom action bar). */
   noTabbar?: boolean;
   /** Extra icons the page's script builds markup with. */
   icons?: string[];
@@ -35,6 +37,7 @@ const nav: { key: NavKey; href: string; label: string; icon: string; desktopOnly
   { key: "students", href: "/admin/students", label: "Students", icon: "users-three" },
   { key: "payments", href: "/admin/payments", label: "Payments", icon: "credit-card" },
   { key: "coupons", href: "/admin/coupons", label: "Coupons", icon: "ticket" },
+  { key: "activity", href: "/admin/activity", label: "Activity", icon: "list-checks", desktopOnly: true },
   { key: "settings", href: "/admin/settings", label: "Settings", icon: "gear-six", desktopOnly: true },
 ];
 const owner = course.teacher;
@@ -43,6 +46,8 @@ const ownerInitials = owner
   .map((p) => p[0])
   .join("")
   .slice(0, 2);
+// Icons every screen's script may use (states, dialogs, toasts).
+const baseIcons = ["close", "check-circle", "info", "warning-circle", "arrow-counter-clockwise", "check", "copy", "arrow-square-out"];
 ---
 
 <!doctype html>
@@ -50,25 +55,14 @@ const ownerInitials = owner
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>{`${title} · Course admin (demo) · ${site.name}`}</title>
+    <title>{`${title} · Course admin · ${site.name}`}</title>
+    <meta name="description" content={`${title}: the course admin of ${site.name}, for courses, students, payments and settings.`} />
     <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="same-origin" />
     <meta name="theme-color" content="#ffffff" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    {/* Demo sign-in check, before anything paints. Key: SESSION_KEY in src/lib/demo-store.ts. */}
-    {
-      !bare && (
-        <script is:inline>
-          try {
-            if (sessionStorage.getItem("fbc-admin-demo-session") !== "1") {
-              document.documentElement.style.visibility = "hidden";
-              location.replace("/admin?next=" + encodeURIComponent(location.pathname + location.search));
-            }
-          } catch (e) {}
-        </script>
-      )
-    }
   </head>
   <body class:list={["admin", { "no-tabbar": noTabbar }]}>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -77,7 +71,8 @@ const ownerInitials = owner
         <slot />
       ) : (
         <div class="shell">
-          <div class="sidebar">
+          {/* An <aside>, so the brand and the footer links sit in a landmark too (screen readers list it). */}
+          <aside class="sidebar" aria-label="Admin menu">
             <a class="side-brand" href="/admin/dashboard">
               <Logo width="8.75rem" />
               <span>Course admin</span>
@@ -101,16 +96,12 @@ const ownerInitials = owner
                 <Icon name="storefront" />
                 Course catalog
               </a>
-              <a class="side-link" href="/">
-                <Icon name="arrow-square-out" />
-                Main course page
-              </a>
               <button class="side-link" type="button" data-signout>
                 <Icon name="sign-out" />
-                Leave the demo
+                Sign out
               </button>
             </div>
-          </div>
+          </aside>
           <div class="main-col">
             <header class="topbar">
               <a class="tb-app" href="/admin/dashboard">
@@ -123,9 +114,13 @@ const ownerInitials = owner
                 <strong>Course admin</strong>
               </p>
               <div class="tb-right">
-                <button class="demo-badge" type="button" data-demo-badge aria-label="Demo data: what this means">
-                  <span>Demo data</span>
+                <button class="publish-chip" type="button" data-publish-chip hidden>
+                  <span class="chip-dot" aria-hidden="true" />
+                  <span data-chip-label>Publish changes</span>
                 </button>
+                <a class="mode-badge" href="/admin/settings#payments" data-mode-badge hidden>
+                  <span data-mode-label>Test mode</span>
+                </a>
                 <a
                   class="icon-btn tb-settings"
                   href="/admin/settings"
@@ -138,16 +133,17 @@ const ownerInitials = owner
                   <span class="avatar" aria-hidden="true">{ownerInitials}</span>
                   <span>
                     <strong>{owner}</strong>
-                    <span>Owner · demo login</span>
+                    <span>Owner</span>
                   </span>
                 </span>
               </div>
             </header>
             <main id="main" class="main" tabindex="-1">
-              <p class="notice" data-storage-notice hidden>
+              <p class="notice" data-setup-notice hidden>
                 <Icon name="info" />
                 <span>
-                  This browser is blocking storage (a private window?), so changes last only until you leave the page.
+                  The course platform isn't connected yet, so nothing can load. Harsh runs the one-time setup (npm run
+                  setup); then this admin works.
                 </span>
               </p>
               <slot />
@@ -157,7 +153,9 @@ const ownerInitials = owner
       )
     }
     <div id="toasts" class="toasts" aria-live="polite"></div>
-    <IconSprite names={["close", "check-circle", "info", "warning-circle", ...icons]} />
+    <p class="visually-hidden" aria-live="polite" data-announce></p>
+    <IconSprite names={[...baseIcons, ...icons]} />
+    {/* The shell script does nothing on the bare sign-in page (no .shell). */}
     <script>
       import "../components/admin/client/shell";
     </script>

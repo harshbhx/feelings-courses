@@ -2,20 +2,69 @@
 // Checkout: include once per page. Every [data-enroll] element opens it. Those are plain links
 // (to #pricing on the landing page), so without JavaScript they still work.
 //
-// Flow: buyer details → POST /api/order → either Razorpay Checkout (loaded only now, after the click),
-// with a server-side order ("razorpay") or, on the demo course without a Key Secret, in Test Mode
-// without one ("razorpay-test"), or the built-in demo payment sheet ("demo") → POST /api/verify →
-// /thank-you. The server decides the mode and the amount; this script never sends a price.
+// Two ways to mount it:
+// - <Checkout course={course} settings={settings} platform={…} /> (CheckoutProps, W2/W8): a course
+//   from the build's snapshot. The order names the course (OrderRequest), so the server prices it
+//   from D1: batch choice for studio courses, a coupon field, the terms checkbox, free orders, and
+//   after payment a redirect to the hub: the receipt, signed in on this device for a new account
+//   (W3, functions/_lib/claim.ts). The buyer's email is the account: the receipt and sign-in links
+//   go there. The phone is an optional contact field.
+//   `platform` is true when the snapshot came from the live D1 (coupons need it). Without D1 the
+//   server still answers with the demo flow below, so the demo course keeps working.
+// - <Checkout /> (no props): the original demo checkout for src/data/course.ts.
+//
+// Flow: buyer details → POST /api/order → Razorpay Checkout (loaded only now, after the click) with
+// a server-side order ("razorpay"), or on the demo without a Key Secret Razorpay's Test Mode without
+// one ("razorpay-test") or the built-in demo payment sheet ("demo"), or no payment at all ("free")
+// → POST /api/verify → the redirect it returns. The server decides the mode and the amount; this
+// script never sends a price.
 import Icon from "../Icon.astro";
-import { course } from "../../data/course";
+import { course as demoCourse } from "../../data/course";
+import { buildEnv } from "../../lib/build-env";
+import { batchDates, courseView, formatInr, seatsLabel } from "../../lib/course-view";
+import { hubOrigin } from "../../lib/seo";
 import { whatsappLink } from "../../lib/whatsapp";
+import { REFUND_WINDOW_HOURS } from "../../shared/constants";
+import type { CheckoutProps } from "../../shared/types";
 
-const price = course.price.display;
+interface Props extends Partial<CheckoutProps> {
+  /** The snapshot came from the live D1 (coupon quotes and the live order flow are available). */
+  platform?: boolean;
+}
+
+const { course: live, settings, platform = false } = Astro.props;
+const view = live ? courseView(live) : null;
+const title = live ? live.title : demoCourse.title;
+// Studio batches to choose from (in_person needs one; hybrid may book one or take the lessons only).
+const batches = live && live.format !== "online" ? live.batches : [];
+const batchRequired = live?.format === "in_person";
+// What the first view shows; the script recomputes it for the chosen batch and coupon.
+const firstBatch = batchRequired ? batches.find((b) => b.seatsLeft !== 0) : undefined;
+const listPaise = live ? (firstBatch?.pricePaise ?? live.pricePaise) : demoCourse.price.amount;
+const depositPaise = live && batches.length > 0 ? live.depositPaise : null;
+const firstAmount = firstBatch && depositPaise !== null && depositPaise < listPaise ? depositPaise : listPaise;
+const price = live ? formatInr(firstAmount) : demoCourse.price.display;
+const meta = live
+  ? [view!.formatLabel, view!.hasLessons && view!.accessText ? `${view!.accessText} access` : null].filter(Boolean).join(", ")
+  : `${demoCourse.access} access, video lessons`;
+const testMode = live ? live.isDemo || settings?.testMode === true : demoCourse.demo;
+const teacher = live ? view!.teacherFirstName : "Urmi";
 // For a payment that went through but couldn't be confirmed: the script adds the payment id.
-const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my access didn't open.`);
+const paidHelp = whatsappLink(`Hi ${teacher}, I paid for the ${title} but my access didn't open.`);
+const hub = hubOrigin(buildEnv);
 ---
 
-<dialog class="co" aria-labelledby="co-title" data-checkout data-co-whatsapp={paidHelp}>
+<dialog
+  class="co"
+  aria-labelledby="co-title"
+  data-checkout
+  data-co-whatsapp={paidHelp}
+  data-co-course={live?.slug}
+  data-co-price={live ? String(live.pricePaise) : undefined}
+  data-co-deposit={depositPaise !== null ? String(depositPaise) : undefined}
+  data-co-platform={platform ? "1" : undefined}
+  data-co-hub={hub}
+>
   <div class="co-body">
     <div class="co-grab" aria-hidden="true"></div>
     <div class="co-head">
@@ -28,16 +77,16 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
 
     <div class="co-summary" data-co-summary>
       <div>
-        <p class="co-summary-title">{course.title}</p>
-        <p class="co-summary-meta">{course.access} access, video lessons</p>
+        <p class="co-summary-title">{title}</p>
+        <p class="co-summary-meta" data-co-meta>{meta}</p>
       </div>
-      <p class="co-summary-price">{price}</p>
+      <p class="co-summary-price" data-co-amount>{price}</p>
     </div>
 
-    <!-- Step 1: buyer details (name and phone required; that's what Razorpay's prefill wants). -->
+    <!-- Step 1: buyer details (name and email required: the email is the account; phone optional). -->
     <form class="co-step" data-step="details" data-co-form novalidate>
       {
-        course.demo && (
+        testMode && (
           <p class="co-test" data-co-test-badge>
             <span class="co-test-dot" aria-hidden="true" />
             <span data-co-test-badge-text>Test payment by Razorpay. No money is charged.</span>
@@ -60,41 +109,119 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
         <p class="co-error" id="co-name-error" data-error-for="name" hidden></p>
       </div>
       <div class="co-field">
-        <label for="co-phone">Mobile number</label>
-        <input
-          id="co-phone"
-          name="phone"
-          type="tel"
-          inputmode="tel"
-          autocomplete="tel"
-          enterkeyhint="next"
-          maxlength="20"
-          required
-          aria-describedby="co-phone-hint co-phone-error"
-        />
-        <p class="co-hint" id="co-phone-hint">10 digits, so the payment screen can fill it in for you.</p>
-        <p class="co-error" id="co-phone-error" data-error-for="phone" hidden></p>
-      </div>
-      <div class="co-field">
-        <label for="co-email">Email <span class="co-optional">(optional)</span></label>
+        <label for="co-email">Email</label>
         <input
           id="co-email"
           name="email"
           type="email"
           inputmode="email"
           autocomplete="email"
-          enterkeyhint="go"
+          autocapitalize="off"
+          spellcheck="false"
+          enterkeyhint="next"
           maxlength="254"
+          required
           aria-describedby="co-email-hint co-email-error"
         />
-        <p class="co-hint" id="co-email-hint">For your payment receipt.</p>
+        <p class="co-hint" id="co-email-hint">{live ? "Your receipt and sign-in link go here. You sign in with it on any device." : "For your payment receipt."}</p>
         <p class="co-error" id="co-email-error" data-error-for="email" hidden></p>
       </div>
+      <div class="co-field">
+        <label for="co-phone">Mobile number <span class="co-optional">(optional)</span></label>
+        <input
+          id="co-phone"
+          name="phone"
+          type="tel"
+          inputmode="tel"
+          autocomplete="tel"
+          enterkeyhint="go"
+          maxlength="20"
+          aria-describedby="co-phone-hint co-phone-error"
+        />
+        <p class="co-hint" id="co-phone-hint">So we can help you on WhatsApp, and the payment screen can fill it in.</p>
+        <p class="co-error" id="co-phone-error" data-error-for="phone" hidden></p>
+      </div>
+      {
+        batches.length > 0 && (
+          <div class="co-field">
+            <label for="co-batch">{batchRequired ? "Batch" : "Studio batch"}</label>
+            <select id="co-batch" name="batchId" aria-describedby="co-batch-error" required={batchRequired}>
+              {batchRequired ? (
+                <option value="" disabled selected={!firstBatch}>
+                  Choose a batch
+                </option>
+              ) : (
+                <option value="" selected>
+                  Recorded lessons only, no studio batch
+                </option>
+              )}
+              {batches.map((b) => (
+                <option
+                  value={String(b.id)}
+                  data-price={b.pricePaise !== null ? String(b.pricePaise) : undefined}
+                  disabled={b.seatsLeft === 0}
+                  selected={b.id === firstBatch?.id}
+                >
+                  {`${b.title}, ${batchDates(b)}${seatsLabel(b) ? ` (${seatsLabel(b)})` : ""}`}
+                </option>
+              ))}
+            </select>
+            {depositPaise !== null && (
+              <p class="co-hint">A studio batch is booked with {formatInr(depositPaise)} now; the rest is paid at the studio.</p>
+            )}
+            <p class="co-error" id="co-batch-error" data-error-for="batchId" hidden></p>
+          </div>
+        )
+      }
+      {
+        live && platform && (
+          <details class="co-coupon" data-co-coupon>
+            <summary>Have a coupon code?</summary>
+            <div class="co-coupon-row">
+              <label class="visually-hidden" for="co-code">Coupon code</label>
+              <input
+                id="co-code"
+                name="coupon"
+                type="text"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+                maxlength="40"
+                aria-describedby="co-coupon-note co-coupon-error"
+              />
+              <button class="btn btn-secondary" type="button" data-co-apply>Apply</button>
+            </div>
+            <p class="co-hint" id="co-coupon-note" data-co-coupon-note role="status"></p>
+            <p class="co-error" id="co-coupon-error" data-error-for="coupon" hidden></p>
+          </details>
+        )
+      }
+      {
+        live && (
+          <div class="co-field co-consent">
+            <label class="co-check">
+              <input name="consent" type="checkbox" value="yes" required aria-describedby="co-consent-error" />
+              <span>
+                I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a>, the{" "}
+                <a href="/refunds" target="_blank" rel="noopener">refund policy</a> (refunds within {REFUND_WINDOW_HOURS} hours of
+                payment) and the <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.
+              </span>
+            </label>
+            <p class="co-error" id="co-consent-error" data-error-for="consent" hidden></p>
+          </div>
+        )
+      }
       <button class="btn btn-primary co-wide" type="submit" data-co-submit>
         <span data-co-submit-label>Continue to payment</span>
         <Icon name="arrow-right" />
       </button>
-      <p class="co-note">Next you choose UPI, card or netbanking. This site doesn't save your details.</p>
+      <p class="co-note">
+        {
+          live
+            ? "Next you choose UPI, card or netbanking. Your receipt shows on screen and comes by email."
+            : "Next you choose UPI, card or netbanking. This site doesn't save your details."
+        }
+      </p>
     </form>
 
     <!-- Step 2 (demo only: no Razorpay Key Secret, and either no test Key ID or an in-app browser): a pretend payment. -->
@@ -125,7 +252,7 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
         </div>
       </fieldset>
       <p class="co-hint" data-co-method-note>Any UPI app. In this test, nothing opens on your phone.</p>
-      <button class="btn btn-primary co-wide" type="button" data-co-pay>Pay {price} (test)</button>
+      <button class="btn btn-primary co-wide" type="button" data-co-pay>Pay <span data-co-pay-amount>{price}</span> (test)</button>
       <p class="co-alt">
         <a class="co-quiet-link" href="/payment-failed">Simulate failure</a>
       </p>
@@ -408,8 +535,100 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
     outline-offset: -1px;
   }
 
-  .co-field input[aria-invalid="true"] {
+  .co-field input[aria-invalid="true"],
+  .co-field select[aria-invalid="true"] {
     border-color: var(--accent);
+  }
+
+  /* The batch picker looks like the text fields. */
+  .co-field select {
+    width: 100%;
+    min-height: 3rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: max(1rem, var(--text-base));
+  }
+
+  .co-field select:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -1px;
+  }
+
+  /* Terms checkbox: a 44px tap target, the text wraps beside the box. */
+  .co-check {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: var(--space-3);
+    color: var(--text-body);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-body);
+    line-height: 1.45;
+    cursor: pointer;
+  }
+
+  .co-check input {
+    width: 1.25rem;
+    height: 1.25rem;
+    min-height: 0;
+    margin: 0.1rem 0 0;
+    padding: 0;
+    accent-color: var(--accent);
+  }
+
+  .co-check input:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .co-check a {
+    color: var(--text);
+  }
+
+  .co-coupon summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    color: var(--text);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    cursor: pointer;
+  }
+
+  .co-coupon-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2);
+  }
+
+  .co-coupon-row input {
+    width: 100%;
+    min-height: 3rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: max(1rem, var(--text-base));
+    text-transform: uppercase;
+  }
+
+  .co-coupon-row input:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -1px;
+  }
+
+  .co-coupon-row input[aria-invalid="true"] {
+    border-color: var(--accent);
+  }
+
+  .co-coupon .co-hint:empty {
+    display: none;
   }
 
   .co-hint,
@@ -614,7 +833,7 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
 <script>
   import { IN_APP_BROWSER } from "../../data/payments";
 
-  type Buyer = { name: string; phone: string; email: string };
+  type Buyer = { name: string; phone: string; email: string; consent: boolean; batchId: string; coupon: string };
   // `fallback`: the server would have opened Razorpay's test Checkout, but this is an in-app browser.
   type DemoOrder = { mode: "demo"; orderId: string; amount: number; currency: string; fallback?: "in_app_browser" };
   type CheckoutDetails = {
@@ -626,11 +845,17 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
     prefill: Record<string, string>;
   };
   // A server-side Razorpay order, checked by its signature.
-  type RazorpayOrder = CheckoutDetails & { mode: "razorpay"; orderId: string };
+  type RazorpayOrder = CheckoutDetails & { mode: "razorpay"; orderId: string; testMode?: boolean };
   // Razorpay's Test Mode without an order: there is no Key Secret to create one.
   type RazorpayTestCheckout = CheckoutDetails & { mode: "razorpay-test" };
   type RazorpayCheckout = RazorpayOrder | RazorpayTestCheckout;
-  type Order = DemoOrder | RazorpayCheckout;
+  // A free order (an allow_free coupon, or a course priced 0): enrolled already, no payment.
+  type FreeOrder = { mode: "free"; redirect: string };
+  type Order = DemoOrder | RazorpayCheckout | FreeOrder;
+  // POST /api/coupon/quote (src/shared/api.ts CouponQuoteResponse).
+  type Quote =
+    | { ok: true; listPaise: number; discountPaise: number; amountPaise: number; label: string | null; free: boolean }
+    | { ok: false; reason: string };
   type VerifyBody =
     | { demo_order_id: string }
     | { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }
@@ -666,6 +891,42 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
     netbanking: "All major banks. This test opens no bank page.",
   };
 
+  const COUPON_PROBLEMS: Record<string, string> = {
+    coupon_not_found: "That coupon code doesn't exist.",
+    coupon_inactive: "That coupon is switched off.",
+    coupon_not_started: "That coupon isn't valid yet.",
+    coupon_expired: "That coupon has expired.",
+    coupon_used_up: "That coupon has been used up.",
+    coupon_wrong_course: "That coupon is for another course.",
+    coupon_already_used: "You have already used that coupon.",
+    batch_not_found: "Pick one of the open batches first.",
+    batch_full: "That batch is full. Please pick another one.",
+  };
+
+  const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+  const inrPaise = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2 });
+  /** Same as src/lib/course-view.ts formatInr: 299900 → "₹2,999", 0 → "Free". */
+  function formatInr(paise: number): string {
+    if (paise === 0) return "Free";
+    return paise % 100 === 0 ? inr.format(paise / 100) : inrPaise.format(paise / 100);
+  }
+
+  /**
+   * Where the browser may go after a payment: a path on this site, or the hub (W3 signs the buyer
+   * in there and shows the receipt). Anything else falls back to a safe page.
+   */
+  function safeTarget(value: unknown, hub: string, fallback: string): string {
+    if (typeof value !== "string" || value === "") return fallback;
+    if (value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")) return value;
+    try {
+      const url = new URL(value);
+      if (url.protocol === "https:" && (url.origin === hub || url.origin === location.origin)) return url.href;
+    } catch {
+      /* not a URL */
+    }
+    return fallback;
+  }
+
   const dialog = document.querySelector<HTMLDialogElement>("[data-checkout]");
   if (dialog && typeof dialog.showModal === "function") setUp(dialog);
 
@@ -691,6 +952,22 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
     const helpLink = find<HTMLAnchorElement>("[data-co-help]");
     const status = find<HTMLElement>("[data-co-status]");
     const steps = [...dialog.querySelectorAll<HTMLElement>("[data-step]")];
+    const amountText = find<HTMLElement>("[data-co-amount]");
+    const payAmount = find<HTMLElement>("[data-co-pay-amount]");
+
+    // A course from the snapshot (CheckoutProps): the order names it and the server prices it.
+    const courseSlug = dialog.dataset.coCourse ?? "";
+    const live = courseSlug !== "";
+    const hub = dialog.dataset.coHub ?? location.origin;
+    const coursePrice = Number(dialog.dataset.coPrice ?? "0");
+    const deposit = dialog.dataset.coDeposit ? Number(dialog.dataset.coDeposit) : null;
+    const batchSelect = dialog.querySelector<HTMLSelectElement>('select[name="batchId"]');
+    const couponBox = dialog.querySelector<HTMLDetailsElement>("[data-co-coupon]");
+    const couponInput = dialog.querySelector<HTMLInputElement>('input[name="coupon"]');
+    const couponApply = dialog.querySelector<HTMLButtonElement>("[data-co-apply]");
+    const couponNote = dialog.querySelector<HTMLElement>("[data-co-coupon-note]");
+    // The coupon the server last confirmed, for the code and batch it was asked about.
+    let quoted: { code: string; batchId: string; quote: Extract<Quote, { ok: true }> } | null = null;
 
     let opener: HTMLElement | null = null;
     let order: Order | null = null;
@@ -715,6 +992,12 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
       order = null;
       busy = false;
       clearErrors();
+      // "Book this batch" (Batches.astro) names its batch: pick it, if it still takes bookings.
+      const wanted = trigger.dataset.batch;
+      if (wanted && batchSelect && Array.from(batchSelect.options).some((o) => o.value === wanted && !o.disabled)) {
+        batchSelect.value = wanted;
+        batchSelect.dispatchEvent(new Event("change"));
+      }
       show("details", false);
       dialog.showModal();
       const firstEmpty = [...form.querySelectorAll<HTMLInputElement>("input[required]")].find((input) => !input.value.trim());
@@ -788,29 +1071,60 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
     retryButton.addEventListener("click", () => retry());
 
     // ── Step 1: details ──
+    /** Misspelt mail domains seen often, and what was meant. */
+    const EMAIL_TYPOS: Record<string, string> = {
+      "gmial.com": "gmail.com",
+      "gmai.com": "gmail.com",
+      "gamil.com": "gmail.com",
+      "gmal.com": "gmail.com",
+      "gnail.com": "gmail.com",
+      "gmail.co": "gmail.com",
+      "gmail.con": "gmail.com",
+      "gmail.cm": "gmail.com",
+      "gmail.in": "gmail.com",
+      "hotmial.com": "hotmail.com",
+      "yaho.com": "yahoo.com",
+      "yahoo.con": "yahoo.com",
+      "outlok.com": "outlook.com",
+      "rediffmial.com": "rediffmail.com",
+    };
     function readBuyer(): Buyer {
       const data = new FormData(form);
       const text = (key: string) => String(data.get(key) ?? "").replace(/\s+/g, " ").trim();
-      return { name: text("name"), phone: text("phone"), email: text("email") };
+      return {
+        name: text("name"),
+        phone: text("phone"),
+        email: text("email"),
+        consent: data.get("consent") === "yes",
+        batchId: text("batchId"),
+        coupon: text("coupon").toUpperCase(),
+      };
     }
 
     function validate(b: Buyer): Partial<Record<keyof Buyer, string>> {
       const errors: Partial<Record<keyof Buyer, string>> = {};
+      if (batchSelect?.required && !b.batchId) errors.batchId = "Pick one of the open batches.";
       if (!b.name) errors.name = "Enter your name.";
       else if (b.name.length < 2 || !/^[\p{L}\p{M}][\p{L}\p{M} .'’-]*$/u.test(b.name)) errors.name = "Enter your name using letters only.";
+      // The email is the account: required, and checked for the usual typos (a wrong address means
+      // no receipt and no sign-in link on another device).
+      if (!b.email) errors.email = "Enter your email. Your receipt and sign-in link go there.";
+      else if (!/^[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[A-Za-z]{2,}$/.test(b.email)) errors.email = "Enter an email like name@example.com.";
+      else {
+        const [local, domain] = b.email.toLowerCase().split("@");
+        const fix = EMAIL_TYPOS[domain ?? ""];
+        if (fix) errors.email = `Did you mean ${local}@${fix}? Please check your email.`;
+      }
       const phone = b.phone.replace(/[\s().-]/g, "");
-      if (!phone) errors.phone = "Enter your mobile number.";
-      else if (!/^(?:\+91|91|0)?[6-9]\d{9}$/.test(phone) && !/^\+(?!91)[1-9]\d{7,14}$/.test(phone)) {
-        errors.phone = "Enter a 10-digit mobile number.";
+      if (phone && !/^(?:\+91|91|0)?[6-9]\d{9}$/.test(phone) && !/^\+(?!91)[1-9]\d{7,14}$/.test(phone)) {
+        errors.phone = "Enter a 10-digit mobile number, or leave it empty.";
       }
-      if (b.email && !/^[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[A-Za-z]{2,}$/.test(b.email)) {
-        errors.email = "Enter an email like name@example.com, or leave it empty.";
-      }
+      if (live && !b.consent) errors.consent = "Please accept the terms and the privacy policy.";
       return errors;
     }
 
     function clearErrors() {
-      for (const input of form.querySelectorAll("input")) input.removeAttribute("aria-invalid");
+      for (const input of form.querySelectorAll("input, select")) input.removeAttribute("aria-invalid");
       for (const error of form.querySelectorAll<HTMLElement>("[data-error-for]")) {
         error.textContent = "";
         error.hidden = true;
@@ -819,11 +1133,12 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
 
     function showErrors(errors: Partial<Record<string, string>>): boolean {
       clearErrors();
-      let first: HTMLInputElement | null = null;
+      let first: HTMLInputElement | HTMLSelectElement | null = null;
       for (const [field, message] of Object.entries(errors)) {
-        const input = form.querySelector<HTMLInputElement>(`input[name="${field}"]`);
+        const input = form.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${field}"]`);
         const error = form.querySelector<HTMLElement>(`[data-error-for="${field}"]`);
         if (!input || !error || !message) continue;
+        if (field === "coupon" && couponBox) couponBox.open = true;
         input.setAttribute("aria-invalid", "true");
         error.textContent = message;
         error.hidden = false;
@@ -836,6 +1151,7 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
     // Fix an error as you type: it clears once the field is valid.
     form.addEventListener("input", (event) => {
       const input = event.target as HTMLInputElement;
+      if (input === couponInput) couponChanged();
       if (input.getAttribute("aria-invalid") !== "true") return;
       if (!validate(readBuyer())[input.name as keyof Buyer]) {
         input.removeAttribute("aria-invalid");
@@ -847,11 +1163,96 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
       }
     });
 
+    /** What the buyer pays now, as the server will compute it (pricing.ts quote()). */
+    function amountNow(): number {
+      const b = readBuyer();
+      if (quoted && quoted.code === b.coupon && quoted.batchId === b.batchId) return quoted.quote.free ? 0 : quoted.quote.amountPaise;
+      const option = batchSelect?.selectedOptions[0];
+      const list = option?.dataset.price ? Number(option.dataset.price) : coursePrice;
+      return b.batchId && deposit !== null && deposit < list ? deposit : list;
+    }
+
+    function refreshAmount() {
+      if (!live) return;
+      const amount = amountNow();
+      amountText.textContent = formatInr(amount);
+      if (!busy) submitLabel.textContent = amount === 0 ? "Get free access" : "Continue to payment";
+    }
+
     function setSubmitting(on: boolean) {
       busy = on;
       submit.setAttribute("aria-disabled", String(on));
-      submitLabel.textContent = on ? "Starting payment…" : "Continue to payment";
+      if (on) submitLabel.textContent = "Starting payment…";
+      else if (live) refreshAmount();
+      else submitLabel.textContent = "Continue to payment";
     }
+
+    // ── Coupon (live courses on the platform): the server says what it does ──
+    function couponChanged() {
+      if (!couponNote) return;
+      if (quoted && quoted.code !== readBuyer().coupon) {
+        quoted = null;
+        couponNote.textContent = "";
+      }
+      refreshAmount();
+    }
+
+    async function applyCoupon(): Promise<void> {
+      if (!couponInput || !couponNote || busy) return;
+      const b = readBuyer();
+      showErrors({});
+      if (!b.coupon) {
+        showErrors({ coupon: "Type the coupon code first." });
+        return;
+      }
+      couponNote.textContent = "Checking the code…";
+      try {
+        const response = await fetch("/api/coupon/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ course: courseSlug, code: b.coupon, ...(b.batchId && { batchId: Number(b.batchId) }) }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        const data = (await response.json().catch(() => null)) as (Quote & { message?: string }) | null;
+        couponNote.textContent = "";
+        if (!response.ok || !data) {
+          showErrors({ coupon: data?.message ?? "Coupons can't be checked right now. Please try again." });
+          return;
+        }
+        if (!data.ok) {
+          quoted = null;
+          showErrors({ coupon: COUPON_PROBLEMS[data.reason] ?? "That coupon can't be used for this course." });
+          refreshAmount();
+          return;
+        }
+        quoted = { code: b.coupon, batchId: b.batchId, quote: data };
+        couponNote.textContent = data.free
+          ? `${data.label ?? b.coupon}: this course is free with this code.`
+          : `${data.label ?? b.coupon} applied: you pay ${formatInr(data.amountPaise)}.`;
+        refreshAmount();
+      } catch {
+        couponNote.textContent = "";
+        showErrors({ coupon: "We couldn't reach the server. Check your connection and try again." });
+      }
+    }
+
+    couponApply?.addEventListener("click", () => void applyCoupon());
+    couponInput?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void applyCoupon();
+      }
+    });
+    batchSelect?.addEventListener("change", () => {
+      // A batch can carry its own price, so a confirmed coupon is checked again for it.
+      if (quoted && quoted.batchId !== readBuyer().batchId) {
+        quoted = null;
+        if (couponNote) couponNote.textContent = "";
+        if (readBuyer().coupon) void applyCoupon();
+      }
+      refreshAmount();
+    });
+    refreshAmount();
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -868,13 +1269,32 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
         const response = await fetch("/api/order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: details.name, phone: details.phone, ...(details.email && { email: details.email }) }),
+          // A live course names itself (OrderRequest); the demo sends the buyer only. Never a price.
+          body: JSON.stringify({
+            ...(live && {
+              course: courseSlug,
+              consent: details.consent,
+              ...(details.batchId && { batchId: Number(details.batchId) }),
+              ...(details.coupon && { coupon: details.coupon }),
+            }),
+            name: details.name,
+            email: details.email,
+            ...(details.phone && { phone: details.phone }),
+          }),
           signal: AbortSignal.timeout(20_000),
         });
         const data = await response.json().catch(() => null);
         setSubmitting(false);
         if (response.status === 400 && data?.fields) {
           showErrors(data.fields);
+          return;
+        }
+        if (response.status === 409 && data?.error === "already_enrolled") {
+          problem(data.message ?? "You already have this course.", {
+            title: "You already have this course",
+            retry: () => show("details"),
+            help: { href: `${hub}/account`, label: "Open my courses" },
+          });
           return;
         }
         if (!response.ok || !data?.mode) {
@@ -885,7 +1305,14 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
           return;
         }
         order = data as Order;
+        if (order.mode === "free") {
+          busy = true;
+          working("Opening your course…", "No payment needed.", 600, 1);
+          location.assign(safeTarget(order.redirect, hub, `${hub}/account`));
+          return;
+        }
         if (order.mode === "demo") {
+          payAmount.textContent = formatInr(order.amount);
           inAppNote.hidden = order.fallback !== "in_app_browser";
           show("demo");
           announce("Test payment. No money is charged.");
@@ -949,7 +1376,7 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
 
     async function openRazorpay(rzpOrder: RazorpayCheckout) {
       busy = true;
-      const testMode = rzpOrder.keyId.startsWith("rzp_test_");
+      const testMode = rzpOrder.keyId.startsWith("rzp_test_") || (rzpOrder.mode === "razorpay" && rzpOrder.testMode === true);
       working(
         "Opening secure payment…",
         testMode ? "Test payment by Razorpay. No money is charged." : "Razorpay's payment window opens in a moment.",
@@ -1041,7 +1468,8 @@ const paidHelp = whatsappLink(`Hi Urmi, I paid for the ${course.title} but my ac
           title.textContent = "Payment confirmed";
           workingText.textContent = "Opening your course…";
           announce("Payment confirmed. Opening your course…");
-          location.assign(typeof data.redirect === "string" && data.redirect.startsWith("/") ? data.redirect : "/thank-you");
+          // Live: the hub's one-time sign-in (a new account, W3) landing on the receipt, or the receipt itself. Demo: /thank-you.
+          location.assign(safeTarget(data.redirect, hub, safeTarget(data.receipt, hub, "/thank-you")));
           return;
         }
         failedToConfirm(body, data?.message, response.status >= 500);

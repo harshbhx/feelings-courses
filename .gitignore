@@ -22,3 +22,24 @@ Thumbs.db
 
 # local tooling
 .wrangler/
+
+# platform (W0)
+# owner setup: real keys and the generated admin password, never committed
+setup.local.json
+setup.local.*.json
+setup.local.out.txt
+.dev.vars
+# generated at build time
+src/generated/
+functions/_generated/
+
+# local database exports (scripts/backup-d1.mjs)
+backups/
+
+# learner page previews (scripts/preview-student-pages.mjs)
+preview/
+
+# e2e journeys (tests/e2e): throwaway certificate, traces, screenshots and the HTML report
+.e2e/
+test-results/
+playwright-report/
