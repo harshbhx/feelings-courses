@@ -2,24 +2,44 @@
 // The hub's home (courses.feelingsbeautycare.in/), from the build's snapshot:
 // - one published course: that course's landing page, as before (Instagram's /ig and /reel links
 //   land here); its canonical URL is the course's own (/c/<slug> or its subdomain);
-// - several: the catalog, a card per course linking to its canonical URL;
-// - none (every course unpublished): a short note with WhatsApp.
+// - several: the catalog: who teaches, a card per course linking to its canonical URL, the
+//   teacher band and a WhatsApp line for "which one is for me?";
+// - none (every course unpublished): a short note, WhatsApp and Instagram, and the teacher band.
+import { getImage } from "astro:assets";
 import Base from "../layouts/Base.astro";
 import Icon from "../components/Icon.astro";
+import Reveal from "../components/landing/Reveal.astro";
 import Header from "../components/landing/Header.astro";
 import Footer from "../components/landing/Footer.astro";
+import Avatar from "../components/landing/Avatar.astro";
+import Teacher from "../components/landing/Teacher.astro";
+import CourseCard from "../components/landing/CourseCard.astro";
 import CourseLanding from "../components/landing/CourseLanding.astro";
 import ViewBeacon from "../components/landing/ViewBeacon.astro";
+import { ratingCount, ratingMonth } from "../components/landing/facts";
+import portrait from "../assets/photos/urmi-mengar.webp";
 import { courses, snapshot } from "../data/snapshot";
 import { site } from "../data/site";
 import { buildEnv } from "../lib/build-env";
-import { courseView } from "../lib/course-view";
+import { courseView, plural } from "../lib/course-view";
 import { hubIndexable, hubOrigin } from "../lib/seo";
 import { whatsappLink } from "../lib/whatsapp";
 
 const single = courses.length === 1 ? courses[0] : undefined;
-const cards = courses.map((course) => ({ course, view: courseView(course) }));
+const views = courses.map((course) => courseView(course));
 const allDemo = courses.every((c) => c.isDemo);
+const empty = courses.length === 0;
+const firstName = site.founder.split(" ")[0];
+const hasStudio = courses.some((c) => c.format !== "online");
+const hasOnline = courses.some((c) => c.format !== "in_person");
+const lead = empty
+  ? `${site.name}, ${site.address.city}, is preparing its next courses. Ask ${firstName} about the next batch, or see her work on Instagram.`
+  : `From ${site.name}, ${site.address.city}. ${[hasOnline && "Recorded lessons to watch on your phone", hasStudio && "batches at the studio"].filter(Boolean).join(", and ")}.`;
+
+const sizes = "(min-width: 56rem) 24rem, 0px";
+const heroPortrait = await getImage({ src: portrait, widths: [384, 576, 768], sizes, format: "webp", quality: 72 });
+const askWhich = whatsappLink(`Hi ${firstName}, which of your makeup courses would suit me?`);
+const askNext = whatsappLink(`Hi ${firstName}, when do your next makeup courses start?`);
 ---
 
 {
@@ -33,52 +53,122 @@ const allDemo = courses.every((c) => c.isDemo);
       noindex={!hubIndexable(snapshot, buildEnv)}
       demo={courses.length > 0 && allDemo}
     >
+      <Reveal />
       <a class="skip-link" href="#main">Skip to content</a>
       <Header />
       <main id="main">
-        <section class="hub-hero">
-          <div class="container">
-            <p class="eyebrow">Courses by {site.founder}</p>
-            <h1>
-              Makeup courses<span class="bindi" aria-hidden="true" />
-            </h1>
-            <p class="lead">
-              From {site.name}, {site.address.city}. Recorded lessons to watch on your phone, and batches at the studio.
-            </p>
+        <section class:list={["hub-hero", { "is-empty": empty }]} aria-labelledby="hub-title">
+          <div class="container hub-hero-grid">
+            <div class="hub-hero-text">
+              <p class="eyebrow enter">Courses by {site.founder}</p>
+              <h1 id="hub-title" class="enter" style="--i: 1">
+                {empty ? "New courses are on their way" : "Makeup courses"}
+                <span class="bindi" aria-hidden="true" />
+              </h1>
+              <p class="lead enter" style="--i: 2">{lead}</p>
+
+              {
+                empty ? (
+                  <div class="hub-actions enter" style="--i: 3">
+                    <a class="btn btn-primary" href={askNext} target="_blank" rel="noopener">
+                      <Icon name="whatsapp" />
+                      Ask {firstName} on WhatsApp
+                    </a>
+                    <a class="btn btn-secondary" href={site.social.instagram} target="_blank" rel="noopener">
+                      <Icon name="instagram" />
+                      See her work on Instagram
+                    </a>
+                  </div>
+                ) : (
+                  <div class="hub-actions enter" style="--i: 3">
+                    <a class="btn btn-primary" href="#courses">
+                      See {courses.length === 1 ? "the course" : `the ${courses.length} courses`}
+                      <Icon name="arrow-down" />
+                    </a>
+                    <a class="link-arrow" href={askWhich} target="_blank" rel="noopener">
+                      Not sure? Ask {firstName}
+                    </a>
+                  </div>
+                )
+              }
+
+              <p class="hub-byline enter" style="--i: 4">
+                <Avatar size="3.25rem" />
+                <span>
+                  <strong>Taught by {site.founder}</strong>
+                  <span>
+                    <Icon name="star-fill" />
+                    {site.googleRating.rating} from {ratingCount} Google reviews of the studio{" "}
+                    <span class="nowrap">({ratingMonth})</span>
+                  </span>
+                </span>
+              </p>
+            </div>
+
+            <div class="hub-portrait" aria-hidden="true">
+              <img
+                src={heroPortrait.src}
+                srcset={heroPortrait.srcSet.attribute}
+                sizes={sizes}
+                width={portrait.width}
+                height={portrait.height}
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
           </div>
         </section>
 
-        <section class="hub-list" aria-label="Courses">
-          <div class="container">
-            {cards.length > 0 ? (
-              <ul class="hub-grid">
-                {cards.map(({ course, view }) => (
-                  <li>
-                    <a class="hub-card" href={course.canonicalUrl}>
-                      <span class="hub-meta">{[view.formatLabel, course.durationText ?? (view.hasLessons ? view.lessonsLabel : null)].filter(Boolean).join(" · ")}</span>
-                      <span class="hub-title">{course.title}</span>
-                      {course.subtitle && <span class="hub-sub">{course.subtitle}</span>}
-                      <span class="hub-foot">
-                        <span class="hub-price">{view.priceDisplay}</span>
-                        <span class="hub-go">
-                          View course <Icon name="arrow-right" />
-                        </span>
-                      </span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p class="lead">
-                New courses are on their way.{" "}
-                <a href={whatsappLink()} target="_blank" rel="noopener">
-                  Ask us on WhatsApp
-                </a>{" "}
-                about the next batch.
-              </p>
-            )}
-          </div>
-        </section>
+        {
+          !empty && (
+            <section class="section-tight hub-list" id="courses" aria-labelledby="courses-title">
+              <div class="container">
+                <div class="hub-list-head" data-reveal>
+                  <h2 id="courses-title">
+                    Choose a course<span class="bindi" aria-hidden="true" />
+                  </h2>
+                  <p class="hub-count">{plural(courses.length, "course")} open</p>
+                </div>
+                <ul class="hub-grid" data-reveal="stagger">
+                  {views.map((view, i) => (
+                    <li style={`--i: ${i}`}>
+                      <CourseCard view={view} eager={i === 0} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          )
+        }
+
+        <Teacher teacher={site.founder} context="hub" />
+
+        {
+          !empty && (
+            <section class="section band-tint hub-ask" aria-labelledby="ask-title">
+              <div class="container-narrow hub-ask-inner" data-reveal>
+                <Avatar size="5rem" class="hub-ask-avatar" />
+                <h2 id="ask-title">
+                  Not sure which one?<span class="bindi" aria-hidden="true" />
+                </h2>
+                <p class="lead">
+                  Tell {firstName} what you want to learn, and she will tell you which course fits. She answers on WhatsApp.
+                </p>
+                <div class="btn-row hub-ask-actions">
+                  <a class="btn btn-primary" href={askWhich} target="_blank" rel="noopener">
+                    <Icon name="whatsapp" />
+                    Ask {firstName} on WhatsApp
+                  </a>
+                  <a class="btn btn-secondary" href={`tel:${site.phone.tel}`}>
+                    <Icon name="phone" />
+                    <span class="tabular">{site.phone.display}</span>
+                  </a>
+                </div>
+              </div>
+            </section>
+          )
+        }
       </main>
       <Footer />
       <ViewBeacon courseId={0} />
@@ -88,20 +178,159 @@ const allDemo = courses.every((c) => c.isDemo);
 
 <style>
   .hub-hero {
-    padding-block: var(--space-6) var(--space-5);
+    overflow-x: clip;
+    padding-block: var(--space-6) var(--section-y-tight);
   }
 
-  .hub-hero .container {
+  .hub-hero-grid {
     display: grid;
-    gap: var(--space-3);
+    gap: var(--space-7);
+  }
+
+  .hub-hero-text {
+    display: grid;
+    gap: var(--space-5);
+    justify-items: start;
+    min-width: 0;
+  }
+
+  .hub-hero .eyebrow {
+    color: var(--accent);
   }
 
   .hub-hero h1 {
-    font-size: clamp(2.5rem, 1.9rem + 2.6vw, 4rem);
+    max-width: 12em;
+    font-size: clamp(2.75rem, 1.8rem + 3.9vw, 4.5rem);
+    text-wrap: balance;
   }
 
+  .hub-hero.is-empty h1 {
+    font-size: clamp(2.5rem, 1.7rem + 3.4vw, 4rem);
+  }
+
+  .hub-hero .lead {
+    max-width: 32em;
+  }
+
+  .hub-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3) var(--space-6);
+    width: 100%;
+  }
+
+  .hub-actions .btn {
+    min-height: 3.25rem;
+  }
+
+  .hub-actions .btn-secondary :global(.icon) {
+    color: var(--bg-deep);
+  }
+
+  @media (max-width: 29.99rem) {
+    .hub-actions .btn {
+      flex: 1 1 100%;
+    }
+  }
+
+  /* Who teaches, with the studio's confirmed Google rating (as on the course pages). */
+  .hub-byline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+  }
+
+  .hub-byline > span {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .hub-byline strong {
+    color: var(--text);
+    font-size: var(--text-base);
+    font-weight: var(--weight-strong);
+  }
+
+  .hub-byline :global(.icon) {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin-right: 0.2em;
+    vertical-align: -0.12em;
+    color: var(--accent);
+  }
+
+  .hub-byline :global(.avatar) {
+    box-shadow:
+      0 0 0 3px var(--bg),
+      0 0 0 4px var(--border-strong);
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  /* Phones: the portrait waits for the teacher band further down. */
+  .hub-portrait {
+    display: none;
+  }
+
+  @media (min-width: 56rem) {
+    .hub-hero {
+      padding-top: var(--space-7);
+    }
+
+    .hub-hero-grid {
+      grid-template-columns: minmax(0, 1fr) 24rem;
+      align-items: end;
+      column-gap: var(--space-8);
+    }
+
+    /* The cut-out on a blush card, standing on its bottom edge. */
+    .hub-portrait {
+      position: relative;
+      display: block;
+      align-self: stretch;
+      min-height: 26rem;
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+      background: var(--bg-tint);
+    }
+
+    .hub-portrait img {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      width: auto;
+      height: 96%;
+      max-width: none;
+      translate: -50% 0;
+    }
+  }
+
+  /* ── The catalog ── */
   .hub-list {
-    padding-bottom: var(--section-y);
+    padding-top: 0;
+  }
+
+  .hub-list-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-5);
+    margin-bottom: var(--space-6);
+  }
+
+  .hub-count {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
   }
 
   .hub-grid {
@@ -125,65 +354,33 @@ const allDemo = courses.every((c) => c.isDemo);
     }
   }
 
-  .hub-card {
+  /* ── Not sure which one? ── */
+  .hub-ask-inner {
     display: grid;
-    align-content: start;
-    gap: var(--space-2);
-    height: 100%;
-    padding: var(--space-5);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    background: var(--bg);
-    color: inherit;
-    text-decoration: none;
-    box-shadow: var(--shadow-sm);
-    transition:
-      box-shadow var(--dur-base) var(--ease-out),
-      border-color var(--dur-base) var(--ease-out);
+    gap: var(--space-5);
+    justify-items: center;
+    text-align: center;
   }
 
-  .hub-card:hover {
-    border-color: var(--border-strong);
-    box-shadow: var(--shadow-md);
+  .hub-ask-inner :global(.hub-ask-avatar) {
+    box-shadow:
+      0 0 0 4px var(--bg),
+      var(--shadow-md);
   }
 
-  .hub-meta {
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-    font-weight: var(--weight-ui);
+  .hub-ask-inner .lead {
+    max-width: 28em;
   }
 
-  .hub-title {
-    color: var(--text);
-    font-size: var(--text-xl);
-    font-weight: var(--weight-strong);
-    line-height: 1.2;
-    overflow-wrap: anywhere;
+  .hub-ask-actions {
+    justify-content: center;
   }
 
-  .hub-sub {
-    color: var(--text-body);
+  .hub-ask-actions .btn-secondary :global(.icon) {
+    color: var(--bg-deep);
   }
 
-  .hub-foot {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: center;
-    justify-content: space-between;
-    margin-top: var(--space-3);
-  }
-
-  .hub-price {
-    color: var(--text);
-    font-weight: var(--weight-strong);
-  }
-
-  .hub-go {
-    display: inline-flex;
-    gap: var(--space-1);
-    align-items: center;
-    color: var(--accent);
-    font-weight: var(--weight-ui);
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 </style>

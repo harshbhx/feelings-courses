@@ -992,6 +992,12 @@ const hub = hubOrigin(buildEnv);
       order = null;
       busy = false;
       clearErrors();
+      // "Book this batch" (Batches.astro) names its batch: pick it, if it still takes bookings.
+      const wanted = trigger.dataset.batch;
+      if (wanted && batchSelect && Array.from(batchSelect.options).some((o) => o.value === wanted && !o.disabled)) {
+        batchSelect.value = wanted;
+        batchSelect.dispatchEvent(new Event("change"));
+      }
       show("details", false);
       dialog.showModal();
       const firstEmpty = [...form.querySelectorAll<HTMLInputElement>("input[required]")].find((input) => !input.value.trim());

@@ -1,0 +1,361 @@
+---
+/**
+ * One course in the hub's catalog: a picture, the format, the key facts, the next batch with its
+ * seats, and the price. The whole card is one link to the course's canonical URL (its subdomain
+ * once that is active, else /c/<slug>).
+ *
+ * The picture, best first: the admin's cover image; the local cover of the course's first glimpse
+ * (src/assets/glimpses); for the founder's courses her cut-out portrait on blush; otherwise a
+ * plain blush tile with the format's icon. Every word comes from the course (course-view.ts).
+ */
+import { getImage } from "astro:assets";
+import Icon from "../Icon.astro";
+import portrait from "../../assets/photos/urmi-mengar.webp";
+import { site } from "../../data/site";
+import { localPoster } from "./glimpses";
+import { batchDates, FEW_SEATS, nextOpenBatch, seatsLabel, type CourseView } from "../../lib/course-view";
+
+interface Props {
+  view: CourseView;
+  /** The first card's picture is likely on the first screen. */
+  eager?: boolean;
+}
+
+const { view, eager = false } = Astro.props;
+const { course } = view;
+
+const FORMAT_CHIP = {
+  online: { icon: "play-circle", text: "Online" },
+  in_person: { icon: "storefront", text: "At the studio" },
+  hybrid: { icon: "sparkle", text: "Studio + online" },
+} as const;
+const chip = FORMAT_CHIP[course.format];
+
+const sizes = "(min-width: 64rem) 22rem, (min-width: 40rem) 45vw, calc(100vw - 2.5rem)";
+const glimpse = course.details.glimpses.find((g) => localPoster(g.youtubeId));
+const poster = glimpse ? localPoster(glimpse.youtubeId) : undefined;
+const media = course.coverUrl
+  ? { kind: "cover" as const, src: course.coverUrl }
+  : poster
+    ? {
+        kind: "poster" as const,
+        image: await getImage({ src: poster, widths: [360, 540, 720].filter((w) => w <= poster.width), sizes, format: "webp", quality: 70 }),
+      }
+    : course.teacher === site.founder
+      ? { kind: "portrait" as const, image: await getImage({ src: portrait, widths: [320, 480, 640], sizes, format: "webp", quality: 72 }) }
+      : { kind: "tile" as const };
+
+const facts = [
+  view.hasLessons && view.lessonsLabel,
+  view.hasLessons && view.totalMinutes > 0 && `${view.totalMinutes} min`,
+  view.hasBatches && course.durationText,
+  view.hasLessons && view.accessText && `${view.accessText} access`,
+].filter((f): f is string => typeof f === "string" && f.length > 0);
+
+const next = view.hasBatches ? nextOpenBatch(course.batches) : null;
+const allFull = view.hasBatches && course.batches.length > 0 && !next;
+const seats = next ? seatsLabel(next) : null;
+const few = next?.seatsLeft != null && next.seatsLeft <= FEW_SEATS;
+---
+
+<a class="cc" href={course.canonicalUrl}>
+  <span class:list={["cc-media", `cc-media-${media.kind}`]}>
+    {media.kind === "cover" && <img src={media.src} alt="" width="800" height="600" loading={eager ? "eager" : "lazy"} decoding="async" />}
+    {
+      (media.kind === "poster" || media.kind === "portrait") && (
+        <img
+          src={media.image.src}
+          srcset={media.image.srcSet.attribute}
+          sizes={sizes}
+          alt=""
+          width={media.kind === "poster" ? 720 : 640}
+          height={media.kind === "poster" ? 1280 : 800}
+          loading={eager ? "eager" : "lazy"}
+          decoding="async"
+        />
+      )
+    }
+    {media.kind === "tile" && <Icon name={chip.icon} />}
+    <span class="cc-chip">
+      <Icon name={chip.icon} />
+      {chip.text}
+    </span>
+  </span>
+
+  <span class="cc-body">
+    <span class="cc-title">{course.title}</span>
+    {course.subtitle && <span class="cc-sub">{course.subtitle}</span>}
+    {
+      facts.length > 0 && (
+        <span class="cc-facts">
+          {facts.map((f) => (
+            <span>{f}</span>
+          ))}
+        </span>
+      )
+    }
+    {
+      next && (
+        <span class="cc-batch">
+          <Icon name="calendar-blank" />
+          <span>
+            Next batch <strong>{batchDates({ startsOn: next.startsOn, endsOn: null })}</strong>
+          </span>
+          {seats && <span class:list={["cc-seats", { "is-few": few }]}>{seats}</span>}
+        </span>
+      )
+    }
+    {
+      allFull && (
+        <span class="cc-batch">
+          <Icon name="calendar-blank" />
+          <span>Batches are full: ask about the next one</span>
+        </span>
+      )
+    }
+    <span class="cc-foot">
+      <span class="cc-price">
+        {view.priceDisplay}
+        {view.depositDisplay && <span class="cc-deposit">Book with {view.depositDisplay}</span>}
+      </span>
+      <span class="cc-go">
+        View course
+        <Icon name="arrow-right" />
+      </span>
+    </span>
+  </span>
+</a>
+
+<style>
+  .cc {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100%;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg);
+    color: inherit;
+    text-decoration: none;
+    box-shadow: var(--shadow-sm);
+    transition:
+      box-shadow var(--dur-base) var(--ease-out),
+      border-color var(--dur-base) var(--ease-out),
+      transform var(--dur-base) var(--ease-out);
+  }
+
+  .cc:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* ── Picture ── */
+  .cc-media {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    background: var(--bg-tint);
+    color: var(--bg-deep);
+  }
+
+  .cc-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 22%;
+    transition: transform 700ms var(--ease-soft);
+  }
+
+  /* The cut-out stands on the tile's bottom edge, like the teacher band. */
+  .cc-media-portrait img {
+    position: absolute;
+    right: 6%;
+    bottom: 0;
+    width: auto;
+    height: 94%;
+    object-fit: contain;
+    object-position: 50% 100%;
+    transform-origin: 50% 100%;
+  }
+
+  .cc-media-tile > :global(.icon) {
+    width: 3.5rem;
+    height: 3.5rem;
+    opacity: 0.85;
+  }
+
+  .cc-chip {
+    position: absolute;
+    top: var(--space-3);
+    left: var(--space-3);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.35rem 0.7rem;
+    border-radius: var(--radius-pill);
+    background: var(--bg);
+    color: var(--text);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    line-height: 1.2;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .cc-chip :global(.icon) {
+    width: 1.05em;
+    height: 1.05em;
+    color: var(--accent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .cc:hover {
+      transform: translateY(-2px);
+    }
+
+    .cc:hover .cc-media img {
+      transform: scale(1.035);
+    }
+  }
+
+  /* ── Words ── */
+  .cc-body {
+    display: grid;
+    align-content: start;
+    gap: var(--space-3);
+    padding: var(--space-5);
+  }
+
+  .cc-title {
+    color: var(--text);
+    font-size: var(--text-xl);
+    font-weight: var(--weight-strong);
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+
+  .cc:hover .cc-title {
+    color: var(--accent);
+  }
+
+  .cc-sub {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    color: var(--text-body);
+    line-height: 1.55;
+  }
+
+  .cc-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Bindis between the facts, as in the curriculum's totals. */
+  .cc-facts span + span::before {
+    content: "";
+    display: inline-block;
+    width: 0.3em;
+    height: 0.3em;
+    margin-right: var(--space-3);
+    border-radius: 50%;
+    background: var(--accent);
+    vertical-align: middle;
+  }
+
+  .cc-batch {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--bg-soft);
+    color: var(--text-body);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+  }
+
+  .cc-batch > :global(.icon) {
+    width: 1.1em;
+    height: 1.1em;
+    color: var(--bg-deep);
+  }
+
+  .cc-batch strong {
+    color: var(--text);
+    font-weight: var(--weight-strong);
+  }
+
+  .cc-seats {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-weight: var(--weight-ui);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cc-seats.is-few {
+    color: var(--accent);
+  }
+
+  .cc-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border);
+  }
+
+  .cc-price {
+    display: grid;
+    color: var(--text);
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cc-deposit {
+    margin-top: 0.2rem;
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+    letter-spacing: 0;
+  }
+
+  .cc-go {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 2.75rem;
+    color: var(--accent);
+    font-weight: var(--weight-strong);
+  }
+
+  .cc-go :global(.icon) {
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .cc:hover .cc-go :global(.icon) {
+      transform: translateX(3px);
+    }
+  }
+</style>
