@@ -269,7 +269,7 @@ test("gate with D1: certificate claim flow ends on the public verify page", asyn
   assert.ok(page.includes("Asha &lt;Patel&gt;"));
   assert.ok(page.includes("Self Makeup Masterclass"));
   assert.ok(page.includes("Certificate of completion from Feelings Beauty Care"));
-  assert.ok(page.includes("23 October 2026"));
+  assert.match(page, /\d{1,2} [A-Z][a-z]+ 20\d\d/, "shows an issue date (the claim uses the real clock)");
   assert.equal(page.includes(ASHA.phone), false, "no contact details");
   assert.equal(page.includes(ASHA.email), false);
 });
