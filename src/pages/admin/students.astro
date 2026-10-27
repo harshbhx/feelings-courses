@@ -1,159 +1,135 @@
 ---
-// Students (DEMO): every example student, how far they've got, and their payment. The list is
-// built in the browser from src/lib/demo-store-students.ts (derived from the dashboard's example
-// activity, so the numbers agree). Script: src/components/admin/students/students.ts.
+// Students: search, filter by course, page through (GET /api/admin/students), export CSV, add a
+// student who paid at the studio, and a detail drawer (?open=<id>) with access, payments, devices,
+// certificates, a WhatsApp sign-in link, and the DPDP erase. Phones are masked in the list.
 import Admin from "../../layouts/Admin.astro";
 import Icon from "../../components/Icon.astro";
-import { TXN_ICONS } from "../../components/admin/payments/icons";
-import "../../components/admin/payments/txn.css";
-import "../../components/admin/students/students.css";
-
-const icons = ["caret-right", "circle", "users-three", "magnifying-glass", "arrow-right", ...TXN_ICONS];
-const skeletons = Array.from({ length: 6 });
 ---
 
-<Admin title="Students" active="students" icons={icons}>
+<Admin
+  title="Students"
+  active="students"
+  icons={["magnifying-glass", "download-simple", "plus", "whatsapp", "device-mobile", "certificate", "trash", "sign-out", "link-simple", "users-three", "calendar-check", "receipt", "x-circle", "arrow-right", "arrow-left"]}
+>
   <header class="page-head">
     <div>
       <h1 class="page-title">Students</h1>
-      <p class="page-sub">Everyone who bought a course, how far they’ve got and what they paid.</p>
-      <p class="demo-note">
-        <Icon name="info" />
-        Example students (demo data). Phone numbers are masked.
-      </p>
+      <p class="page-sub">Everyone who bought a course or was added by hand. Tap a name for their access, payments and devices.</p>
     </div>
     <div class="page-actions">
-      <button class="btn btn-secondary" type="button" data-export>
+      <a class="btn btn-secondary" href="/api/admin/students.csv" download data-export>
         <Icon name="download-simple" />
         Export CSV
+      </a>
+      <button class="btn btn-primary" type="button" data-add>
+        <Icon name="plus" />
+        Add student
       </button>
     </div>
   </header>
 
-  <section class="stu-stats" aria-label="Students at a glance">
-    <article class="card stu-stat">
-      <h2 class="stu-stat-label">Students</h2>
-      <p class="stu-stat-value num" data-s="total">&nbsp;</p>
-      <p class="stu-stat-meta" data-s="total-meta">&nbsp;</p>
-    </article>
-    <article class="card stu-stat">
-      <h2 class="stu-stat-label">Active this week</h2>
-      <p class="stu-stat-value num" data-s="active">&nbsp;</p>
-      <p class="stu-stat-meta">Watched a lesson in 7 days</p>
-    </article>
-    <article class="card stu-stat">
-      <h2 class="stu-stat-label">Finished</h2>
-      <p class="stu-stat-value num" data-s="finished">&nbsp;</p>
-      <p class="stu-stat-meta" data-s="finished-meta">&nbsp;</p>
-    </article>
-    <article class="card stu-stat">
-      <h2 class="stu-stat-label">Not started</h2>
-      <p class="stu-stat-value num" data-s="none">&nbsp;</p>
-      <p class="stu-stat-meta">Haven’t opened a lesson yet</p>
-    </article>
-  </section>
-
-  <div class="stu-toolbar" role="search" aria-label="Find students">
-    <div class="search stu-search">
+  <form class="toolbar" role="search" data-filters>
+    <label class="search">
+      <span class="visually-hidden">Search students</span>
       <Icon name="magnifying-glass" />
-      <label class="visually-hidden" for="stu-q">Search students by name, city or phone</label>
-      <input
-        id="stu-q"
-        class="input"
-        type="search"
-        placeholder="Search name, city or phone"
-        autocomplete="off"
-        spellcheck="false"
-        enterkeyhint="search"
-        maxlength="80"
-      />
-    </div>
-    <div class="stu-filters">
-      <div class="stu-filter">
-        <label class="visually-hidden" for="stu-course">Course</label>
-        <select id="stu-course" class="select">
-          <option value="">All courses</option>
-        </select>
-      </div>
-      <div class="stu-filter">
-        <label class="visually-hidden" for="stu-progress">Progress</label>
-        <select id="stu-progress" class="select">
-          <option value="">Any progress</option>
-          <option value="none">Not started</option>
-          <option value="some">In progress</option>
-          <option value="done">Finished</option>
-        </select>
-      </div>
-    </div>
-  </div>
+      <input class="input" type="search" name="q" placeholder="Name, phone or email" autocomplete="off" maxlength="100" data-q />
+    </label>
+    <label class="tb-select">
+      <span class="visually-hidden">Course</span>
+      <select class="select" name="course" data-course>
+        <option value="">All courses</option>
+      </select>
+    </label>
+    <button class="btn btn-ghost" type="button" data-clear hidden>Clear</button>
+  </form>
 
-  <section class="card stu-card" aria-labelledby="stu-list-title">
-    <div class="stu-bar">
-      <h2 class="visually-hidden" id="stu-list-title">Student list</h2>
-      <p class="stu-total" data-count>Loading students…</p>
-      <button class="link-btn stu-clear" type="button" data-clear-top hidden>
-        <Icon name="close" />
-        Clear filters
-      </button>
-      <div class="stu-sort">
-        <label class="stu-sort-label" for="stu-sort">Sort</label>
-        <select id="stu-sort" class="select">
-          <option value="new">Newest first</option>
-          <option value="old">Oldest first</option>
-          <option value="most">Most progress</option>
-          <option value="least">Least progress</option>
-          <option value="name">Name, A to Z</option>
-        </select>
+  <section class="card" aria-labelledby="list-title">
+    <h2 class="visually-hidden" id="list-title">Student list</h2>
+    <div data-region></div>
+    <div class="pager" data-pager hidden>
+      <span data-page-label aria-live="polite"></span>
+      <div class="pager-btns">
+        <button class="btn btn-secondary btn-sm" type="button" data-prev><Icon name="arrow-left" />Previous</button>
+        <button class="btn btn-secondary btn-sm" type="button" data-next>Next<Icon name="arrow-right" /></button>
       </div>
-    </div>
-
-    <div class="stu-wrap">
-      <div class="stu-row stu-head" aria-hidden="true">
-        <span class="stu-name">Student</span>
-        <span class="stu-phone">Phone</span>
-        <span class="stu-course">Course</span>
-        <span class="stu-meter">Progress</span>
-        <span class="stu-date">Enrolled</span>
-      </div>
-      <ul class="rows stu-list" data-list aria-busy="true" aria-labelledby="stu-list-title">
-        {
-          skeletons.map(() => (
-            <li class="stu-row stu-skel" aria-hidden="true">
-              <span class="avatar avatar-soft stu-av" />
-              <span class="stu-name">
-                <span class="skel" />
-              </span>
-              <span class="stu-city">
-                <span class="skel skel-short" />
-              </span>
-              <span class="stu-course">
-                <span class="skel" />
-              </span>
-              <span class="meter stu-meter" />
-            </li>
-          ))
-        }
-      </ul>
-      <div data-states></div>
-    </div>
-
-    <div class="stu-more">
-      <button class="btn btn-secondary" type="button" data-more hidden>Show more</button>
     </div>
   </section>
-
-  <p class="visually-hidden" aria-live="polite" data-live></p>
-
-  <noscript>
-    <p class="notice">This demo builds the student list in the browser, so it needs JavaScript turned on.</p>
-  </noscript>
-
-  <dialog class="drawer stu-drawer" data-student-drawer aria-labelledby="stu-d-name">
-    <div class="drawer-head stu-d-head" data-drawer-head></div>
-    <div class="drawer-body stu-d-body" data-drawer-body></div>
-  </dialog>
+  <p class="page-note list-note">
+    <Icon name="info" />
+    Phone numbers are hidden in the list. Open a student to see them; the CSV export has them in full.
+  </p>
 </Admin>
 
 <script>
-  import "../../components/admin/students/students";
+  import "../../components/admin/client/students";
 </script>
+
+<style is:global>
+  .tb-select {
+    flex: 0 1 14rem;
+    min-width: 10rem;
+  }
+
+  .list-note {
+    margin-top: var(--space-3);
+  }
+
+  .stu-name {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .stu-name .dt-row-btn {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .stu-erased {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .drawer-section {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .drawer-section + .drawer-section {
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border);
+  }
+
+  .contact-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .enr-head {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  .enr-title {
+    color: var(--text);
+    font-weight: var(--weight-strong);
+    overflow-wrap: anywhere;
+  }
+
+  .enr-meta {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+  }
+
+  .danger-box {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+  }
+</style>

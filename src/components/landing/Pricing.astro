@@ -6,25 +6,36 @@
  *
  * The card reads like a ticket: a maroon head with the price in white, then what's included, the
  * one red button, the Razorpay line and a WhatsApp question link.
- * A struck-through "was" price shows only if course.price.compareAt is set; it is null today.
+ * A struck-through "was" price shows only if the course has a compare-at price.
+ * Studio batches with a booking amount say so: the amount paid now, the balance at the studio.
  */
 import Icon from "../Icon.astro";
 import Avatar from "./Avatar.astro";
-import { course } from "../../data/course";
 import { site } from "../../data/site";
 import { whatsappLink } from "../../lib/whatsapp";
-import { accessLabel, lessonsLabel, minutesLabel, teacherFirstName } from "./facts";
+import type { CourseView } from "../../lib/course-view";
 
-const { price } = course;
-const money = (paise: number) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: price.currency, maximumFractionDigits: 0 }).format(paise / 100);
+interface Props {
+  view: CourseView;
+}
+
+const { view } = Astro.props;
+const { course } = view;
+const teacherFirstName = view.teacherFirstName;
 const included = [
-  `${lessonsLabel}, ${minutesLabel} of video`,
-  `${accessLabel}, on phone or laptop`,
-  course.certificate,
-  `Taught in ${course.language}`,
+  view.hasLessons && `${view.lessonsLabel}, ${view.minutesLabel} of video`,
+  view.hasLessons && view.accessLabel && `${view.accessLabel}, on phone or laptop`,
+  view.hasBatches && course.durationText && `${course.durationText} of classes at the studio in ${site.address.city}`,
+  course.certificateTitle,
+  course.language && `Taught in ${course.language}`,
   `Ask ${teacherFirstName} your questions on WhatsApp`,
-];
+].filter((item): item is string => typeof item === "string" && item.length > 0);
+const lead = [
+  view.depositDisplay ? `Book your seat with ${view.depositDisplay}; the rest of the ${view.priceDisplay} fee is paid at the studio.` : `One payment of ${view.priceDisplay}.`,
+  view.hasLessons ? `${view.lessonsLabel}${course.certificateTitle ? ", a certificate" : ""}${view.accessText ? `, and ${view.accessText} to watch them` : ""}.` : "",
+]
+  .filter(Boolean)
+  .join(" ");
 ---
 
 <section class="section band-soft pricing" id="pricing" aria-labelledby="pricing-title">
@@ -32,7 +43,7 @@ const included = [
     <div class="pricing-head" data-reveal>
       <h2 id="pricing-title">Join the course<span class="bindi" aria-hidden="true"></span></h2>
       <p class="lead">
-        One payment of {price.display}. {lessonsLabel}, a certificate, and {course.access} to watch them.
+        {lead}
       </p>
       <p class="taught">
         <Avatar size="3.5rem" />
@@ -47,17 +58,17 @@ const included = [
       <div class="price-top">
         <p class="price-name">{course.title}</p>
         <p class="price">
-          <span class="amount">{price.display}</span>
+          <span class="amount">{view.priceDisplay}</span>
           {
-            price.compareAt && (
+            view.compareAtDisplay && (
               <s class="was">
                 <span class="visually-hidden">Was </span>
-                {money(price.compareAt)}
+                {view.compareAtDisplay}
               </s>
             )
           }
         </p>
-        <p class="price-note">One-time payment</p>
+        <p class="price-note">{view.depositDisplay ? `Book with ${view.depositDisplay} today` : "One-time payment"}</p>
       </div>
 
       <div class="price-body">
@@ -73,7 +84,7 @@ const included = [
         </ul>
 
         <a class="btn btn-primary price-enroll" href="#pricing" data-enroll>
-          Enroll for {price.display}
+          {view.enrollLabel}
           <Icon name="arrow-right" />
         </a>
         <p class="secure">
@@ -81,7 +92,7 @@ const included = [
           Secure payment by Razorpay: UPI, cards, netbanking
         </p>
 
-        <a class="btn btn-secondary ask-btn" href={whatsappLink()} target="_blank" rel="noopener">
+        <a class="btn btn-secondary ask-btn" href={whatsappLink(`Hi ${teacherFirstName}, I have a question about the ${course.title}.`)} target="_blank" rel="noopener">
           <Icon name="whatsapp" />
           Ask {teacherFirstName} a question
         </a>

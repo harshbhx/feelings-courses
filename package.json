@@ -5,13 +5,23 @@
   "private": true,
   "description": "Course landing page, demo checkout and course area for Feelings Beauty Care's makeup course, on courses.feelingsbeautycare.in.",
   "scripts": {
+    "postinstall": "node scripts/embed-migrations.mjs",
     "dev": "astro dev",
-    "build": "astro check && astro build && node scripts/csp.mjs",
-    "build:fast": "astro build && node scripts/csp.mjs",
+    "dev:full": "npm run build:fast && wrangler pages dev dist --d1 DB --r2 MEDIA",
+    "prepare:content": "node scripts/embed-migrations.mjs && node scripts/snapshot.mjs",
+    "build": "npm run prepare:content && astro check && astro build && node scripts/csp.mjs",
+    "build:fast": "npm run prepare:content && astro build && node scripts/csp.mjs",
     "preview": "astro preview",
     "check": "astro check",
+    "typecheck": "node scripts/embed-migrations.mjs && tsc -p functions --noEmit",
+    "migrations:embed": "node scripts/embed-migrations.mjs",
+    "snapshot": "node scripts/snapshot.mjs",
+    "test": "node scripts/embed-migrations.mjs && npm run test:unit && npm run test:checkout && npm run test:learn",
+    "test:unit": "node --experimental-strip-types --no-warnings --import ./tests/helpers/register.mjs --test \"tests/**/*.test.mjs\"",
     "test:checkout": "node --experimental-strip-types --no-warnings --test-reporter=spec scripts/test-checkout.mjs",
-    "test:learn": "node scripts/test-learn.mjs"
+    "test:learn": "node scripts/test-learn.mjs",
+    "setup": "node scripts/setup.mjs",
+    "go-live": "node scripts/setup.mjs --live"
   },
   "dependencies": {
     "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
@@ -21,9 +31,10 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
     "@cloudflare/workers-types": "^5.20261016.1",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "wrangler": "^4.152.0"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.13.0"
   }
 }

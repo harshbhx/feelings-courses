@@ -1,53 +1,168 @@
 ---
-// Settings (DEMO): the studio profile (read-only, from src/data/site.ts), payment mode, the course
-// site's address, notification switches and "Reset demo data". Script:
-// src/components/admin/settings/settings.ts.
+// Settings (GET/PUT /api/admin/settings): business details printed on receipts (the GSTIN is kept
+// for the owner's records only and never shown anywhere else: owner decision), the legal pages
+// confirmation, payment mode (read only: it follows the Razorpay keys), the site's publish state,
+// backups (POST /api/admin/backup/run, GET /api/admin/backup), each course's subdomain, and the
+// admin password (POST /api/admin/password).
 import Admin from "../../layouts/Admin.astro";
 import Icon from "../../components/Icon.astro";
-import StudioProfile from "../../components/admin/settings/StudioProfile.astro";
-import PaymentMode from "../../components/admin/settings/PaymentMode.astro";
-import SiteDomain from "../../components/admin/settings/SiteDomain.astro";
-import Notifications from "../../components/admin/settings/Notifications.astro";
-import ResetDemo from "../../components/admin/settings/ResetDemo.astro";
+import Field from "../../components/admin/editor/Field.astro";
+
+// GST state codes, for the business address (receipts show the state; no tax lines).
+const states = [
+  ["01", "Jammu and Kashmir"], ["02", "Himachal Pradesh"], ["03", "Punjab"], ["04", "Chandigarh"], ["05", "Uttarakhand"],
+  ["06", "Haryana"], ["07", "Delhi"], ["08", "Rajasthan"], ["09", "Uttar Pradesh"], ["10", "Bihar"], ["11", "Sikkim"],
+  ["12", "Arunachal Pradesh"], ["13", "Nagaland"], ["14", "Manipur"], ["15", "Mizoram"], ["16", "Tripura"], ["17", "Meghalaya"],
+  ["18", "Assam"], ["19", "West Bengal"], ["20", "Jharkhand"], ["21", "Odisha"], ["22", "Chhattisgarh"], ["23", "Madhya Pradesh"],
+  ["24", "Gujarat"], ["26", "Dadra and Nagar Haveli and Daman and Diu"], ["27", "Maharashtra"], ["29", "Karnataka"], ["30", "Goa"],
+  ["31", "Lakshadweep"], ["32", "Kerala"], ["33", "Tamil Nadu"], ["34", "Puducherry"], ["35", "Andaman and Nicobar Islands"],
+  ["36", "Telangana"], ["37", "Andhra Pradesh"], ["38", "Ladakh"],
+].map(([value, label]) => ({ value, label: `${label} (${value})` }));
 ---
 
-<Admin title="Settings" active="settings">
+<Admin title="Settings" active="settings" icons={["storefront", "link-simple", "lock-simple", "arrow-right", "seal-check", "sign-out", "list-checks", "pencil-simple", "download-simple"]}>
   <header class="page-head">
     <div>
       <h1 class="page-title">Settings</h1>
-      <p class="page-sub">Your studio details, payments, the course site's address and notifications.</p>
-      <p class="demo-note">
-        <Icon name="info" />
-        Demo: nothing here changes the live site. Payments stay in test mode.
-      </p>
+      <p class="page-sub">Your business details, payments, backups, course addresses and the admin password.</p>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-secondary" href="/admin/activity">
+        <Icon name="list-checks" />
+        Activity log
+      </a>
     </div>
   </header>
 
-  {/* Phones: one column in this order. From 80rem: two balanced columns. */}
-  <div class="set-grid">
+  <div class="set-grid" data-settings hidden>
     <div class="set-col">
-      <StudioProfile />
-      <PaymentMode />
+      <form class="card" aria-labelledby="h-business" novalidate data-business>
+        <div class="card-head">
+          <div>
+            <h2 class="card-title" id="h-business">Business details</h2>
+            <p class="card-sub">Printed on receipts and the legal pages.</p>
+          </div>
+        </div>
+        <div class="card-pad form-grid cols-2">
+          <Field name="business.name" label="Trading name" max={80} />
+          <Field name="business.legalName" label="Legal name" max={120} />
+          <Field class="span-all" name="business.address" label="Address" type="textarea" rows={2} max={300} hint="One line, as on receipts." />
+          <Field name="business.stateCode" label="State" type="select" options={states} />
+          <Field name="business.phone" label="Phone" inputmode="numeric" />
+          <Field name="business.whatsapp" label="WhatsApp number" optional inputmode="numeric" hint="Empty: same as the phone." />
+          <div class="field span-all gstin-box">
+            <label class="field-label" for="f-gstin">GSTIN <span class="opt">(optional, private)</span></label>
+            <input class="input mono" id="f-gstin" type="text" maxlength="15" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="f-gstin-hint f-gstin-err" data-field="business.gstin" />
+            <p class="field-hint" id="f-gstin-hint">
+              <Icon name="lock-simple" />
+              Kept for your records only. It is never shown on receipts, invoices or any page.
+            </p>
+            <p class="field-error" id="f-gstin-err"></p>
+          </div>
+        </div>
+        <div class="card-pad set-actions">
+          <button class="btn btn-primary" type="submit" data-business-save>Save details</button>
+        </div>
+      </form>
+
+      <section class="card" aria-labelledby="h-addresses">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title" id="h-addresses">Course addresses</h2>
+            <p class="card-sub">Each course's own subdomain. Setting one up is about 4 clicks in Cloudflare; the course editor shows the steps.</p>
+          </div>
+        </div>
+        <div data-addresses></div>
+      </section>
+
+      <form class="card" aria-labelledby="h-password" novalidate data-password>
+        <div class="card-head">
+          <div>
+            <h2 class="card-title" id="h-password">Admin password</h2>
+            <p class="card-sub">Changing it signs out every other device.</p>
+          </div>
+        </div>
+        <div class="card-pad form-grid">
+          <input type="text" name="username" value="admin" autocomplete="username" hidden />
+          <div class="field">
+            <label class="field-label" for="pw-current">Current password</label>
+            <input class="input" id="pw-current" type="password" autocomplete="current-password" aria-describedby="pw-current-err" data-field="current" />
+            <p class="field-error" id="pw-current-err"></p>
+          </div>
+          <div class="field">
+            <label class="field-label" for="pw-next">New password</label>
+            <input class="input" id="pw-next" type="password" autocomplete="new-password" minlength="14" aria-describedby="pw-next-hint pw-next-err" data-field="next" />
+            <p class="field-hint" id="pw-next-hint">At least 14 characters. A few words with spaces is easy to remember and hard to guess.</p>
+            <p class="field-error" id="pw-next-err"></p>
+          </div>
+          <div class="field">
+            <label class="field-label" for="pw-again">New password again</label>
+            <input class="input" id="pw-again" type="password" autocomplete="new-password" aria-describedby="pw-again-err" data-field="again" />
+            <p class="field-error" id="pw-again-err"></p>
+          </div>
+        </div>
+        <div class="card-pad set-actions">
+          <button class="btn btn-secondary" type="submit">Change password</button>
+        </div>
+      </form>
     </div>
+
     <div class="set-col">
-      <SiteDomain />
-      <Notifications />
-      <ResetDemo />
+      <section class="card card-pad set-panel" id="payments" aria-labelledby="h-payments">
+        <h2 class="card-title" id="h-payments">Payments</h2>
+        <p class="set-mode" data-mode></p>
+        <p class="field-hint" data-mode-help></p>
+      </section>
+
+      <section class="card card-pad set-panel" aria-labelledby="h-legal">
+        <h2 class="card-title" id="h-legal">Legal pages</h2>
+        <div class="switch-row">
+          <div>
+            <label class="field-label" for="f-legal">I've read and confirm the legal pages</label>
+            <p class="field-hint" id="f-legal-hint">
+              Terms, refund (24 hours), privacy and delivery. Live payments stay off until you confirm. <a href="/legal" target="_blank" rel="noopener">Read them</a>.
+            </p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" role="switch" id="f-legal" aria-describedby="f-legal-hint" data-legal />
+            <span class="switch-track"></span>
+          </label>
+        </div>
+      </section>
+
+      <section class="card card-pad set-panel" aria-labelledby="h-site">
+        <h2 class="card-title" id="h-site">Site</h2>
+        <div data-site></div>
+      </section>
+
+      <section class="card card-pad set-panel" id="backups" aria-labelledby="h-backups">
+        <h2 class="card-title" id="h-backups">Backups</h2>
+        <div data-backups></div>
+      </section>
+
+      <section class="card card-pad set-panel set-signout" aria-labelledby="h-session">
+        <h2 class="card-title" id="h-session">This device</h2>
+        <p class="field-hint">The admin signs you out after 12 hours without use, and after 7 days at most.</p>
+        <button class="btn btn-secondary" type="button" data-signout>
+          <Icon name="sign-out" />
+          Sign out
+        </button>
+      </section>
     </div>
   </div>
+  <div data-loading></div>
 </Admin>
 
 <script>
-  import "../../components/admin/settings/settings";
+  import "../../components/admin/client/settings";
 </script>
 
 <style is:global>
-  /* [hidden] must win over the display of shared classes (.notice and the like). */
-  .admin [hidden] {
-    display: none !important;
+  .set-grid {
+    display: grid;
+    gap: var(--space-4);
   }
 
-  .set-grid,
   .set-col {
     display: grid;
     gap: var(--space-4);
@@ -55,317 +170,75 @@ import ResetDemo from "../../components/admin/settings/ResetDemo.astro";
     min-width: 0;
   }
 
-  @media (min-width: 48rem) {
-    .set-grid,
+  @media (min-width: 64rem) {
+    .set-grid {
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+      gap: var(--space-5);
+    }
+
     .set-col {
       gap: var(--space-5);
     }
   }
 
-  @media (min-width: 80rem) {
-    .set-grid {
-      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-      align-items: start;
-    }
+  .set-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 0;
   }
 
-  .set-card {
-    min-width: 0;
-  }
-
-  .set-body {
+  .set-panel {
     display: grid;
-    gap: var(--space-4);
+    gap: var(--space-3);
   }
 
-  .set-ic {
-    display: grid;
-    place-items: center;
-    flex: none;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 50%;
-    background: var(--bg-tint);
-    color: var(--maroon-800);
+  .set-mode {
+    color: var(--text);
+    font-size: var(--text-base);
+    font-weight: var(--weight-strong);
   }
 
-  .set-ic .icon {
-    width: 1.25rem;
-    height: 1.25rem;
-  }
-
-  /* ── Studio profile ── */
-  .set-lock .icon {
-    color: var(--text-muted);
-  }
-
-  .admin .textarea[readonly] {
-    min-height: 0;
-    resize: none;
-    background: var(--bg-soft);
-    color: var(--text-body);
-    border-style: dashed;
-  }
-
-  .set-tnum {
-    font-variant-numeric: tabular-nums;
-  }
-
-  .set-note {
+  .gstin-box .field-hint {
     display: flex;
     align-items: flex-start;
     gap: var(--space-2);
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-ui);
   }
 
-  .set-note .icon {
+  .gstin-box .field-hint .icon {
+    flex: none;
     width: 1rem;
     height: 1rem;
     margin-top: 0.1rem;
     color: var(--maroon-800);
   }
 
-  /* ── Payments ── */
-  .set-mode {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.3rem 0.7rem;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-pill);
-    background: var(--bg-tint);
-    color: var(--maroon-800);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-strong);
-    line-height: 1.2;
-    white-space: nowrap;
-  }
-
-  .set-mode::before {
-    content: "";
-    width: 0.45rem;
-    height: 0.45rem;
-    border-radius: 50%;
-    background: var(--maroon-800);
-  }
-
-  .set-paystate {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-3);
-  }
-
-  .set-paystate > div {
-    display: grid;
-    gap: 0.15rem;
-  }
-
-  .set-paystate-title {
-    color: var(--text);
-    font-size: var(--text-base);
-    font-weight: var(--weight-strong);
-    letter-spacing: -0.01em;
-  }
-
-  .set-golive {
-    display: grid;
-    gap: var(--space-3);
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--border);
-  }
-
-  .set-h3 {
-    font-size: var(--text-sm);
-    font-weight: var(--weight-strong);
-    letter-spacing: 0;
-  }
-
-  /* Numbered steps, each a small open circle: none is done yet. */
-  .set-steps {
-    list-style: none;
-    display: grid;
-    gap: var(--space-3);
-    counter-reset: step;
-  }
-
-  .set-steps li {
-    position: relative;
-    display: grid;
-    gap: 0.1rem;
-    padding-left: 2.25rem;
-    counter-increment: step;
-  }
-
-  .set-steps li::before {
-    content: counter(step);
-    position: absolute;
-    left: 0;
-    top: 0;
-    display: grid;
-    place-items: center;
-    width: 1.5rem;
-    height: 1.5rem;
-    border: 1.5px solid var(--border-control);
-    border-radius: 50%;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-strong);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .set-steps strong {
-    color: var(--text);
-    font-weight: var(--weight-strong);
-  }
-
-  .set-steps span {
-    color: var(--text-muted);
-  }
-
-  .set-live-btn {
-    justify-self: start;
-  }
-
-  /* ── Domain ── */
-  .set-domain {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    min-width: 0;
-    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--bg-soft);
-  }
-
-  .set-domain-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    flex: 1 1 auto;
-    min-width: 0;
-    min-height: 2.75rem;
-    color: var(--text);
-    font-size: var(--text-base);
-    font-weight: var(--weight-strong);
-    text-decoration: none;
-    letter-spacing: -0.01em;
-  }
-
-  .set-domain-link > span:first-child {
-    min-width: 0;
-    overflow-wrap: break-word;
-  }
-
-  .set-domain-link .icon {
-    width: 1rem;
-    height: 1rem;
-    color: var(--text-muted);
-  }
-
-  .set-domain-link:hover {
-    color: var(--accent);
-  }
-
-  .set-facts {
-    display: grid;
-    margin: 0;
-  }
-
-  .set-facts > div {
+  .addr-row {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     justify-content: space-between;
-    gap: var(--space-1) var(--space-4);
-    padding: var(--space-3) 0;
+    gap: var(--space-2) var(--space-4);
+    padding: var(--space-3) var(--card-pad);
   }
 
-  .set-facts > div + div {
+  .addr-row + .addr-row {
     border-top: 1px solid var(--border);
   }
 
-  .set-facts dt {
-    color: var(--text-muted);
-    font-weight: var(--weight-ui);
-  }
-
-  .set-facts dd {
-    margin: 0;
-    color: var(--text);
-    font-weight: var(--weight-strong);
-  }
-
-  .set-facts a {
-    display: inline-flex;
-    align-items: center;
-    min-height: 1.5rem;
-    color: inherit;
-    text-decoration-color: var(--border-strong);
-  }
-
-  .set-facts a:hover {
-    color: var(--accent);
-  }
-
-  /* ── Notifications ── */
-  .set-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding: var(--space-3) var(--space-2) var(--space-3) var(--card-pad);
-  }
-
-  .set-toggle-text {
+  .addr-main {
     display: grid;
     gap: 0.1rem;
     min-width: 0;
-    cursor: pointer;
   }
 
-  .set-toggle-title {
-    color: var(--text);
-    font-weight: var(--weight-strong);
-  }
-
-  .set-toggle-desc {
+  .addr-host {
     color: var(--text-muted);
     font-size: var(--text-xs);
     font-weight: var(--weight-ui);
+    overflow-wrap: anywhere;
   }
 
-  .set-toggle .switch {
-    margin-right: var(--space-2);
-  }
-
-  /* ── Reset ── */
-  .set-reset {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-3);
-  }
-
-  .set-reset > div {
-    display: grid;
-    gap: var(--space-1);
-  }
-
-  .set-reset-count {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-ui);
-  }
-
-  .set-reset-btn {
+  .set-signout .btn {
     justify-self: start;
-  }
-
-  @media (max-width: 30rem) {
-    .set-live-btn,
-    .set-reset-btn {
-      justify-self: stretch;
-    }
   }
 </style>

@@ -1,26 +1,26 @@
 ---
-// /admin: the demo sign-in. No password and no account: "Enter demo" sets a flag in
-// sessionStorage and opens the dashboard (or the admin page the visitor was sent here from).
+// /admin: sign in with the admin password (W5: POST /api/admin/login). The password is the one
+// `npm run setup` generated, or the one set later in Settings. Already signed in: straight on to the
+// dashboard (or the admin page the owner was sent here from).
 import Admin from "../../layouts/Admin.astro";
 import Icon from "../../components/Icon.astro";
 import Logo from "../../components/landing/Logo.astro";
 import { site } from "../../data/site";
-import { course } from "../../data/course";
 
 const features = [
-  { icon: "book-open-text", text: "Create a course and publish it in minutes" },
-  { icon: "users-three", text: "See every student and how far they’ve got" },
-  { icon: "credit-card", text: "Follow payments as they come in" },
-  { icon: "ticket", text: "Make a coupon code for each reel" },
+  { icon: "book-open-text", text: "Courses, lessons, batches and fees" },
+  { icon: "users-three", text: "Every student and their access" },
+  { icon: "credit-card", text: "Payments, refunds and receipts" },
+  { icon: "ticket", text: "A coupon code for each reel" },
 ];
 ---
 
-<Admin title="Sign in" bare>
+<Admin title="Sign in" bare icons={["eye", "lock-simple"]}>
   <div class="signin">
     <section class="signin-panel" aria-labelledby="signin-pitch">
       <Logo tone="white" width="10rem" />
       <div class="pitch">
-        <h2 id="signin-pitch">Your makeup course, run from your phone<span class="bindi" aria-hidden="true"></span></h2>
+        <h2 id="signin-pitch">Your courses, run from your phone<span class="bindi" aria-hidden="true"></span></h2>
         <ul class="pitch-list">
           {
             features.map((f) => (
@@ -41,40 +41,55 @@ const features = [
       <div class="signin-logo">
         <Logo width="9rem" />
       </div>
-      <div class="signin-card">
+      <form class="signin-card" method="post" action="#" novalidate data-signin>
         <img class="signin-icon" src="/favicon.svg" width="56" height="56" alt="" />
         <div class="signin-text">
           <h1>Course admin</h1>
-          <p>Courses, students, payments and coupons for {course.title} and every course {course.teacher.split(" ")[0]} adds next.</p>
+          <p data-signin-sub>Sign in with the admin password.</p>
         </div>
-        <button class="btn btn-primary signin-enter" type="button" data-enter>
-          Enter demo
+        <p class="signin-alert" role="alert" data-signin-alert hidden></p>
+        {/* For password managers: one fixed account name. */}
+        <input type="text" name="username" value="admin" autocomplete="username" hidden />
+        <div class="field signin-field">
+          <label class="field-label" for="password">Password</label>
+          <div class="pw-wrap">
+            <input
+              class="input"
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              autocapitalize="off"
+              spellcheck="false"
+              required
+              aria-describedby="password-err"
+              data-password
+            />
+            <button class="icon-btn pw-toggle" type="button" aria-label="Show password" aria-pressed="false" aria-controls="password" data-toggle>
+              <Icon name="eye" />
+            </button>
+          </div>
+          <p class="field-error" id="password-err" data-password-err></p>
+        </div>
+        <button class="btn btn-primary signin-enter" type="submit" data-submit>
+          Sign in
           <Icon name="arrow-right" />
         </button>
         <p class="signin-otp">
-          <Icon name="device-mobile" />
-          The real version signs in with your phone number (OTP).
+          <Icon name="lock-simple" />
+          Forgot it? Harsh can set a new one with the setup script.
         </p>
-      </div>
+      </form>
       <p class="signin-foot">
         <Icon name="info" />
-        Demo data only. Nothing here charges money or reaches a student.
+        Only for the owner. Students sign in on their course page.
       </p>
     </main>
   </div>
 </Admin>
 
 <script>
-  import { signIn } from "../../lib/demo-store";
-
-  const button = document.querySelector<HTMLButtonElement>("[data-enter]");
-  button?.addEventListener("click", () => {
-    signIn();
-    // Only admin pages on this site: never an outside address.
-    const next = new URLSearchParams(location.search).get("next") ?? "";
-    const safe = /^\/admin\/[a-z0-9/_-]*(\?[\w=&%.-]*)?$/i.test(next) && !next.startsWith("//");
-    location.href = safe ? next : "/admin/dashboard";
-  });
+  import "../../components/admin/client/signin";
 </script>
 
 <style>
@@ -135,6 +150,44 @@ const features = [
   .signin-text p {
     color: var(--text-muted);
     font-size: var(--text-sm);
+  }
+
+  .signin-alert {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    font-weight: var(--weight-ui);
+    text-align: left;
+  }
+
+  .signin-alert.is-info {
+    border-color: var(--border-strong);
+    background: var(--bg-soft);
+  }
+
+  .signin-field {
+    width: 100%;
+    text-align: left;
+  }
+
+  .pw-wrap {
+    position: relative;
+  }
+
+  .pw-wrap .input {
+    padding-right: 3.25rem;
+  }
+
+  .pw-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+
+  .pw-toggle[aria-pressed="true"] {
+    color: var(--accent);
   }
 
   .signin-enter {

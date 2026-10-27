@@ -1,0 +1,114 @@
+---
+// /legal: every policy and the business's contact details in one place (what Razorpay's website
+// review looks for as "Contact us").
+import Base from "../../layouts/Base.astro";
+import Icon from "../../components/Icon.astro";
+import Header from "../../components/landing/Header.astro";
+import Footer from "../../components/landing/Footer.astro";
+import { LEGAL_TITLES, legalDocs } from "../../data/legal";
+import { site } from "../../data/site";
+import { snapshot } from "../../data/snapshot";
+import { buildEnv } from "../../lib/build-env";
+import { hubIndexable, hubOrigin } from "../../lib/seo";
+import { whatsappLink } from "../../lib/whatsapp";
+import { LEGAL_PAGES } from "../../shared/constants";
+
+const origin = hubOrigin(buildEnv);
+const docs = legalDocs(snapshot.settings, new URL(origin).host);
+const b = snapshot.settings.business;
+---
+
+<Base
+  title={`Policies and contact | ${site.name}`}
+  description={`Terms, refund, privacy and delivery policies of ${site.name}, and how to reach us.`}
+  canonical={`${origin}/legal`}
+  noindex={!hubIndexable(snapshot, buildEnv)}
+  demo={false}
+>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <Header />
+  <main id="main" class="legal-index">
+    <div class="container-narrow">
+      <h1>Policies and contact<span class="bindi" aria-hidden="true"></span></h1>
+
+      <ul class="policy-list">
+        {
+          LEGAL_PAGES.map((page) => (
+            <li>
+              <a href={`/legal/${page}`}>
+                <span class="policy-title">{LEGAL_TITLES[page]}</span>
+                <span class="policy-sum">{docs[page].summary}</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+
+      <section class="contact" aria-labelledby="contact-title">
+        <h2 id="contact-title">Contact us</h2>
+        <p><strong>{b.legalName || b.name || site.name}</strong></p>
+        {b.address && <p><Icon name="map-pin" /> {b.address}</p>}
+        <p><Icon name="phone" /> <a href={`tel:${b.phone || site.phone.tel}`}>{site.phone.display}</a></p>
+        <p>
+          <Icon name="whatsapp" />
+          <a href={whatsappLink("Hi, I have a question about a course.")} target="_blank" rel="noopener">Message us on WhatsApp</a>
+        </p>
+      </section>
+    </div>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .legal-index {
+    padding-block: var(--space-6) var(--section-y);
+  }
+
+  .legal-index .container-narrow {
+    display: grid;
+    gap: var(--space-6);
+  }
+
+  .policy-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .policy-list a {
+    display: grid;
+    gap: var(--space-1);
+    padding: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .policy-list a:hover {
+    border-color: var(--border-strong);
+  }
+
+  .policy-title {
+    color: var(--text);
+    font-weight: var(--weight-strong);
+  }
+
+  .policy-sum {
+    color: var(--text-body);
+    font-size: var(--text-sm);
+  }
+
+  .contact {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .contact p {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+  }
+</style>

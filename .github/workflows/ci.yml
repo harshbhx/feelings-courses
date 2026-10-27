@@ -1,0 +1,52 @@
+# Checks every pull request and every push to main. CI never deploys: Cloudflare Pages builds
+# from GitHub on its own.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Builds in CI always use the seed snapshot (never the live site).
+      SNAPSHOT_SOURCE: seed
+      ASTRO_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # postinstall embeds migrations/*.sql into functions/_generated/migrations.ts.
+      - name: Install
+        run: npm ci
+
+      - name: Type check (Astro)
+        run: npm run check
+
+      - name: Type check (Pages Functions)
+        run: npx tsc -p functions --noEmit
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build:fast
+
+      # Added by W7 (scripts/check-dist.mjs): no demo store in the admin bundle, no rzp_test_
+      # constant in dist, CSP present. Skipped until that script exists.
+      - name: Check dist
+        run: if [ -f scripts/check-dist.mjs ]; then node scripts/check-dist.mjs; else echo "scripts/check-dist.mjs not added yet (W7)"; fi

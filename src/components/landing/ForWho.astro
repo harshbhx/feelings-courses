@@ -1,21 +1,43 @@
 ---
 /**
- * Who it's for (course.forWho), then how it works in three steps: enroll, watch on your phone,
- * get the certificate. Every step's detail is built from course.ts.
+ * Who it's for (details.forWho), then how it works in three steps: enroll, watch on your phone
+ * (or come to the studio, for batches), get the certificate. Every step's detail is built from the
+ * course's own data.
  */
 import Icon from "../Icon.astro";
-import { course } from "../../data/course";
-import { lessonLengthLabel, lessonsLabel } from "./facts";
+import { site } from "../../data/site";
+import type { CourseView } from "../../lib/course-view";
 
-const steps = [
-  { icon: "lock-simple", title: "Enroll", text: `Pay ${course.price.display} once, by UPI, card or netbanking.` },
-  {
-    icon: "device-mobile",
-    title: "Watch on your phone",
-    text: `${lessonsLabel}, ${lessonLengthLabel}, on phone or laptop. ${course.access} of access.`,
-  },
-  { icon: "certificate", title: "Get your certificate", text: `${course.certificate}, when you finish the lessons.` },
-];
+interface Props {
+  view: CourseView;
+}
+
+const { view } = Astro.props;
+const { course } = view;
+const forWho = course.details.forWho;
+const pay = view.depositDisplay
+  ? { icon: "calendar-check", title: "Book your seat", text: `Pay ${view.depositDisplay} online to book, by UPI, card or netbanking. The rest is paid at the studio.` }
+  : { icon: "lock-simple", title: "Enroll", text: `Pay ${view.priceDisplay} once, by UPI, card or netbanking.` };
+const watch = view.hasLessons
+  ? {
+      icon: "device-mobile",
+      title: "Watch on your phone",
+      text: [`${view.lessonsLabel}${view.lessonLengthLabel ? `, ${view.lessonLengthLabel}` : ""}, on phone or laptop.`, view.accessText && `${view.accessText} of access.`]
+        .filter(Boolean)
+        .join(" "),
+    }
+  : null;
+const studio = view.hasBatches
+  ? {
+      icon: "map-pin",
+      title: "Learn at the studio",
+      text: `Classes with ${view.teacherFirstName} at ${site.name}, ${site.address.city}${course.durationText ? `, over ${course.durationText}` : ""}.`,
+    }
+  : null;
+const certificate = course.certificateTitle
+  ? { icon: "certificate", title: "Get your certificate", text: `${course.certificateTitle}, when you finish the course.` }
+  : null;
+const steps = [pay, studio, watch, certificate].filter((s): s is NonNullable<typeof s> => s !== null).slice(0, 4);
 ---
 
 <section class="section for-who" id="for-who" aria-labelledby="for-who-title">
@@ -24,7 +46,7 @@ const steps = [
       <h2 id="for-who-title" data-reveal>Who it’s for<span class="bindi" aria-hidden="true"></span></h2>
       <ul class="who" data-reveal="stagger">
         {
-          course.forWho.map((who, i) => (
+          forWho.map((who, i) => (
             <li style={`--i: ${i}`}>
               <span class="who-dot" aria-hidden="true" />
               <p>{who}</p>

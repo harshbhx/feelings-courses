@@ -6,30 +6,34 @@
  * shape of an Instagram post; it opens to 9:16 when played). From 48rem: the words on the left and
  * the glimpse as a tall 9:16 reel on the right, sized so the whole card fits the first screen.
  *
- * The glimpse is the first clip in course.glimpses (the course's promo video, once it exists).
+ * The glimpse is the first clip in the course's glimpses (its promo video, once it exists).
  * Its cover is the page's largest paint, so it loads eagerly and is never faded in.
+ *
+ * Every fact comes from the course's snapshot entry (src/lib/course-view.ts words it).
  */
 import Icon from "../Icon.astro";
 import Reel from "./Reel.astro";
-import { course, lessonCount, totalMinutes } from "../../data/course";
 import { site } from "../../data/site";
-import { accessParts, ratingCount, ratingMonth } from "./facts";
+import type { CourseView } from "../../lib/course-view";
+import { ratingCount, ratingMonth } from "./facts";
 
+interface Props {
+  view: CourseView;
+}
+
+const { view } = Astro.props;
+const { course } = view;
 // Key facts as big numerals, like the counts on an Instagram profile.
-const stats = [
-  { value: String(lessonCount), unit: lessonCount === 1 ? "lesson" : "lessons" },
-  { value: String(totalMinutes), unit: "minutes" },
-  accessParts,
-];
+const stats = view.stats;
 
-const promo = course.glimpses[0];
+const promo = course.details.glimpses[0];
 const words = course.title.split(" ");
 ---
 
 <section class="hero" aria-labelledby="hero-title">
   <div class="container hero-grid">
     <div class="hero-text">
-      <p class="eyebrow enter">Online course by {course.teacher}</p>
+      <p class="eyebrow enter">{view.eyebrow}</p>
       <h1 id="hero-title" class="hero-title words">
         {
           words.map((word, i) => (
@@ -41,7 +45,7 @@ const words = course.title.split(" ");
           ))
         }
       </h1>
-      <p class="lead hero-lead enter" style="--i: 1">{course.subtitle}</p>
+      {course.subtitle && <p class="lead hero-lead enter" style="--i: 1">{course.subtitle}</p>}
 
       <div class="glance enter" style="--i: 2">
         <ul class="stats" aria-label="The course at a glance">
@@ -55,17 +59,23 @@ const words = course.title.split(" ");
           }
         </ul>
         <ul class="extras">
-          <li><Icon name="certificate" />Certificate</li>
-          <li><Icon name="translate" />{course.language}</li>
+          {course.certificateTitle && <li><Icon name="certificate" />Certificate</li>}
+          {course.language && <li><Icon name="translate" />{course.language}</li>}
         </ul>
       </div>
 
       <div class="hero-actions enter" style="--i: 3" data-cta-zone="hero">
         <a class="btn btn-primary hero-enroll" href="#pricing" data-enroll>
-          Enroll for {course.price.display}
+          {view.enrollLabel}
           <Icon name="arrow-right" />
         </a>
-        <a class="link-arrow hero-lessons" href="#curriculum">See all {lessonCount} lessons</a>
+        {
+          view.hasBatches && course.batches.length > 0 ? (
+            <a class="link-arrow hero-lessons" href="#batches">See batch dates</a>
+          ) : (
+            view.lessonCount > 0 && <a class="link-arrow hero-lessons" href="#curriculum">See all {view.lessonCount} lessons</a>
+          )
+        }
       </div>
       <p class="hero-rating enter" style="--i: 4">
         <Icon name="star-fill" />
@@ -81,7 +91,7 @@ const words = course.title.split(" ");
         <div class="hero-media">
           <div class="hero-reel">
             <Reel
-              id={promo.id}
+              id={promo.youtubeId}
               label={promo.label}
               eager
               sizes="(min-width: 48rem) min(32vw, 22rem), calc(100vw - 2.5rem)"

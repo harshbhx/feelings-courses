@@ -1,253 +1,343 @@
 ---
-// Course editor (DEMO): /admin/courses/edit for a new course, ?id=… to edit one. Title, price,
-// level, language, a cover (a glimpse from course.ts or an uploaded photo), outcomes, modules and
-// lessons, Publish and Preview. Saved to the browser's store (src/lib/demo-store.ts); published
-// courses show on /catalog and at /course?id=….
+// Course editor: /admin/courses/edit?id=…  Everything about one course, from W5's admin API:
+// - the course form (basics, web address, format and fee, page content, photos, search, advanced),
+//   saved with PUT /api/admin/courses/:id, sending only what changed;
+// - the subdomain panel with the Cloudflare steps (~4 clicks) and "Check now";
+// - batches (in-person and hybrid courses), saved one by one;
+// - the lesson outline, saved as a whole (PUT …/outline), with resumable video uploads (W4);
+// - publish, publish edits, unpublish, archive, delete.
+// The page holds no data: the script loads the course and fills these fields.
 import Admin from "../../../layouts/Admin.astro";
 import Icon from "../../../components/Icon.astro";
-import CoverData from "../../../components/admin/CoverData.astro";
-import { getGlimpseCovers } from "../../../components/admin/glimpse-covers";
-import { LANGUAGES, LEVELS } from "../../../lib/demo-store";
+import Field from "../../../components/admin/editor/Field.astro";
+import { DEFAULT_APEX_DOMAIN } from "../../../shared/constants";
 
-const glimpses = await getGlimpseCovers(320);
+const sections = [
+  { id: "sec-basics", label: "Basics" },
+  { id: "sec-address", label: "Web address" },
+  { id: "sec-fee", label: "Format and fee" },
+  { id: "sec-batches", label: "Batches" },
+  { id: "sec-outline", label: "Lessons" },
+  { id: "sec-page", label: "Course page" },
+  { id: "sec-images", label: "Photos" },
+  { id: "sec-seo", label: "Search" },
+  { id: "sec-advanced", label: "More" },
+];
 ---
 
 <Admin
   title="Edit course"
   active="courses"
   noTabbar
-  icons={["arrow-up", "arrow-down", "trash", "plus", "youtube", "clock", "warning-circle", "eye", "arrow-right"]}
+  icons={[
+    "arrow-up",
+    "arrow-down",
+    "trash",
+    "plus",
+    "youtube",
+    "clock",
+    "eye",
+    "arrow-right",
+    "pencil-simple",
+    "upload-simple",
+    "video-camera",
+    "play-circle",
+    "calendar-blank",
+    "users-three",
+    "image",
+    "link-simple",
+    "x-circle",
+    "seal-check",
+    "circle",
+    "lock-simple",
+  ]}
 >
-  <div class="ed-wrap" data-editor>
+  <div class="ed-loading" data-loading></div>
+
+  <div class="ed-wrap" data-editor hidden>
     <header class="page-head ed-head">
       <div>
         <a class="back-link" href="/admin/courses">
           <Icon name="arrow-left" />
           Courses
         </a>
-        <h1 class="page-title" data-ed-heading>New course</h1>
-        <p class="ed-state" data-ed-state>New · not saved yet</p>
+        <h1 class="page-title" data-ed-heading>Course</h1>
+        <p class="ed-state" data-ed-state aria-live="polite">&nbsp;</p>
       </div>
       <div class="page-actions ed-head-actions">
-        <a class="btn btn-ghost" href="#" data-preview>
+        <a class="btn btn-ghost" href="#" target="_blank" rel="noopener" data-view-link>
           <Icon name="eye" />
-          Preview
+          <span data-view-label>Preview</span>
         </a>
-        <button class="btn btn-primary" type="submit" form="course-form" data-save-label>Save draft</button>
+        <button class="btn btn-primary" type="submit" form="course-form" data-save>Save</button>
       </div>
     </header>
 
-    <p class="notice" data-main-note hidden>
-      <Icon name="info" />
-      <span>
-        This is your main course. Its sales page is built from the site’s course file, so in the demo your edits show in the
-        catalog and the preview, not on the main page.
-      </span>
-    </p>
+    <nav class="in-page-nav" aria-label="Sections">
+      {sections.map((s) => <a href={`#${s.id}`} data-nav-for={s.id}>{s.label}</a>)}
+    </nav>
 
     <div class="error-summary" data-summary tabindex="-1" role="group" aria-labelledby="summary-title" hidden>
       <h2 id="summary-title"><Icon name="warning-circle" /><span data-summary-title>Fix these first</span></h2>
       <ul data-summary-list></ul>
     </div>
 
-    <form id="course-form" class="ed" novalidate>
+    <div class="ed">
       <div class="ed-main">
-        <section class="card" aria-labelledby="sec-basics">
-          <div class="card-head">
-            <h2 class="card-title" id="sec-basics">Basics</h2>
-          </div>
-          <div class="card-pad form-grid cols-2">
-            <div class="field span-all">
-              <label class="field-label" for="f-title">Course title</label>
-              <input class="input" id="f-title" name="title" type="text" maxlength="80" autocomplete="off" placeholder="e.g. Bridal makeup at home" aria-describedby="f-title-err" />
-              <p class="field-error" id="f-title-err"></p>
+        <form id="course-form" class="stack" novalidate data-form>
+          <section class="card" id="sec-basics" aria-labelledby="h-basics">
+            <div class="card-head"><h2 class="card-title" id="h-basics">Basics</h2></div>
+            <div class="card-pad form-grid cols-2">
+              <Field class="span-all" name="title" label="Course title" max={120} placeholder="e.g. Bridal makeup basics" />
+              <Field class="span-all" name="subtitle" label="One-line description" type="textarea" rows={2} max={300} optional counter hint="Shown under the title." />
+              <Field
+                class="span-all"
+                name="description"
+                label="About the course"
+                type="textarea"
+                rows={6}
+                max={20000}
+                optional
+                hint="Plain text. Line breaks are kept."
+              />
+              <Field name="teacher" label="Teacher" max={80} />
+              <Field name="level" label="Level" optional max={60} placeholder="Beginner" />
+              <Field name="language" label="Language" optional max={80} placeholder="Gujarati and Hindi" />
+              <Field name="durationText" label="Length" optional max={60} placeholder="6 weeks · 3 h of video" />
             </div>
-            <div class="field span-all">
-              <label class="field-label" for="f-subtitle">One-line description</label>
-              <textarea class="textarea" id="f-subtitle" name="subtitle" rows="2" maxlength="160" placeholder="What will students be able to do after this course?" aria-describedby="f-subtitle-hint f-subtitle-err"></textarea>
-              <p class="field-hint" id="f-subtitle-hint"><span data-count-subtitle>0</span>/160 · shown under the title</p>
-              <p class="field-error" id="f-subtitle-err"></p>
-            </div>
-            <div class="field">
-              <label class="field-label" for="f-price">Price</label>
-              <div class="input-affix">
-                <span class="affix" aria-hidden="true">₹</span>
-                <input class="input num" id="f-price" name="price" type="text" inputmode="numeric" autocomplete="off" placeholder="2999" aria-describedby="f-price-hint f-price-err" />
-              </div>
-              <p class="field-hint" id="f-price-hint">In rupees, one-time payment</p>
-              <p class="field-error" id="f-price-err"></p>
-            </div>
-            <div class="field">
-              <label class="field-label" for="f-level">Level</label>
-              <select class="select" id="f-level" name="level">
-                {LEVELS.map((l) => <option value={l}>{l}</option>)}
-              </select>
-            </div>
-            <div class="field span-all">
-              <label class="field-label" for="f-language">Language</label>
-              <select class="select" id="f-language" name="language">
-                {LANGUAGES.map((l) => <option value={l}>{l}</option>)}
-              </select>
-            </div>
-          </div>
-        </section>
+          </section>
 
-        <section class="card" aria-labelledby="sec-cover">
+          <section class="card" id="sec-address" aria-labelledby="h-address">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title" id="h-address">Web address</h2>
+                <p class="card-sub">The course gets its own subdomain, and always works on the main course site too.</p>
+              </div>
+              <span class="pill" data-domain-pill>&nbsp;</span>
+            </div>
+            <div class="card-pad stack">
+              <div class="field">
+                <label class="field-label" for="f-slug">Subdomain</label>
+                <div class="slug-row">
+                  <input
+                    class="input slug-input"
+                    id="f-slug"
+                    type="text"
+                    inputmode="url"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    maxlength="40"
+                    autocomplete="off"
+                    aria-describedby="f-slug-hint f-slug-err"
+                    data-field="slug"
+                  />
+                  <span class="slug-apex" aria-hidden="true" data-slug-apex>.{DEFAULT_APEX_DOMAIN}</span>
+                </div>
+                <p class="field-hint" id="f-slug-hint" data-slug-hint>Lowercase letters, digits and hyphens.</p>
+                <p class="field-error" id="f-slug-err"></p>
+              </div>
+              <dl class="kv addr-kv">
+                <dt>Own address</dt>
+                <dd><a class="link-btn addr-link" href="#" target="_blank" rel="noopener" data-addr-sub></a></dd>
+                <dt>Always works</dt>
+                <dd><a class="link-btn addr-link" href="#" target="_blank" rel="noopener" data-addr-hub></a></dd>
+              </dl>
+              <p class="addr-help" data-domain-help></p>
+              <details class="cf-help" data-cf-help>
+                <summary>
+                  <span>Set up the subdomain in Cloudflare</span>
+                  <span class="cf-sub">About 4 clicks, once per course</span>
+                </summary>
+                <div class="cf-body">
+                  <ol class="steps" data-cf-steps></ol>
+                  <div class="btn-row">
+                    <a class="btn btn-secondary" href="#" target="_blank" rel="noopener" data-cf-open>
+                      <Icon name="arrow-square-out" />
+                      Open Cloudflare
+                    </a>
+                  </div>
+                </div>
+              </details>
+              <div class="btn-row addr-actions">
+                <button class="btn btn-secondary" type="button" data-domain-check>
+                  <Icon name="arrow-counter-clockwise" />
+                  Check now
+                </button>
+                <p class="addr-probe" role="status" data-domain-probe></p>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" id="sec-fee" aria-labelledby="h-fee">
+            <div class="card-head"><h2 class="card-title" id="h-fee">Format and fee</h2></div>
+            <div class="card-pad stack">
+              <fieldset class="field">
+                <legend class="field-label">What kind of course?</legend>
+                <div class="choice-grid cols-3" data-format-choices></div>
+                <p class="field-error" id="f-format-err"></p>
+              </fieldset>
+              <div class="form-grid cols-2">
+                <Field name="pricePaise" label="Fee" type="money" placeholder="2999" hint="What students pay. 0 for a free course." />
+                <Field name="compareAtPaise" label="Old price" type="money" optional hint="Shown crossed out next to the fee." />
+                <div data-deposit-wrap>
+                  <Field name="depositPaise" label="Booking amount" type="money" optional hint="Pay this now to book a seat; the rest at the academy." />
+                </div>
+                <Field name="accessDays" label="Access to lessons (days)" type="number" placeholder="365" hint="365 = one year from payment. Empty: no end." />
+                <Field class="span-all" name="certificateTitle" label="Certificate wording" optional max={200} placeholder="Certificate of completion: Bridal makeup basics" />
+              </div>
+            </div>
+          </section>
+        </form>
+
+        <section class="card" id="sec-batches" aria-labelledby="h-batches">
           <div class="card-head">
             <div>
-              <h2 class="card-title" id="sec-cover">Cover</h2>
-              <p class="card-sub">Pick a glimpse from your videos, or upload a photo.</p>
+              <h2 class="card-title" id="h-batches">Batches</h2>
+              <p class="card-sub">Dates students can book at the academy. Saved as soon as you add or change one.</p>
             </div>
-          </div>
-          <div class="card-pad">
-            <div class="cover-grid" role="radiogroup" aria-labelledby="sec-cover" data-cover-grid>
-              {
-                glimpses.map((g) => (
-                  <label class="cover-opt">
-                    <input type="radio" name="cover" value={`glimpse:${g.id}`} aria-label={g.label} />
-                    <img src={g.src} alt="" width="160" height="200" loading="lazy" decoding="async" />
-                    <span class="cover-tick" aria-hidden="true">
-                      <Icon name="check" />
-                    </span>
-                  </label>
-                ))
-              }
-              <label class="cover-opt cover-own" data-own hidden>
-                <input type="radio" name="cover" value="upload" aria-label="Your uploaded photo" />
-                <img data-own-img alt="" width="160" height="200" />
-                <span class="cover-tick" aria-hidden="true">
-                  <Icon name="check" />
-                </span>
-                <span class="cover-own-tag">Your photo</span>
-              </label>
-              <div class="cover-opt cover-add">
-                <input
-                  type="file"
-                  id="f-cover"
-                  accept="image/jpeg,image/png,image/webp"
-                  aria-label="Upload a photo"
-                  aria-describedby="f-cover-hint f-cover-err"
-                />
-                <span class="cover-add-inner" aria-hidden="true">
-                  <Icon name="upload-simple" />
-                  <span data-add-label>Upload a photo</span>
-                </span>
-              </div>
-            </div>
-            <p class="field-hint cover-hint" id="f-cover-hint">JPG, PNG or WebP, up to 8 MB. It’s cropped to 4:5 and made smaller to fit.</p>
-            <p class="field-error" id="f-cover-err" role="alert"></p>
-            <button class="link-btn cover-remove" type="button" data-remove-own hidden>
-              <Icon name="trash" />
-              Remove your photo
-            </button>
-          </div>
-        </section>
-
-        <section class="card" aria-labelledby="sec-outcomes">
-          <div class="card-head">
-            <div>
-              <h2 class="card-title" id="sec-outcomes">What students will learn</h2>
-              <p class="card-sub">Short points. They show as a checklist on the course page.</p>
-            </div>
-          </div>
-          <div class="card-pad ed-list-pad">
-            <ol class="outcomes" data-outcomes></ol>
-            <p class="field-error" id="f-outcomes-err" tabindex="-1"></p>
-            <button class="btn btn-secondary ed-add" type="button" data-add-outcome>
+            <button class="btn btn-secondary btn-sm" type="button" data-add-batch>
               <Icon name="plus" />
-              Add a point
+              Add batch
             </button>
           </div>
+          <div class="card-pad" data-batches></div>
         </section>
 
-        <section class="card" aria-labelledby="sec-modules">
+        <section class="card" id="sec-outline" aria-labelledby="h-outline">
           <div class="card-head">
             <div>
-              <h2 class="card-title" id="sec-modules">Modules and lessons</h2>
-              <p class="card-sub" data-curriculum-sum>&nbsp;</p>
+              <h2 class="card-title" id="h-outline">Lessons</h2>
+              <p class="card-sub" data-outline-sum>&nbsp;</p>
             </div>
           </div>
-          <div class="card-pad ed-list-pad">
+          <div class="card-pad stack">
             <div class="mods" data-modules></div>
-            <p class="field-error" id="f-modules-err" tabindex="-1"></p>
-            <button class="btn btn-secondary ed-add" type="button" data-add-module>
-              <Icon name="plus" />
-              Add a module
-            </button>
+            <p class="field-error" id="outline-err" tabindex="-1" data-outline-err></p>
+            <div class="btn-row outline-actions">
+              <button class="btn btn-secondary" type="button" data-add-module>
+                <Icon name="plus" />
+                Add a module
+              </button>
+              <span class="outline-spacer"></span>
+              <button class="btn btn-ghost" type="button" data-outline-undo hidden>Undo changes</button>
+              <button class="btn btn-primary" type="button" data-outline-save disabled>Save lessons</button>
+            </div>
+            <p class="field-hint">
+              Lesson order and new lessons are saved with “Save lessons”. Videos upload straight away and attach to the lesson
+              when they finish.
+            </p>
           </div>
         </section>
+
+        <div class="stack" data-form-more>
+          <section class="card" id="sec-page" aria-labelledby="h-page">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title" id="h-page">Course page</h2>
+                <p class="card-sub">What the landing page shows. Short points read best on phones.</p>
+              </div>
+            </div>
+            <div class="card-pad stack">
+              <div class="ed-list" data-list="outcomes" data-label="What students will learn" data-add="Add a point" data-max="20"></div>
+              <div class="ed-list" data-list="forWho" data-label="Who it's for" data-add="Add a point" data-max="20"></div>
+              <div class="ed-list" data-list="highlights" data-label="Highlights" data-add="Add a highlight" data-max="20"></div>
+              <div class="ed-faqs" data-faqs></div>
+              <div class="ed-glimpses" data-glimpses></div>
+            </div>
+          </section>
+
+          <section class="card" id="sec-images" aria-labelledby="h-images">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title" id="h-images">Photos</h2>
+                <p class="card-sub">Saved as soon as the upload finishes.</p>
+              </div>
+            </div>
+            <div class="card-pad img-grid">
+              <div class="img-slot" data-image-slot="coverKey" data-image-label="Cover photo" data-image-hint="Portrait (4:5) works best in the catalog."></div>
+              <div class="img-slot" data-image-slot="ogImageKey" data-image-label="Sharing image" data-image-hint="Shown when the link is shared on WhatsApp or Instagram. Landscape (1200 × 630)."></div>
+            </div>
+          </section>
+
+          <section class="card" id="sec-seo" aria-labelledby="h-seo">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title" id="h-seo">Search</h2>
+                <p class="card-sub">How the course shows in Google. Leave empty to use the title and description.</p>
+              </div>
+            </div>
+            <div class="card-pad form-grid">
+              <Field name="seoTitle" label="Search title" optional max={70} counter />
+              <Field name="seoDescription" label="Search description" type="textarea" rows={3} optional max={170} counter />
+            </div>
+          </section>
+
+          <section class="card" id="sec-advanced" aria-labelledby="h-advanced">
+            <div class="card-head"><h2 class="card-title" id="h-advanced">More</h2></div>
+            <div class="card-pad stack">
+              <div class="form-grid cols-2">
+                <Field name="sortOrder" label="Catalog order" type="number" hint="Lower numbers show first." inputmode="numeric" />
+              </div>
+              <div class="switch-row">
+                <div>
+                  <label class="field-label" for="f-isDemo">Example content</label>
+                  <p class="field-hint" id="f-isDemo-hint">
+                    Shows an “example” ribbon, keeps the page out of Google and refuses live payments. Turn off once the details
+                    are real.
+                  </p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" role="switch" id="f-isDemo" aria-describedby="f-isDemo-hint" data-field="isDemo" />
+                  <span class="switch-track"></span>
+                </label>
+              </div>
+              <div class="danger-zone">
+                <div>
+                  <h3 class="section-title">Remove this course</h3>
+                  <p class="field-hint" data-delete-help>
+                    A course nobody has bought can be deleted. Once it has students, archive it instead: it leaves the catalog and
+                    students keep their access.
+                  </p>
+                </div>
+                <div class="btn-row">
+                  <button class="btn btn-secondary" type="button" data-archive>Archive</button>
+                  <button class="btn btn-danger" type="button" data-delete>
+                    <Icon name="trash" />
+                    Delete course
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
 
-      <aside class="ed-side" aria-label="Publish">
+      <aside class="ed-side" aria-label="Publishing">
         <section class="card card-pad ed-publish" aria-labelledby="pub-title">
           <div class="pub-row">
-            <div>
-              <h2 class="card-title" id="pub-title">Publish</h2>
-              <p class="card-sub" id="pub-help" data-pub-help>Off: a draft only you can see.</p>
-            </div>
-            <label class="switch">
-              <input type="checkbox" role="switch" id="f-publish" aria-labelledby="pub-title" aria-describedby="pub-help" />
-              <span class="switch-track"></span>
-            </label>
+            <h2 class="card-title" id="pub-title">Publishing</h2>
+            <span class="pill" data-status-pill>&nbsp;</span>
           </div>
+          <p class="card-sub" data-pub-help>&nbsp;</p>
+          <ul class="checklist" data-checklist aria-label="Before publishing"></ul>
           <div class="pub-actions">
-            <button class="btn btn-primary" type="submit" data-save-label>Save draft</button>
-            <a class="btn btn-secondary" href="#" data-preview>
-              <Icon name="eye" />
-              Preview
-            </a>
+            <button class="btn btn-primary" type="button" data-publish>Publish</button>
+            <button class="btn btn-secondary" type="button" data-unpublish hidden>Take off the site</button>
           </div>
-          <p class="pub-live" data-live hidden>
-            <span class="pill pill-live">Live</span>
-            <a class="link-btn" href="/catalog">
-              See it in the catalog
-              <Icon name="arrow-right" />
-            </a>
-          </p>
+          <p class="pub-note" data-pub-note role="status"></p>
         </section>
-
-        <section class="card ed-card-preview" aria-labelledby="cardprev-title">
-          <p class="cardprev-label" id="cardprev-title">How it looks in the catalog</p>
-          <div class="cardprev" aria-hidden="true">
-            <img data-prev-img alt="" width="320" height="400" />
-            <div class="cardprev-body">
-              <p class="cardprev-title" data-prev-title>Untitled course</p>
-              <p class="cardprev-meta" data-prev-meta>&nbsp;</p>
-              <p class="cardprev-price" data-prev-price>&nbsp;</p>
-            </div>
-          </div>
-        </section>
-
-        <button class="btn btn-danger ed-delete" type="button" data-delete hidden>
-          <Icon name="trash" />
-          Delete this course
-        </button>
       </aside>
-    </form>
+    </div>
 
     <div class="action-bar ed-bar">
-      <a class="btn btn-secondary" href="#" data-preview>
-        <Icon name="eye" />
-        Preview
-      </a>
-      <button class="btn btn-primary" type="submit" form="course-form" data-save-label>Save draft</button>
+      <a class="btn btn-secondary" href="#sec-outline">Lessons</a>
+      <button class="btn btn-primary" type="submit" form="course-form" data-save>Save</button>
     </div>
   </div>
-
-  <div class="ed-missing card card-pad" data-missing hidden>
-    <h1 class="page-title">We couldn’t find that course</h1>
-    <p class="page-sub">It may have been deleted, or the demo data was reset.</p>
-    <a class="btn btn-secondary" href="/admin/courses">
-      <Icon name="arrow-left" />
-      Back to courses
-    </a>
-  </div>
-  <p class="visually-hidden" aria-live="polite" data-announce></p>
-  <CoverData />
 </Admin>
 
 <script>
-  import "../../../components/admin/client/editor";
+  import "../../../components/admin/editor/editor";
 </script>
 
 <style is:global>
@@ -260,19 +350,17 @@ const glimpses = await getGlimpseCovers(320);
   }
 
   .ed-state {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
     color: var(--text-muted);
+    font-size: var(--text-xs);
     font-weight: var(--weight-ui);
+  }
+
+  .ed-state.is-dirty {
+    color: var(--maroon-800);
   }
 
   .ed-head-actions {
     display: none;
-  }
-
-  .error-summary {
-    margin-bottom: var(--space-4);
   }
 
   .ed {
@@ -280,12 +368,29 @@ const glimpses = await getGlimpseCovers(320);
     gap: var(--space-4);
   }
 
-  .ed-main,
-  .ed-side {
+  .ed-main {
     display: grid;
-    align-content: start;
     gap: var(--space-4);
     min-width: 0;
+  }
+
+  .ed-main > form,
+  .ed-main > .stack {
+    gap: var(--space-4);
+  }
+
+  .ed-side {
+    display: grid;
+    gap: var(--space-4);
+    align-content: start;
+  }
+
+  .ed-bar {
+    gap: var(--space-2);
+  }
+
+  .ed .card {
+    scroll-margin-top: calc(var(--topbar-h) + var(--space-4));
   }
 
   @media (min-width: 64rem) {
@@ -296,17 +401,10 @@ const glimpses = await getGlimpseCovers(320);
     .ed-bar {
       display: none;
     }
-  }
 
-  /* Side column (publish, card preview) once the main column has room: 1280px and up. */
-  @media (min-width: 80rem) {
     .ed {
       grid-template-columns: minmax(0, 1fr) 20rem;
-      gap: var(--space-5);
       align-items: start;
-    }
-
-    .ed-main {
       gap: var(--space-5);
     }
 
@@ -314,328 +412,362 @@ const glimpses = await getGlimpseCovers(320);
       position: sticky;
       top: calc(4rem + var(--space-5));
     }
+
+    .ed-main,
+    .ed-main > form,
+    .ed-main > .stack {
+      gap: var(--space-5);
+    }
   }
 
-  /* ── Cover picker ── */
-  .cover-grid {
+  .counter {
+    margin-left: 0.4rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Web address */
+  .slug-row {
+    display: flex;
+    align-items: stretch;
+    min-width: 0;
+  }
+
+  .slug-input {
+    flex: 1 1 8rem;
+    min-width: 0;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .slug-apex {
+    display: flex;
+    align-items: center;
+    padding: 0 0.75rem;
+    border: 1px solid var(--border-control);
+    border-left: 0;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--bg-soft);
+    color: var(--text-muted);
+    font-weight: var(--weight-ui);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 26rem) {
+    .slug-row {
+      flex-wrap: wrap;
+    }
+
+    .slug-input {
+      border-radius: var(--radius-sm);
+    }
+
+    .slug-apex {
+      border: 0;
+      background: none;
+      padding: 0.25rem 0 0;
+    }
+  }
+
+  .addr-link {
+    min-height: 2rem;
+    font-weight: var(--weight-ui);
+    overflow-wrap: anywhere;
+  }
+
+  .addr-help {
+    color: var(--text-body);
+  }
+
+  .cf-help {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .cf-help summary {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-3);
+    gap: 0.1rem;
+    padding: var(--space-3) var(--space-4);
+    min-height: 2.75rem;
+    cursor: pointer;
+    color: var(--text);
+    font-weight: var(--weight-strong);
+  }
+
+  .cf-help .cf-sub {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+  }
+
+  .cf-body {
+    display: grid;
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-4) var(--space-4);
+  }
+
+  .addr-actions {
+    align-items: center;
+  }
+
+  .addr-probe {
+    color: var(--text-body);
+    font-weight: var(--weight-ui);
+  }
+
+  /* Repeating lists */
+  .ed-list,
+  .ed-faqs,
+  .ed-glimpses {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .rep-list {
+    list-style: none;
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .rep-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2);
+    align-items: start;
+  }
+
+  .rep-item .field-error {
+    grid-column: 1 / -1;
+  }
+
+  .rep-fields {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .rep-tools {
+    display: flex;
+  }
+
+  .rep-card {
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  /* Photos */
+  .img-grid {
+    display: grid;
+    gap: var(--space-4);
   }
 
   @media (min-width: 40rem) {
-    .cover-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+    .img-grid {
+      grid-template-columns: 1fr 1fr;
     }
   }
 
-  @media (min-width: 80rem) {
-    .cover-grid {
-      grid-template-columns: repeat(7, minmax(0, 1fr));
-    }
+  .img-slot {
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
   }
 
-  .cover-opt {
-    position: relative;
-    display: block;
-    aspect-ratio: 4 / 5;
+  .img-preview {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 4 / 3;
+    border: 1px dashed var(--border-control);
     border-radius: var(--radius-md);
-    background: var(--bg-tint);
+    background: var(--bg-soft);
+    color: var(--text-muted);
     overflow: hidden;
-    cursor: pointer;
-    outline: 2px solid transparent;
-    outline-offset: 2px;
-    transition: outline-color var(--dur-fast) var(--ease-out);
   }
 
-  .cover-opt[hidden] {
-    display: none;
-  }
-
-  .cover-opt input {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    opacity: 0;
-    cursor: pointer;
-    z-index: 2;
-  }
-
-  .cover-opt img {
+  .img-preview img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
 
-  .cover-opt:hover {
-    outline-color: var(--border-control);
+  .img-preview .icon {
+    width: 2rem;
+    height: 2rem;
   }
 
-  .cover-opt:has(input:checked) {
-    outline: 3px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  .cover-opt:has(input:focus-visible) {
-    outline: 3px solid var(--focus);
-    outline-offset: 4px;
-  }
-
-  .cover-tick {
-    position: absolute;
-    top: 0.4rem;
-    right: 0.4rem;
+  /* Danger zone */
+  .danger-zone {
     display: grid;
-    place-items: center;
-    width: 1.5rem;
-    height: 1.5rem;
-    border-radius: 50%;
-    background: var(--accent);
-    color: var(--on-accent);
-    opacity: 0;
-    transform: scale(0.6);
-    transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-soft);
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border);
   }
 
-  .cover-tick .icon {
-    width: 0.9rem;
-    height: 0.9rem;
+  /* Batches */
+  .bt-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
   }
 
-  .cover-opt:has(input:checked) .cover-tick {
-    opacity: 1;
-    transform: none;
+  .bt-info {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
   }
 
-  .cover-own-tag {
-    position: absolute;
-    inset: auto 0.4rem 0.4rem;
-    padding: 0.15rem 0.4rem;
-    border-radius: var(--radius-sm);
-    background: var(--bg-glass);
+  .bt-title {
     color: var(--text);
-    font-size: var(--text-xs);
     font-weight: var(--weight-strong);
-    text-align: center;
+    overflow-wrap: anywhere;
   }
 
-  .cover-add {
-    display: grid;
-    place-items: center;
-    border: 1.5px dashed var(--border-control);
-    background: var(--bg-soft);
-    color: var(--text-body);
-  }
-
-  .cover-add-inner {
-    display: grid;
-    justify-items: center;
-    gap: var(--space-1);
-    padding: var(--space-2);
+  .bt-meta {
+    color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: var(--weight-strong);
-    text-align: center;
-    line-height: 1.3;
+    font-weight: var(--weight-ui);
   }
 
-  .cover-add-inner .icon {
-    width: 1.5rem;
-    height: 1.5rem;
-    color: var(--maroon-800);
-  }
-
-  .cover-add:hover {
-    border-color: var(--text-muted);
-    background: var(--bg-tint);
-  }
-
-  .cover-hint {
-    margin-top: var(--space-3);
-  }
-
-  .cover-hint + .field-error {
-    margin-top: var(--space-2);
-  }
-
-  .cover-remove {
-    margin-top: var(--space-1);
-    color: var(--text-body);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .cover-tick {
-      transform: none;
-    }
-  }
-
-  /* ── Lists: outcomes, modules, lessons ── */
-  .ed-list-pad {
+  /* Outline */
+  .mods {
     display: grid;
     gap: var(--space-3);
   }
 
-  .ed-add {
-    justify-self: start;
-  }
-
-  .outcomes {
-    list-style: none;
-    display: grid;
-    gap: var(--space-2);
-  }
-
-  .oc {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .oc > .field-error {
-    grid-column: 2 / -1;
-  }
-
-  .oc-num,
-  .les-num {
-    display: inline-grid;
-    place-items: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    border-radius: 50%;
-    background: var(--bg-tint);
-    color: var(--maroon-800);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-strong);
-  }
-
-  .tools {
-    display: flex;
-    align-items: center;
-  }
-
-  .tools .icon-btn {
-    width: 2.75rem;
-    height: 2.75rem;
-  }
-
-  .tools .icon-btn.danger:hover {
-    color: var(--accent);
-  }
-
-  @media (max-width: 29.99rem) {
-    .oc {
-      grid-template-columns: minmax(0, 1fr) auto;
-    }
-
-    .oc-num {
-      display: none;
-    }
-
-    .oc > .field-error {
-      grid-column: 1 / -1;
-    }
-
-  }
-
-  .mods {
-    display: grid;
-    gap: var(--space-4);
-  }
-
   .mod {
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-md);
-    background: var(--bg-soft);
-  }
-
-  .mod-head {
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
-  }
-
-  .mod-top,
-  .les-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    min-height: 2.75rem;
-  }
-
-  .mod-label {
-    color: var(--maroon-800);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-strong);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
-  .mod-head .field {
-    padding-right: var(--space-1);
-  }
-
-  .lessons {
-    list-style: none;
-    display: grid;
-    gap: var(--space-2);
-    padding: 0 var(--space-3) var(--space-3);
-  }
-
-  .les {
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-2) var(--space-3) var(--space-3);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--bg);
   }
 
-  .les-label {
+  .mod-head {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    color: var(--text);
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-soft);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+  }
+
+  .mod-num {
+    flex: none;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mod-title {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mod-head .input {
+    min-height: 2.5rem;
     font-weight: var(--weight-strong);
   }
 
-  .les-fields {
-    display: grid;
-    grid-template-columns: 6.5rem minmax(0, 1fr);
-    gap: var(--space-2) var(--space-3);
-    padding-right: var(--space-1);
+  .tools {
+    display: flex;
+    flex: none;
   }
 
-  .les-fields .f-title {
+  .les-list {
+    list-style: none;
+  }
+
+  .les {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  }
+
+  .les + .les {
+    border-top: 1px solid var(--border);
+  }
+
+  .les.is-invalid {
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  .les-main {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+    min-height: 2.75rem;
+    align-content: center;
+  }
+
+  .les-title {
+    color: var(--text);
+    font-weight: var(--weight-strong);
+    overflow-wrap: anywhere;
+  }
+
+  .les-main:hover .les-title {
+    color: var(--accent);
+  }
+
+  .les-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2rem 0.6rem;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+  }
+
+  .les-meta .icon {
+    width: 0.95rem;
+    height: 0.95rem;
+    vertical-align: -0.15em;
+  }
+
+  .les-err {
+    color: var(--accent);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+  }
+
+  .les .upl {
     grid-column: 1 / -1;
   }
 
-  .les-fields .field-label {
-    font-size: var(--text-xs);
+  .mod-foot {
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
+
+  .mod-empty {
+    padding: var(--space-3);
     color: var(--text-muted);
+    font-size: var(--text-xs);
   }
 
-  @media (min-width: 48rem) {
-    .les-fields {
-      grid-template-columns: minmax(0, 1.4fr) 6.5rem minmax(0, 1fr);
-    }
-
-    .les-fields .f-title {
-      grid-column: auto;
-    }
+  .outline-actions {
+    align-items: center;
   }
 
-  .add-lesson {
-    justify-self: start;
-    margin-left: var(--space-1);
+  .outline-spacer {
+    flex: 1;
   }
 
-  /* ── Side: publish and card preview ── */
+  /* Publish card */
   .ed-publish {
     display: grid;
-    gap: var(--space-4);
+    gap: var(--space-3);
   }
 
   .pub-row {
@@ -645,112 +777,70 @@ const glimpses = await getGlimpseCovers(320);
     gap: var(--space-3);
   }
 
-  .pub-row .card-sub {
-    margin-top: 0.15rem;
+  .checklist {
+    list-style: none;
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .checklist a {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.25rem;
+    color: var(--text-body);
+    font-weight: var(--weight-ui);
+    text-decoration: none;
+  }
+
+  .checklist a:hover {
+    color: var(--text);
+  }
+
+  .checklist .icon {
+    flex: none;
+    width: 1.15rem;
+    height: 1.15rem;
+    color: var(--border-control);
+  }
+
+  .checklist .is-done .icon {
+    color: var(--maroon-800);
+  }
+
+  .checklist .is-missing {
+    color: var(--accent);
+  }
+
+  .checklist .is-missing .icon {
+    color: var(--accent);
+  }
+
+  .checklist .opt {
+    color: var(--text-muted);
     font-size: var(--text-xs);
   }
 
   .pub-actions {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .pub-note {
+    color: var(--text-body);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+  }
+
+  .pub-note:empty {
     display: none;
   }
 
-  @media (min-width: 64rem) {
-    .pub-actions {
-      display: grid;
-      gap: var(--space-2);
-    }
-  }
-
-  .pub-live {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2) var(--space-3);
-  }
-
-  .pub-live[hidden] {
+  .ed-loading:empty {
     display: none;
   }
 
-  .ed-card-preview {
-    padding: var(--space-4);
-  }
-
-  .cardprev-label {
-    margin-bottom: var(--space-3);
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-strong);
-  }
-
-  .cardprev {
-    display: grid;
-    grid-template-columns: 5.5rem minmax(0, 1fr);
-    gap: var(--space-3);
-    align-items: start;
-  }
-
-  .cardprev img {
-    width: 100%;
-    aspect-ratio: 4 / 5;
-    object-fit: cover;
-    border-radius: var(--radius-sm);
-    background: var(--bg-tint);
-  }
-
-  .cardprev-body {
-    display: grid;
-    gap: 0.2rem;
-    min-width: 0;
-  }
-
-  .cardprev-title {
-    color: var(--text);
-    font-weight: var(--weight-strong);
-    line-height: 1.3;
-    overflow-wrap: anywhere;
-  }
-
-  .cardprev-meta {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-  }
-
-  .cardprev-price {
-    color: var(--text);
-    font-weight: var(--weight-display);
-    font-variant-numeric: tabular-nums;
-  }
-
-  @media (min-width: 64rem) {
-    .cardprev {
-      grid-template-columns: 1fr;
-    }
-
-    .cardprev img {
-      aspect-ratio: 4 / 3;
-      object-position: 50% 25%;
-    }
-  }
-
-  @media (min-width: 64rem) and (max-width: 79.99rem) {
-    .ed-side {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      align-items: start;
-    }
-
-    .ed-delete {
-      grid-column: 1 / -1;
-    }
-  }
-
-  .ed-delete {
-    justify-self: start;
-  }
-
-  .ed-missing {
-    display: grid;
-    gap: var(--space-3);
-    justify-items: start;
+  .lesson-drawer .drawer-body {
+    gap: var(--space-4);
   }
 </style>

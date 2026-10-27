@@ -1,50 +1,189 @@
 ---
-// The course's landing page, for visitors arriving from Instagram on their phones.
-// Every word and number comes from src/data/course.ts and src/data/site.ts (see CLAUDE.md).
-// Every "Enroll" button is a plain link to #pricing with data-enroll: the checkout component
-// opens the payment sheet on click, and without JavaScript the link still scrolls to the price.
+// The hub's home (courses.feelingsbeautycare.in/), from the build's snapshot:
+// - one published course: that course's landing page, as before (Instagram's /ig and /reel links
+//   land here); its canonical URL is the course's own (/c/<slug> or its subdomain);
+// - several: the catalog, a card per course linking to its canonical URL;
+// - none (every course unpublished): a short note with WhatsApp.
 import Base from "../layouts/Base.astro";
-import Reveal from "../components/landing/Reveal.astro";
+import Icon from "../components/Icon.astro";
 import Header from "../components/landing/Header.astro";
-import Hero from "../components/landing/Hero.astro";
-import Glimpses from "../components/landing/Glimpses.astro";
-import Curriculum from "../components/landing/Curriculum.astro";
-import Teacher from "../components/landing/Teacher.astro";
-import ForWho from "../components/landing/ForWho.astro";
-import Pricing from "../components/landing/Pricing.astro";
-import Faq from "../components/landing/Faq.astro";
-import FinalCta from "../components/landing/FinalCta.astro";
-import EnrollBar from "../components/landing/EnrollBar.astro";
 import Footer from "../components/landing/Footer.astro";
-import Checkout from "../components/checkout/Checkout.astro";
-import { course } from "../data/course";
+import CourseLanding from "../components/landing/CourseLanding.astro";
+import ViewBeacon from "../components/landing/ViewBeacon.astro";
+import { courses, snapshot } from "../data/snapshot";
 import { site } from "../data/site";
+import { buildEnv } from "../lib/build-env";
+import { courseView } from "../lib/course-view";
+import { hubIndexable, hubOrigin } from "../lib/seo";
+import { whatsappLink } from "../lib/whatsapp";
+
+const single = courses.length === 1 ? courses[0] : undefined;
+const cards = courses.map((course) => ({ course, view: courseView(course) }));
+const allDemo = courses.every((c) => c.isDemo);
 ---
 
-<Base title={`${course.title} by ${course.teacher} | ${site.name}`} description={course.subtitle}>
-  <Reveal />
-  <a class="skip-link" href="#main">Skip to content</a>
-  <Header />
-  <main id="main">
-    <Hero />
-    <Glimpses />
-    <Curriculum />
-    <Teacher />
-    <ForWho />
-    <Pricing />
-    <Faq />
-    <FinalCta />
-    <Checkout />
-  </main>
-  <EnrollBar />
-  <Footer />
-</Base>
+{
+  single ? (
+    <CourseLanding course={single} settings={snapshot.settings} />
+  ) : (
+    <Base
+      title={`Makeup courses by ${site.founder} | ${site.name}`}
+      description={`Makeup courses by ${site.founder}, ${site.name}, ${site.address.city}: recorded lessons and studio batches.`}
+      canonical={`${hubOrigin(buildEnv)}/`}
+      noindex={!hubIndexable(snapshot, buildEnv)}
+      demo={courses.length > 0 && allDemo}
+    >
+      <a class="skip-link" href="#main">Skip to content</a>
+      <Header />
+      <main id="main">
+        <section class="hub-hero">
+          <div class="container">
+            <p class="eyebrow">Courses by {site.founder}</p>
+            <h1>
+              Makeup courses<span class="bindi" aria-hidden="true" />
+            </h1>
+            <p class="lead">
+              From {site.name}, {site.address.city}. Recorded lessons to watch on your phone, and batches at the studio.
+            </p>
+          </div>
+        </section>
 
-<style is:global>
-  /* In-page links (See all lessons, Enroll without JS) glide instead of jumping. */
-  @media (prefers-reduced-motion: no-preference) {
-    html {
-      scroll-behavior: smooth;
+        <section class="hub-list" aria-label="Courses">
+          <div class="container">
+            {cards.length > 0 ? (
+              <ul class="hub-grid">
+                {cards.map(({ course, view }) => (
+                  <li>
+                    <a class="hub-card" href={course.canonicalUrl}>
+                      <span class="hub-meta">{[view.formatLabel, course.durationText ?? (view.hasLessons ? view.lessonsLabel : null)].filter(Boolean).join(" · ")}</span>
+                      <span class="hub-title">{course.title}</span>
+                      {course.subtitle && <span class="hub-sub">{course.subtitle}</span>}
+                      <span class="hub-foot">
+                        <span class="hub-price">{view.priceDisplay}</span>
+                        <span class="hub-go">
+                          View course <Icon name="arrow-right" />
+                        </span>
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p class="lead">
+                New courses are on their way.{" "}
+                <a href={whatsappLink()} target="_blank" rel="noopener">
+                  Ask us on WhatsApp
+                </a>{" "}
+                about the next batch.
+              </p>
+            )}
+          </div>
+        </section>
+      </main>
+      <Footer />
+      <ViewBeacon courseId={0} />
+    </Base>
+  )
+}
+
+<style>
+  .hub-hero {
+    padding-block: var(--space-6) var(--space-5);
+  }
+
+  .hub-hero .container {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .hub-hero h1 {
+    font-size: clamp(2.5rem, 1.9rem + 2.6vw, 4rem);
+  }
+
+  .hub-list {
+    padding-bottom: var(--section-y);
+  }
+
+  .hub-grid {
+    display: grid;
+    gap: var(--space-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  @media (min-width: 40rem) {
+    .hub-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+  }
+
+  @media (min-width: 64rem) {
+    .hub-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-6);
+    }
+  }
+
+  .hub-card {
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+    height: 100%;
+    padding: var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg);
+    color: inherit;
+    text-decoration: none;
+    box-shadow: var(--shadow-sm);
+    transition:
+      box-shadow var(--dur-base) var(--ease-out),
+      border-color var(--dur-base) var(--ease-out);
+  }
+
+  .hub-card:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-md);
+  }
+
+  .hub-meta {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+  }
+
+  .hub-title {
+    color: var(--text);
+    font-size: var(--text-xl);
+    font-weight: var(--weight-strong);
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .hub-sub {
+    color: var(--text-body);
+  }
+
+  .hub-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    justify-content: space-between;
+    margin-top: var(--space-3);
+  }
+
+  .hub-price {
+    color: var(--text);
+    font-weight: var(--weight-strong);
+  }
+
+  .hub-go {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+    color: var(--accent);
+    font-weight: var(--weight-ui);
   }
 </style>

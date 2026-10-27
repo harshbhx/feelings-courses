@@ -1,13 +1,18 @@
 ---
 // Where a payment that didn't go through ends up: Razorpay's redirect flow on a failure, the demo
 // sheet's "Simulate failure", or the checkout's "Get help". Calm words, a retry and WhatsApp.
-// The retry is a [data-enroll] link, so the checkout mounted below opens right here.
+// The retry is a [data-enroll] link, so the checkout mounted below opens right here. Once the
+// platform is live (the snapshot came from D1) there is no demo checkout to mount: the retry goes
+// back to the course page ("/" is the course on its own host), whose checkout prices it from D1.
 import ResultPage from "../components/checkout/ResultPage.astro";
 import Checkout from "../components/checkout/Checkout.astro";
 import Icon from "../components/Icon.astro";
 import { course } from "../data/course";
 import { site } from "../data/site";
 import { whatsappLink } from "../lib/whatsapp";
+import { snapshotSource } from "../data/snapshot";
+
+const platform = snapshotSource !== "seed";
 
 const help = whatsappLink(`Hi Urmi, my payment for the ${course.title} didn't go through. Can you help?`);
 ---
@@ -16,7 +21,7 @@ const help = whatsappLink(`Hi Urmi, my payment for the ${course.title} didn't go
   <section class="pf" aria-labelledby="pf-title">
     <h1 id="pf-title">Payment not completed</h1>
     {
-      course.demo ? (
+      course.demo && !platform ? (
         <p class="lead">Nothing to worry about: this is a test, so no money was taken. You can try again now.</p>
       ) : (
         <p class="lead">
@@ -27,7 +32,13 @@ const help = whatsappLink(`Hi Urmi, my payment for the ${course.title} didn't go
   </section>
 
   <div class="btn-row">
-    <a class="btn btn-primary" href="/#pricing" data-enroll>Try again <Icon name="arrow-right" /></a>
+    {
+      platform ? (
+        <a class="btn btn-primary" href="/#pricing">Try again <Icon name="arrow-right" /></a>
+      ) : (
+        <a class="btn btn-primary" href="/#pricing" data-enroll>Try again <Icon name="arrow-right" /></a>
+      )
+    }
     <a class="btn btn-secondary" href={help} target="_blank" rel="noopener"><Icon name="whatsapp" /> WhatsApp us</a>
   </div>
 
@@ -41,7 +52,7 @@ const help = whatsappLink(`Hi Urmi, my payment for the ${course.title} didn't go
   </section>
   <p class="small muted"><a href="/">Back to the course page</a></p>
 
-  <Checkout />
+  {!platform && <Checkout />}
 </ResultPage>
 
 <style>
