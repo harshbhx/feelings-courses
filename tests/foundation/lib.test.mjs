@@ -15,9 +15,7 @@ import * as v from "../../functions/_lib/db/validate.ts";
 import { NotImplementedError } from "../../functions/_lib/stub.ts";
 import { fulfilOrder } from "../../functions/_lib/orders.ts";
 import { quote } from "../../functions/_lib/pricing.ts";
-import { createSession, issueLoginToken, readSession, requireEnrollment } from "../../functions/_lib/session.ts";
 import { signMediaUrl } from "../../functions/_lib/media.ts";
-import { issueCertificate } from "../../functions/_lib/certificates.ts";
 import { bump, statDay } from "../../functions/_lib/analytics.ts";
 import { requestRebuild } from "../../functions/_lib/rebuild.ts";
 import { maybeRunDaily } from "../../functions/_lib/daily.ts";
@@ -187,12 +185,8 @@ test("stubs: frozen signatures that throw NotImplementedError until their workst
   const pending = [
     () => fulfilOrder(env, { orderId: 1, payment: { id: "pay_x", amount: 100, currency: "INR", status: "captured", order_id: null } }),
     () => quote({}, { courseSlug: "x", now: 0 }),
-    () => createSession({}, 1, req("/")),
-    () => readSession(env, req("/")),
-    () => issueLoginToken({}, 1, "handoff", "/learn"),
-    () => requireEnrollment(env, req("/"), "x"),
+    // createSession, readSession, issueLoginToken, requireEnrollment, issueCertificate: implemented by W3 (tests/w3/).
     () => signMediaUrl(env, { kind: "v", lessonId: 1, sessionTag: "public" }),
-    () => issueCertificate(env, { studentId: 1, courseId: 1, name: "A" }),
     () => requestRebuild(env, { waitUntil() {} }),
     () => maybeRunDaily(env, { waitUntil() {} }),
     () => buildSnapshot(env),

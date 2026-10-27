@@ -8,12 +8,24 @@
  *   functions/learn.ts               /learn, so the bare path is a Functions route of its own
  *   functions/learn.html.ts          /learn.html
  *
- * Enrolled (verifyEnrollment() returns an enrollment): the page, marked private and no-store.
- * Anything else, including an error while checking: a 302 to the price card. It never fails open.
+ * Two modes, decided by whether the D1 binding exists (env.ts hasDb):
+ *
+ * - With D1 (the platform, W3): the course area is rendered live from D1 by
+ *   functions/_lib/pages/learn.ts, behind the student's session cookie (`__Host-fbc_s`) and an
+ *   active enrollment (not expired: 1 year from purchase; not revoked). The demo's static /learn
+ *   pages and its `fbc_enroll` cookie are no longer used (the cookie is cleared at sign-in).
+ * - Without D1 (the demo, before the owner runs setup): unchanged. Enrolled (verifyEnrollment()
+ *   returns an enrollment): the page, marked private and no-store. Anything else, including an
+ *   error while checking: a 302 to the price card.
+ *
+ * Either way it never fails open: an error renders an error page, never the static course pages.
  *
  * This file exports no onRequest*, so Pages does not turn it into a route.
  */
 import { ENROLL_COOKIE, verifyEnrollment, type EnrollEnv, type Enrollment } from "../_lib/enrollment";
+import { hasDb, type Env } from "../_lib/env.ts";
+import { handleLearnPage } from "../_lib/pages/learn.ts";
+import { pageHeaders } from "../_lib/pages/html.ts";
 
 /** Where a visitor without a valid enrollment goes: the landing page's price card. */
 export const LOCKED_LOCATION = "/?locked=1#pricing";
@@ -25,7 +37,7 @@ export type Verify = (env: EnrollEnv, request: Request) => Promise<Enrollment | 
 /** The parts of a Pages Functions EventContext the gate uses (kept small so tests can fake it). */
 export interface GateContext {
   request: Request;
-  env: EnrollEnv;
+  env: EnrollEnv & Partial<Env>;
   data: Record<string, unknown>;
   next: () => Promise<Response>;
 }
@@ -53,6 +65,7 @@ export function privateResponse(response: Response): Response {
  */
 export async function gate(context: GateContext, verify: Verify = verifyEnrollment): Promise<Response> {
   const { request, env, data, next } = context;
+  if (hasDb(env)) return d1Learn(context);
 
   // On /learn the middleware runs first, then functions/learn.ts: check once per request.
   if (!data.enrollment) {
@@ -80,6 +93,14 @@ export async function gate(context: GateContext, verify: Verify = verifyEnrollme
  * case.
  */
 export function isCoursePath(rawPath: string): boolean {
+  return coursePath(rawPath) !== null;
+}
+
+/**
+ * The path as the static file server would see it (decoded, slashes collapsed, dot segments
+ * resolved), when it lands in the course area; else null. Same rules as isCoursePath().
+ */
+export function coursePath(rawPath: string): string | null {
   let path = rawPath;
   for (let i = 0; i < 3 && path.includes("%"); i++) {
     // Byte by byte, so a malformed or multi-byte sequence never throws; the prefix is ASCII.
@@ -91,7 +112,23 @@ export function isCoursePath(rawPath: string): boolean {
     if (segment === "..") segments.pop();
     else segments.push(segment);
   }
-  return /^\/learn(?:[/.]|$)/i.test(`/${segments.join("/")}`);
+  const resolved = `/${segments.join("/")}`;
+  return /^\/learn(?:[/.]|$)/i.test(resolved) ? resolved : null;
+}
+
+/** With D1: the live course area. An unexpected error is a 500 page, never the static pages. */
+async function d1Learn(context: GateContext): Promise<Response> {
+  const { request } = context;
+  const path = coursePath(new URL(request.url).pathname) ?? "/learn";
+  try {
+    return await handleLearnPage(request, context.env as Env, path);
+  } catch (error) {
+    console.error(`learn: ${error instanceof Error ? error.message : "unknown error"}`);
+    return new Response("Something went wrong. Please try again.", {
+      status: 500,
+      headers: pageHeaders({ "Content-Type": "text/plain; charset=utf-8" }),
+    });
+  }
 }
 
 /**
@@ -100,11 +137,13 @@ export function isCoursePath(rawPath: string): boolean {
  */
 export function siteMiddleware(context: GateContext, verify: Verify = verifyEnrollment): Promise<Response> {
   const { pathname } = new URL(context.request.url);
-  return isCoursePath(pathname) ? learnMiddleware(context, verify) : context.next();
+  if (!isCoursePath(pathname)) return context.next();
+  return hasDb(context.env) ? d1Learn(context) : learnMiddleware(context, verify);
 }
 
 /** functions/learn/_middleware.ts: gates everything under /learn except the logout link. */
 export function learnMiddleware(context: GateContext, verify: Verify = verifyEnrollment): Promise<Response> {
+  if (hasDb(context.env)) return d1Learn(context);
   const { pathname } = new URL(context.request.url);
   // Logging out needs no enrollment and shows nothing, so an expired cookie can still be cleared.
   if (pathname === LOGOUT_PATH || pathname === `${LOGOUT_PATH}/`) return context.next();

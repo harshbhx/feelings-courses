@@ -139,10 +139,13 @@ Tables, and the workstream that writes them (others only read):
 | `orders.ts` | `fulfilOrder(env, { orderId, payment }) → FulfilResult`; `refundOrder(env, orderId, { amountPaise?, reason, revoke }) → Refund`; `syncOrder(env, orderId) → AdminOrder`; `processWebhookEvent(env, eventId)` | W2 | W2, W3 (restore), W5 |
 | `pricing.ts` | `quote(db, { courseSlug, batchId?, couponCode?, studentId?, now }) → Quote` | W2 | W2 |
 | `media.ts` | `signMediaUrl(env, { kind: "v" \| "c", lessonId, sessionTag, ttl? }) → string` | W4 | W4, W3 |
+| `access-link.ts` (W3, new) | `createAccessLink(env, studentId, { actor?, now? }) → AdminAccessLinkResponse` | W3 | W5 (`POST /api/admin/students/:id/access-link`) |
 | `play.ts` | `playLesson(env, enrollment, lessonId) → PlayInfo \| null` | W4 | W3's play route |
 | `analytics.ts` | `bump(db, day, courseId, field, by?) → DbStatement` (to use inside a batch) | W7 | W2, W7 |
 | `daily.ts` | `maybeRunDaily(env, ctx)` | W7 | W5 middleware, W2 webhook |
 | `rebuild.ts` | `requestRebuild(env, ctx) → { queued, nextAllowedAt }` | W5 | W5 |
+
+W3's sessions, restore, course area and certificates: `docs/platform/STUDENTS.md`. W3 also exports `readCookie`, `sessionToken`, `consumeLoginToken`, `revokeSession`, `revokeAllSessions`, `safeRedirectPath` and `enrollmentActive` from `session.ts`, `checkCertificate` and `normalizeCertificateCode` from `certificates.ts`, and optional trailing `now` parameters on the session functions (tests pass a fixed clock).
 
 ## Middleware: `functions/_middleware.ts`
 
