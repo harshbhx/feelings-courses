@@ -24,14 +24,21 @@ import { NotImplementedError } from "../stub.ts";
 import { getStudent } from "../students.ts";
 import { handleLogout } from "./auth.ts";
 import {
+  batchLine,
+  callout,
+  formatClock,
   formatDate,
   formFromSameSite,
   html,
+  icon,
   layout,
   loadBusiness,
   messagePage,
   page,
   pageRedirect,
+  plural,
+  progressLine,
+  raw,
   whatsappHref,
   type Business,
   type Raw,
@@ -58,6 +65,7 @@ function notInAccount(business: Business): Response {
       "This course isn't in your account",
       "If you bought it with a different phone number or email, sign in with that one.",
       { href: "/account", label: "My courses" },
+      { icon: "magnifying-glass", tone: "info", secondary: { href: "/signin", label: "Sign in with other details" } },
     ),
     404,
   );
@@ -76,11 +84,16 @@ async function noAccess(env: Env, session: SessionRef, slug: string, business: B
   return page(
     layout(
       { title: row.title, business, signedIn: true },
-      html`<section class="card narrow">
+      html`<section class="card narrow state tone-warn">
+  <span class="state-icon">${icon(ended ? "clock" : "lock-simple")}</span>
+  <p class="eyebrow">${ended ? "Access ended" : "Access removed"}</p>
   <h1>${row.title}</h1>
   <p>${ended ? `Your access ended on ${formatDate(row.expires_at!)}. Access lasts one year from purchase.` : "Your access to this course has been removed."}</p>
-  ${help ? html`<p><a class="btn" href="${help}" target="_blank" rel="noopener noreferrer">Message us on WhatsApp</a></p>` : ""}
-  <p><a href="/account">Back to my courses</a></p>
+  <p class="muted small">${ended ? "Your progress and certificate are kept. Message us to ask about joining again." : "If you think this is a mistake, message us and we'll look into it."}</p>
+  <div class="btn-row">
+    ${help ? html`<a class="btn" href="${help}" target="_blank" rel="noopener noreferrer">${icon("whatsapp")}Message us on WhatsApp</a>` : ""}
+    <a class="btn btn-quiet" href="/account">Back to my courses</a>
+  </div>
 </section>`,
     ),
     403,
@@ -89,10 +102,18 @@ async function noAccess(env: Env, session: SessionRef, slug: string, business: B
 
 // ---------------------------------------------------------------- pages
 
-function tick(lesson: LearnLesson): Raw {
-  return lesson.progress?.completedAt
-    ? html`<span class="tick done" aria-label="Done">✓</span>`
-    : html`<span class="tick" aria-hidden="true"></span>`;
+function tick(lesson: LearnLesson, isNext = false): Raw {
+  if (lesson.progress?.completedAt) return html`<span class="tick done">${icon("check", "Done")}</span>`;
+  return isNext ? html`<span class="tick next">${icon("play-fill")}</span>` : html`<span class="tick" aria-hidden="true"></span>`;
+}
+
+const minutesOf = (lessons: { minutes: number }[]) => lessons.reduce((sum, l) => sum + (l.minutes || 0), 0);
+
+/** "Pick up at 3:12" when a lesson was left part way, else null. */
+function resumeText(lesson: LearnLesson): string | null {
+  const at = lesson.progress?.positionSeconds ?? 0;
+  if (lesson.progress?.completedAt || at <= 5) return null;
+  return `Pick up at ${formatClock(at)}`;
 }
 
 function coursePage(business: Business, course: LearnCourseResponse): Raw {
@@ -101,36 +122,61 @@ function coursePage(business: Business, course: LearnCourseResponse): Raw {
   const next = continueLesson(course);
   const slug = course.course.slug;
   const e = course.enrollment;
+  const nextIndex = next ? lessons.findIndex((l) => l.id === next.id) : -1;
+  const resume = next ? resumeText(next) : null;
+  const totalMinutes = minutesOf(lessons);
   return layout(
-    { title: course.course.title, business, signedIn: true },
-    html`<p class="crumbs"><a href="/account">My courses</a></p>
-<h1>${course.course.title}</h1>
-<p class="muted">${e.expiresAt ? `Access until ${formatDate(e.expiresAt)}` : "Access with no end date"}</p>
+    { title: course.course.title, business, signedIn: true, wide: true },
+    html`<div class="page-head">
+  <p class="crumbs"><a href="/account">${icon("arrow-left")}My courses</a></p>
+  <h1>${course.course.title}</h1>
+  <ul class="meta">
+    ${lessons.length ? html`<li>${icon("play-circle")}${plural(lessons.length, "lesson")}${totalMinutes ? `, ${totalMinutes} min` : ""}</li>` : ""}
+    <li>${icon("clock")}${e.expiresAt ? `Access until ${formatDate(e.expiresAt)}` : "Access with no end date"}</li>
+    ${course.course.certificateTitle ? html`<li>${icon("certificate")}Certificate on completion</li>` : ""}
+  </ul>
+</div>
+${
+  lessons.length
+    ? html`<section class="resume${next ? "" : " is-done"}" aria-labelledby="resume-h">
+  <div>
+    <p class="eyebrow">${next ? (done ? `Up next · Lesson ${nextIndex + 1} of ${lessons.length}` : "Start here") : "Course complete"}</p>
+    <h2 id="resume-h">${next ? next.title : "You've finished every lesson."}</h2>
+    ${next ? html`<p>${next.module.title}${next.minutes ? ` · ${next.minutes} min` : ""}${resume ? ` · ${resume}` : ""}</p>` : html`<p>Watch any lesson again, as often as you like, while your access lasts.</p>`}
+    ${progressLine(done, lessons.length)}
+  </div>
+  ${next ? html`<a class="btn" href="/learn/${slug}/${next.slug}">${icon("play-fill")}${done ? "Continue" : "Start"}: ${next.title}</a>` : ""}
+</section>`
+    : ""
+}
 ${
   course.batch
-    ? html`<section class="card"><h2>Your batch</h2><p>${course.batch.title}, from ${course.batch.startsOn}${course.batch.endsOn ? ` to ${course.batch.endsOn}` : ""}</p>${course.batch.scheduleText ? html`<p class="muted">${course.batch.scheduleText}</p>` : ""}</section>`
+    ? html`<section class="card" aria-labelledby="batch-h"><div class="cert-card"><span class="item-icon">${icon("calendar-blank")}</span><div>
+  <h2 id="batch-h">Your batch</h2><p>${batchLine(course.batch)}</p>${course.batch.scheduleText ? html`<p class="muted">${course.batch.scheduleText}</p>` : ""}
+</div></div></section>`
     : ""
 }
 ${
   lessons.length
-    ? html`<section class="card">
-  <p class="progress-line"><progress max="${lessons.length}" value="${done}">${done} of ${lessons.length}</progress>
-  <span>${done} of ${lessons.length} lessons done</span></p>
-  ${next ? html`<p><a class="btn" href="/learn/${slug}/${next.slug}">${done ? "Continue" : "Start"}: ${next.title}</a></p>` : html`<p>You've finished every lesson.</p>`}
-</section>
-${course.modules.map(
-  (m, i) => html`<section class="card">
-  <h2>Module ${i + 1}: ${m.title}</h2>
+    ? course.modules.map((m, i) => {
+        const moduleDone = m.lessons.filter((l) => l.progress?.completedAt).length;
+        const moduleMinutes = minutesOf(m.lessons);
+        return html`<section class="card module" aria-labelledby="module-${m.id}">
+  <div class="module-head">
+    <h2 id="module-${m.id}">Module ${i + 1}: ${m.title}</h2>
+    <p>${moduleDone} of ${m.lessons.length} done${moduleMinutes ? ` · ${moduleMinutes} min` : ""}</p>
+  </div>
   <ol class="lessons">
-    ${m.lessons.map(
-      (l) => html`<li><a href="/learn/${slug}/${l.slug}">${tick(l)}<span class="lesson-title">${l.title}</span><span class="muted">${l.minutes ? `${l.minutes} min` : ""}</span></a></li>`,
-    )}
+    ${m.lessons.map((l) => {
+      const isNext = next?.id === l.id;
+      return html`<li><a href="/learn/${slug}/${l.slug}"${isNext ? raw(` aria-current="step"`) : ""}>${tick(l, isNext)}<span class="lesson-title">${l.title}${isNext ? html`<span class="lesson-sub">${done ? "Up next" : "Start here"}</span>` : ""}</span><span class="lesson-min">${l.minutes ? `${l.minutes} min` : ""}</span></a></li>`;
+    })}
   </ol>
-</section>`,
-)}`
+</section>`;
+      })
     : course.course.format === "in_person"
       ? html``
-      : html`<section class="card"><p>The recorded lessons for this course will appear here.</p></section>`
+      : html`<section class="card state tone-info"><span class="state-icon">${icon("video-camera")}</span><p>The recorded lessons for this course will appear here.</p></section>`
 }
 ${certificateCard(course)}`,
   );
@@ -140,15 +186,39 @@ function certificateCard(course: LearnCourseResponse): Raw {
   if (!course.course.certificateTitle) return html``;
   const slug = course.course.slug;
   const cert = course.certificate;
+  const wrap = (body: Raw) =>
+    html`<section class="card" aria-labelledby="cert-h"><div class="cert-card"><span class="item-icon">${icon("certificate")}</span><div>${body}</div></div></section>`;
   if (cert && !cert.revokedAt) {
-    return html`<section class="card"><h2>Certificate</h2>
+    return wrap(html`<h2 id="cert-h">Certificate</h2>
   <p>Issued to ${cert.nameOnCertificate} on ${formatDate(cert.issuedAt)}.</p>
-  <p><a class="btn" href="/verify/${cert.code}">View and print</a> <a href="/learn/${slug}/certificate">Correct the name</a></p></section>`;
+  <div class="btn-row"><a class="btn" href="/verify/${cert.code}">View and print</a> <a class="link-arrow" href="/learn/${slug}/certificate">Correct the name</a></div>`);
   }
-  if (cert?.revokedAt) return html`<section class="card"><h2>Certificate</h2><p>This certificate was withdrawn. Message us on WhatsApp if you think that's a mistake.</p></section>`;
+  if (cert?.revokedAt) return wrap(html`<h2 id="cert-h">Certificate</h2><p>This certificate was withdrawn. Message us on WhatsApp if you think that's a mistake.</p>`);
   return course.complete
-    ? html`<section class="card"><h2>Certificate</h2><p>You've finished the course.</p><p><a class="btn" href="/learn/${slug}/certificate">Get your certificate</a></p></section>`
-    : html`<section class="card"><h2>Certificate</h2><p class="muted">Finish every lesson to get your certificate.</p></section>`;
+    ? wrap(html`<h2 id="cert-h">Certificate</h2><p>You've finished the course. Well done!</p><p><a class="btn" href="/learn/${slug}/certificate">Get your certificate</a></p>`)
+    : wrap(html`<h2 id="cert-h">Certificate</h2><p class="muted">Finish every lesson to get your certificate.</p>`);
+}
+
+/** The course outline beside the lesson (below it on phones, folded). */
+function lessonOutline(course: LearnCourseResponse, current: number, done: number, total: number): Raw {
+  const slug = course.course.slug;
+  return html`<aside class="lesson-aside" aria-label="Course outline">
+  <div class="card">
+    <details class="outline" open>
+      <summary>Course outline</summary>
+      ${progressLine(done, total)}
+      ${course.modules.map(
+        (m) => html`<p class="module-name">${m.title}</p>
+      <ol class="lessons">
+        ${m.lessons.map(
+          (l) =>
+            html`<li><a href="/learn/${slug}/${l.slug}"${l.id === current ? raw(` aria-current="page"`) : ""}>${tick(l, l.id === current)}<span class="lesson-title">${l.title}</span><span class="lesson-min">${l.minutes ? `${l.minutes} min` : ""}</span></a></li>`,
+        )}
+      </ol>`,
+      )}
+    </details>
+  </div>
+</aside>`;
 }
 
 function lessonPage(
@@ -163,32 +233,55 @@ function lessonPage(
   const next = lessons[index + 1] ?? null;
   const slug = course.course.slug;
   const doneAt = lesson.progress?.completedAt ?? null;
+  const done = lessons.filter((l) => l.progress?.completedAt).length;
   const notes = (lesson.notes ?? "").split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  const resumeAt = play ? Math.max(play.resumeAt, 0) : 0;
   return layout(
-    { title: `${lesson.title} | ${course.course.title}`, business, signedIn: true, script: true },
-    html`<p class="crumbs"><a href="/learn/${slug}">${course.course.title}</a> · Lesson ${index + 1} of ${lessons.length}</p>
+    { title: `${lesson.title} | ${course.course.title}`, business, signedIn: true, script: true, wide: true },
+    html`<p class="crumbs"><a href="/learn/${slug}">${icon("arrow-left")}${course.course.title}</a><span aria-hidden="true">·</span><span>Lesson ${index + 1} of ${lessons.length}</span></p>
+<div class="lesson-layout">
+<div class="lesson-main">
 <div class="player${lesson.vertical ? " vertical" : ""}">
 ${
   play
-    ? html`<video controls playsinline preload="metadata" controlslist="nodownload" src="${play.src}"
-    data-lesson-id="${lesson.id}" data-course="${slug}" data-expires="${play.expiresAt}" data-resume="${Math.max(play.resumeAt, 0)}">
+    ? html`<span class="player-wait" aria-hidden="true">${icon("play-circle")}</span>
+  <video controls playsinline preload="metadata" controlslist="nodownload" src="${play.src}"
+    data-lesson-id="${lesson.id}" data-course="${slug}" data-expires="${play.expiresAt}" data-resume="${resumeAt}" aria-label="Video: ${lesson.title}">
     ${play.captions ? html`<track kind="captions" src="${play.captions}" srclang="en" label="Captions" default>` : ""}
   </video>
   <div class="watermark" aria-hidden="true">${play.watermark.name}${play.watermark.phoneMasked ? ` · ${play.watermark.phoneMasked}` : ""}</div>`
-    : html`<div class="video-missing"><p>${lesson.hasVideo ? "The video can't be played right now. Please try again in a minute." : "This lesson's video is being prepared."}</p></div>`
+    : html`<div class="video-missing">${icon(lesson.hasVideo ? "warning-circle" : "clock")}<p>${lesson.hasVideo ? "The video can't be played right now. Please try again in a minute." : "This lesson's video is being prepared."}</p>${lesson.hasVideo ? html`<a class="btn btn-quiet btn-sm" href="/learn/${slug}/${lesson.slug}">Try again</a>` : ""}</div>`
 }
 </div>
-<h1>${lesson.title}</h1>
-<p class="muted">Module: ${lesson.module.title}${lesson.minutes ? ` · ${lesson.minutes} min` : ""}</p>
-<form method="post" action="/learn/${slug}/${lesson.slug}" class="actions">
-  <input type="hidden" name="action" value="${doneAt ? "undone" : "done"}">
-  <button type="submit" class="btn${doneAt ? " btn-quiet" : ""}" aria-pressed="${doneAt ? "true" : "false"}">${doneAt ? "✓ Done (undo)" : "Mark as done"}</button>
-</form>
-${notes.length ? html`<section class="card notes"><h2>Notes</h2>${notes.map((p) => html`<p>${p}</p>`)}</section>` : ""}
+${play && resumeAt > 5 && !doneAt ? html`<p class="resume-note">${icon("clock")}Picking up where you left off, at ${formatClock(resumeAt)}.</p>` : ""}
+<div class="lesson-head">
+  <p class="eyebrow">Module: ${lesson.module.title}</p>
+  <h1>${lesson.title}</h1>
+  <ul class="meta">${lesson.minutes ? html`<li>${icon("clock")}${lesson.minutes} min</li>` : ""}${doneAt ? html`<li>${icon("check-circle")}Done</li>` : ""}</ul>
+</div>
+<div class="actions">
+  <form method="post" action="/learn/${slug}/${lesson.slug}" class="actions">
+    <input type="hidden" name="action" value="${doneAt ? "undone" : "done"}">
+    <button type="submit" class="btn${doneAt ? " btn-quiet" : ""}" aria-pressed="${doneAt ? "true" : "false"}">${doneAt ? "✓ Done (undo)" : next ? "Mark as done and go on" : "Mark as done"}</button>
+  </form>
+  ${next ? html`<a class="btn btn-quiet" href="/learn/${slug}/${next.slug}" data-next-lesson${doneAt ? "" : raw(" hidden")}>Next lesson${icon("arrow-right")}</a>` : ""}
+</div>
+${notes.length ? html`<section class="card notes" aria-labelledby="notes-h"><h2 id="notes-h">Notes</h2>${notes.map((p) => html`<p>${p}</p>`)}</section>` : ""}
 <nav class="pager" aria-label="Previous and next lesson">
-  ${prev ? html`<a href="/learn/${slug}/${prev.slug}" rel="prev">← ${prev.title}</a>` : html`<a href="/learn/${slug}">← Course home</a>`}
-  ${next ? html`<a href="/learn/${slug}/${next.slug}" rel="next">${next.title} →</a>` : html`<a href="/learn/${slug}">Course home →</a>`}
-</nav>`,
+  ${
+    prev
+      ? html`<a href="/learn/${slug}/${prev.slug}" rel="prev">${icon("arrow-left")}<span><span class="pager-label">Previous</span><span class="pager-title">${prev.title}</span></span></a>`
+      : html`<a href="/learn/${slug}">${icon("arrow-left")}<span><span class="pager-label">Back to</span><span class="pager-title">Course home</span></span></a>`
+  }
+  ${
+    next
+      ? html`<a href="/learn/${slug}/${next.slug}" rel="next"><span><span class="pager-label">Up next</span><span class="pager-title">${next.title}</span></span>${icon("arrow-right")}</a>`
+      : html`<a class="pager-next" href="/learn/${slug}"><span><span class="pager-label">Last lesson</span><span class="pager-title">Course home${course.course.certificateTitle ? " and certificate" : ""}</span></span>${icon("arrow-right")}</a>`
+  }
+</nav>
+</div>
+${lessonOutline(course, lesson.id, done, lessons.length)}
+</div>`,
   );
 }
 
@@ -196,16 +289,17 @@ function certificatePage(business: Business, course: LearnCourseResponse, defaul
   const cert = course.certificate;
   return layout(
     { title: `Certificate | ${course.course.title}`, business, signedIn: true },
-    html`<p class="crumbs"><a href="/learn/${course.course.slug}">${course.course.title}</a></p>
+    html`<p class="crumbs"><a href="/learn/${course.course.slug}">${icon("arrow-left")}${course.course.title}</a></p>
 <section class="card narrow">
+  <span class="state-icon">${icon("certificate")}</span>
   <h1>${cert ? "Correct the name on your certificate" : "Get your certificate"}</h1>
   <p>${course.course.certificateTitle}</p>
-  ${error ? html`<p class="alert" role="alert">${error}</p>` : ""}
+  ${error ? callout("alert", error, "name-error") : ""}
   <form method="post" action="/learn/${course.course.slug}/certificate" class="form">
     <label for="name">Name to print</label>
-    <input id="name" name="name" type="text" autocomplete="name" required minlength="2" maxlength="80" value="${defaultName}">
-    <p class="hint">Exactly as you want it on the certificate. Anyone with the certificate's link can see this name.</p>
-    <button type="submit" class="btn">${cert ? "Save and view" : "Get certificate"}</button>
+    <input id="name" name="name" type="text" autocomplete="name" required minlength="2" maxlength="80" value="${defaultName}" aria-describedby="name-hint${error ? " name-error" : ""}"${error ? raw(` aria-invalid="true"`) : ""}>
+    <p class="hint" id="name-hint">Exactly as you want it on the certificate. Anyone with the certificate's link can see this name.</p>
+    <button type="submit" class="btn">${icon("seal-check")}${cert ? "Save and view" : "Get certificate"}</button>
   </form>
 </section>`,
   );

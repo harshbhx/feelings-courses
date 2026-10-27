@@ -8,12 +8,15 @@
  * one red button, the Razorpay line and a WhatsApp question link.
  * A struck-through "was" price shows only if the course has a compare-at price.
  * Studio batches with a booking amount say so: the amount paid now, the balance at the studio.
+ * Under the button, what happens after paying (the receipt on screen, the device limit for
+ * recorded lessons, the refund window): the owner's decisions, from src/shared/constants.ts.
  */
 import Icon from "../Icon.astro";
 import Avatar from "./Avatar.astro";
 import { site } from "../../data/site";
 import { whatsappLink } from "../../lib/whatsapp";
 import type { CourseView } from "../../lib/course-view";
+import { MAX_DEVICES_PER_STUDENT, REFUND_WINDOW_HOURS } from "../../shared/constants";
 
 interface Props {
   view: CourseView;
@@ -91,6 +94,26 @@ const lead = [
           <Icon name="lock-simple" />
           Secure payment by Razorpay: UPI, cards, netbanking
         </p>
+        <ul class="assure" aria-label="After you pay">
+          <li>
+            <Icon name="receipt" />
+            <span>Your receipt shows on screen as soon as you pay</span>
+          </li>
+          {
+            view.hasLessons && (
+              <li>
+                <Icon name="device-mobile" />
+                <span>Watch on up to {MAX_DEVICES_PER_STUDENT} devices, phone or laptop</span>
+              </li>
+            )
+          }
+          <li>
+            <Icon name="arrow-counter-clockwise" />
+            <span>
+              Changed your mind? <a href="/refunds">Refund within {REFUND_WINDOW_HOURS} hours</a>
+            </span>
+          </li>
+        </ul>
 
         <a class="btn btn-secondary ask-btn" href={whatsappLink(`Hi ${teacherFirstName}, I have a question about the ${course.title}.`)} target="_blank" rel="noopener">
           <Icon name="whatsapp" />
@@ -245,6 +268,41 @@ const lead = [
     height: 1.05rem;
     margin-right: 0.3em;
     vertical-align: -0.17em;
+  }
+
+  /* What happens after paying: three quiet lines, so the price card answers "is this safe?" */
+  .assure {
+    list-style: none;
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--bg-soft);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+    color: var(--text-body);
+  }
+
+  .assure li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .assure :global(.icon) {
+    width: 1.1rem;
+    height: 1.1rem;
+    margin-top: 0.1em;
+    color: var(--text-muted);
+  }
+
+  .assure a {
+    color: var(--text);
+    font-weight: var(--weight-ui);
+  }
+
+  .assure a:hover {
+    color: var(--accent);
   }
 
   .ask-btn {

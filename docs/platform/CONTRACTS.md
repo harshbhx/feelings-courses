@@ -198,6 +198,7 @@ The integration branch (`docs/INTEGRATION.md`) settled the overlaps between work
 | Upload types and sizes | `MEDIA_FILE_TYPES`, `MEDIA_MAX_BYTES`, `extensionOf()` in `src/shared/constants.ts` | W4 `media-rules.ts` (`MEDIA_RULES`, `MAX_UPLOAD_BYTES`), W6 file picker (`UPLOAD_RULES`) |
 | Rupee formatting | W1 `course-view.ts` `formatInr()` | W6 `formatPaise()` (zero is "₹0" there, not "Free") |
 | Hub host and course domain in the admin | `config(env)` via `GET /api/admin/me` (`hubHost`, `apexDomain`) | W6 course addresses, Cloudflare steps, settings |
+| The student pages' frame and look | W3 `pages/html.ts` `layout()`, `messagePage()` (icon, tone, second action), `icon()`, `progressLine()`, `callout()`, `batchLine()`; `public/app/app.css` and `/app/fonts/` | W3 sign-in, account, course area, `/verify`; W2 receipt (`renderReceiptPage()`, CSP `style-src 'self'; font-src 'self'`) |
 | An order as the admin sees it | W5 `admin/orders.ts` `getOrder()` | `GET /api/admin/orders/:id` and `POST /api/admin/orders/:id/sync` (after W2's `syncOrder`) |
 
 `<Checkout course settings platform>` (`src/components/checkout/Checkout.astro`) sends an `OrderRequest` and follows `VerifyResponse.redirect` only to the same site or the hub. `tests/integration/routes.test.mjs` lists what a course host does with every Functions route (serve, hub or 404); a new route file fails it until it is added.
