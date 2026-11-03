@@ -140,6 +140,7 @@ In order. Nothing here has been done to the Cloudflare or Razorpay accounts.
 
 ## 7. Known limits and risks
 
+- **Security review:** `docs/SECURITY-REVIEW.md`. Two items need an owner decision: phone squatting without phone verification (F4), and the Astro 7 and sharp 0.35 upgrades for published advisories (F5). Since F1, a sign-in by proof of purchase (handoff or payment ID) opens an account only for its first purchase. A returning buyer on a new device signs in with their first payment ID or a WhatsApp link.
 - **A refund removes access when Razorpay confirms it** (the `refund.processed` webhook, or "Sync with Razorpay" in the admin). Refunds start as pending. If the webhook is missing, access stays until a sync.
 - **Video access lasts up to 60 seconds after a refund or sign-out.** W4 reuses a passed check for 60 s in each isolate. The course area and the play API refuse at once.
 - **Checkout UI and the whole admin UI haven't been seen in a browser.** No build or Playwright ran on the VM. `astro check` type-checks the scripts, but the checkout's batch picker, coupon field and checkbox, and every admin screen (W6), need a look at 390px and up (checklist steps 6 and 7).

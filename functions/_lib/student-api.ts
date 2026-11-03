@@ -23,10 +23,11 @@ import { checkCertificate, publicCheck } from "./certificates.ts";
 import { writeAudit } from "./db/audit.ts";
 import { unixNow } from "./db/d1.ts";
 import { hasDb, type Env } from "./env.ts";
-import { clientIp, error, errorResponse, isJson, json, methodNotAllowed, readJson, sameOrigin } from "./http.ts";
+import { error, errorResponse, isJson, json, methodNotAllowed, readJson, sameOrigin } from "./http.ts";
 import { claimCertificate, listEnrollments, loadLearnCourse, parseProgress, saveProgress } from "./learn.ts";
 import { playLesson } from "./play.ts";
 import { buildReceipt } from "./receipts.ts";
+import { ipSubject } from "./guard.ts";
 import { hit } from "./ratelimit.ts";
 import { restoreAccess } from "./restore.ts";
 import {
@@ -83,6 +84,13 @@ export const handleRestore = endpoint(["POST"], async (request, env, now) => {
         "Too many tries. Please wait a while, or message us on WhatsApp for a sign-in link.",
         { retryAfter: result.retryAfter },
         { "Retry-After": String(result.retryAfter) },
+      );
+    }
+    if (result.reason === "use_first_payment") {
+      return error(
+        409,
+        "use_first_payment",
+        "This account has an earlier purchase. Sign in with the payment ID of your first purchase, or message us on WhatsApp for a sign-in link.",
       );
     }
     return error(
@@ -229,7 +237,7 @@ export function handleCertificateClaim(slug: string) {
 
 export function handleCertificateCheck(code: string) {
   return endpoint(["GET"], async (request, env, now) => {
-    const limit = await hit(env.DB, "certificate_ip", clientIp(request), { now });
+    const limit = await hit(env.DB, "certificate_ip", ipSubject(request), { now });
     if (!limit.allowed) {
       return error(429, "rate_limited", "Too many checks. Please wait a minute.", { retryAfter: limit.retryAfter }, {
         "Retry-After": String(limit.retryAfter),

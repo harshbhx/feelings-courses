@@ -14,7 +14,7 @@ import { checkCertificate, normalizeCertificateCode, type CertificateView } from
 import { config } from "../config.ts";
 import { unixNow } from "../db/d1.ts";
 import type { Env } from "../env.ts";
-import { clientIp } from "../http.ts";
+import { ipSubject } from "../guard.ts";
 import { hit } from "../ratelimit.ts";
 import { formatLongDate, html, layout, loadBusiness, messagePage, page, pageRedirect, type Business, type Raw } from "./html.ts";
 
@@ -72,7 +72,7 @@ export async function handleVerifyPage(request: Request, env: Env, rawCode: stri
     return pageRedirect(`/verify/${code}`, [], 302);
   }
 
-  const limit = await hit(env.DB, "certificate_ip", clientIp(request), { now });
+  const limit = await hit(env.DB, "certificate_ip", ipSubject(request), { now });
   if (!limit.allowed) {
     const response = page(messagePage({ title: "Please wait", business }, "Please wait a minute", "Too many certificate checks from this connection."), 429);
     response.headers.set("Retry-After", String(limit.retryAfter));

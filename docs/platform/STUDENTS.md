@@ -7,10 +7,12 @@ How a student signs in, stays signed in, opens their courses, saves progress and
 There are no passwords and no email. A student gets a session in three ways:
 
 1. **At payment.** W2's verify (and a free enrollment) calls `issueLoginToken(db, studentId, "handoff", path)` and redirects to `https://<hub>/auth/continue?t=…`. The handoff token lasts 10 minutes, works once, and signs in at once.
+   - **Only for a first purchase** (`functions/_lib/claim.ts`, security review F1). Nobody checks that the buyer owns the phone number, so a payment or free enrollment hands off only when the student had no other live enrollment before it. Otherwise verify answers with the receipt link, and a free enrollment with `https://<hub>/signin?next=…` (a signed-in device goes straight on).
 2. **Restore on a new device** (`/signin`, or `POST /api/auth/restore`). The student types:
    - the phone number or email they paid with;
    - the Razorpay payment ID from their receipt (`pay_…`).
    Both must belong to one paid order in D1. The contact is compared with the student's phone and email and with what they typed into Razorpay's form.
+   - **First purchase only** (same rule as the handoff): when the account had a live enrollment before this order, the answer is `use_first_payment` (409): sign in with the first purchase's payment ID, or ask for a WhatsApp link. Only someone holding a paid order for that contact sees it.
    - **Fallback:** for a captured payment D1 hasn't recorded yet (the browser closed before verify and the webhook is late), Razorpay's record is fetched with the server's keys. It must be captured, for the order's exact amount and mode, and is then fulfilled through W2's `fulfilOrder`.
 3. **A one-time WhatsApp link from Urmi.** W5's `POST /api/admin/students/:id/access-link` calls `createAccessLink()`. It returns the link and a prefilled `wa.me` message for the admin to send.
    - The link lasts 24 hours and works once. A newer link replaces the student's unused older ones.
