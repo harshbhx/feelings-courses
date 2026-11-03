@@ -193,11 +193,14 @@ test("students: orders list, profile update, device labels", async () => {
 
   const updated = await updateStudent(db, ASHA.id, { name: "Asha P." }, NOW);
   assert.equal(updated.name, "Asha P.");
+  // The email is the account: a student can't change it (nor take someone else's) on their own.
   await assert.rejects(updateStudent(db, 2, { email: ASHA.email }, NOW), (err) => {
-    assert.equal(err.name, "ConflictError");
+    assert.equal(err.name, "ValidationError");
     assert.equal(err.message.includes("asha"), false, "never says whose email it is");
     return true;
   });
+  await assert.rejects(updateStudent(db, ASHA.id, { email: "new@example.com" }, NOW), /WhatsApp/);
+  assert.equal(db.get("SELECT email FROM students WHERE id = ?", ASHA.id).email, ASHA.email);
   await assert.rejects(updateStudent(db, 2, { name: "" }, NOW), /name/);
   assert.equal(deviceLabel("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Version/17.0 Mobile Safari/604.1"), "Safari on iPhone or iPad");
   assert.equal(deviceLabel("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36"), "Chrome on Android");

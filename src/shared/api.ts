@@ -94,7 +94,6 @@ export type ApiErrorCode =
   // students (W3)
   | "not_signed_in"
   | "not_enrolled"
-  | "no_match"
   | "token_invalid"
   | "course_incomplete"
   | "no_certificate"
@@ -145,8 +144,13 @@ export interface OrderRequest {
   batchId?: number;
   coupon?: string;
   name: string;
-  phone: string;
-  email?: string;
+  /**
+   * The account (owner decision, 23 Oct 2026): the student is found by it, and the receipt and
+   * every sign-in link go to it. Typing it proves nothing (functions/_lib/claim.ts).
+   */
+  email: string;
+  /** Optional contact number (Razorpay's prefill, WhatsApp help). Never finds or opens an account. */
+  phone?: string;
   /** Optional state code. Not asked by checkout: no tax is shown (owner decision, plan 10.5). */
   state?: string;
   /** The terms and privacy checkbox. Must be true. */
@@ -181,9 +185,10 @@ export interface VerifyRequest {
   razorpay_signature: string;
 }
 /**
- * `redirect` is https://<HUB>/auth/continue?t=… (W3's handoff, which lands on the receipt). Until
- * W3's sign-in exists it is the receipt link itself. `receipt` is the on-screen receipt,
- * https://<HUB>/receipt/<orderId>?k=… (no email service: the buyer keeps or shares this link).
+ * `redirect` is https://<HUB>/auth/continue?t=… (W3's handoff, which lands on the receipt) when
+ * the payment may sign this device in (claim.ts: a new account whose email was never proven);
+ * otherwise the receipt itself. `receipt` is the on-screen receipt, https://<HUB>/receipt/<orderId>?k=….
+ * The receipt and a sign-in link are also emailed to the account's address.
  */
 export type VerifyResponse = { ok: true; redirect: string; receipt?: string };
 
@@ -197,13 +202,14 @@ export type CertificateCheckResponse = CertificateCheck;
 
 // ---------------------------------------------------------------- students
 
-export interface RestoreRequest {
-  /** Phone or email. */
-  contact: string;
-  /** pay_… */
-  paymentId: string;
+/** POST /api/auth/email-link: a one-time sign-in link by email (15 minutes). */
+export interface EmailLinkRequest {
+  email: string;
+  /** Where to land after sign-in: a same-site path (default /account). */
+  next?: string;
 }
-export type RestoreResponse = { ok: true; redirect: string };
+/** 202 for every well-formed address, whether or not it has an account (no enumeration). */
+export type EmailLinkResponse = { ok: true };
 
 export interface SignoutRequest {
   all?: boolean;
@@ -213,9 +219,9 @@ export interface MeResponse {
   student: Student;
   enrollments: EnrollmentSummary[];
 }
+/** The student changes their name only; the email (their sign-in) and phone change through the admin. */
 export interface MeUpdateRequest {
   name?: string;
-  email?: string | null;
 }
 export type MeUpdateResponse = Student;
 export type MySessionsResponse = StudentSession[];
@@ -355,8 +361,9 @@ export type AdminStudentResponse = AdminStudent;
 
 export interface AdminAddStudentRequest {
   name: string;
-  phone: string;
-  email?: string;
+  /** How the student signs in. */
+  email: string;
+  phone?: string;
   /** Enroll right away (source 'manual'). */
   courseId?: number;
   batchId?: number;
@@ -370,12 +377,24 @@ export interface AdminGrantRequest {
   expiresAt?: Unix | null;
 }
 
+/** PUT /api/admin/students/:id: correct the contact details. A new email ends unused sign-in links. */
+export interface AdminUpdateStudentRequest {
+  name?: string;
+  email?: string;
+  /** null or "" removes it. */
+  phone?: string | null;
+}
+
 export interface AdminAccessLinkResponse {
   /** https://<HUB>/auth/continue?t=… (24 h, single use) */
   url: string;
-  /** https://wa.me/<phone>?text=… */
+  /** https://wa.me/<phone>?text=… (no number when the student has none: WhatsApp asks whom to send it to) */
   whatsappUrl: string;
   expiresAt: Unix;
+  /** The link was emailed to the student. */
+  emailed: boolean;
+  /** Where it went (null: no email on file). */
+  email: string | null;
 }
 
 export interface AdminIssueCertificateRequest {
@@ -485,7 +504,7 @@ export interface Endpoints {
   /** The on-screen receipt page (HTML). `k` is the HMAC key from the verify response's link. */
   "GET /receipt/:id": E<{ k: string }, string>;
   // students
-  "POST /api/auth/restore": E<RestoreRequest, RestoreResponse>;
+  "POST /api/auth/email-link": E<EmailLinkRequest, EmailLinkResponse>;
   "GET /auth/continue": E<{ t: string }, None>;
   "POST /api/auth/signout": E<SignoutRequest, None>;
   "GET /api/me": E<None, MeResponse>;
@@ -521,6 +540,7 @@ export interface Endpoints {
   // admin: students
   "GET /api/admin/students": E<AdminStudentsQuery, AdminStudentsResponse>;
   "GET /api/admin/students/:id": E<None, AdminStudentResponse>;
+  "PUT /api/admin/students/:id": E<AdminUpdateStudentRequest, AdminStudentResponse>;
   "POST /api/admin/students": E<AdminAddStudentRequest, AdminStudentResponse>;
   "POST /api/admin/students/:id/enrollments": E<AdminGrantRequest, EnrollmentSummary>;
   "DELETE /api/admin/enrollments/:id": E<None, None>;

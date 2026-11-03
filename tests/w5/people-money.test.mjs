@@ -126,11 +126,31 @@ test("students: add, grant with the course's 1-year default, revoke and reopen",
   assert.equal(e.mode, "live", "manual access is real access");
   assert.equal(e.expiresAt - e.startsAt, 365 * 86_400);
 
-  const dup = await t.call(studentsRoute, "POST", "/api/admin/students", { body: { name: "Again", phone: "+919825012345" } });
+  // The email is the student (they sign in with it): required, unique; the phone is optional but unique too.
+  const dup = await t.call(studentsRoute, "POST", "/api/admin/students", { body: { name: "Again", email: "kavya@example.com" } });
   assert.equal(dup.status, 409);
   assert.equal(dup.body.error, "student_exists");
-  const badPhone = await t.call(studentsRoute, "POST", "/api/admin/students", { body: { name: "X", phone: "12345" } });
+  const dupPhone = await t.call(studentsRoute, "POST", "/api/admin/students", { body: { name: "Again", email: "other@example.com", phone: "+919825012345" } });
+  assert.equal(dupPhone.status, 409);
+  const noEmail = await t.call(studentsRoute, "POST", "/api/admin/students", { body: { name: "X", phone: "9811111111" } });
+  assert.equal(noEmail.status, 400);
+  const badPhone = await t.call(studentsRoute, "POST", "/api/admin/students", { body: { name: "X", email: "x@example.com", phone: "12345" } });
   assert.equal(badPhone.status, 400);
+  const noPhone = await t.call(studentsRoute, "POST", "/api/admin/students", { body: { name: "Mira", email: "mira@example.com" } });
+  assert.equal(noPhone.status, 201);
+  assert.equal(noPhone.body.phone, null);
+
+  // Edit details: fix a typo in the email; the old address's unused links stop working.
+  const mid = String(noPhone.body.id);
+  t.db.sqlite.exec(`INSERT INTO login_tokens (token_hash, purpose, student_id, redirect_path, created_at, expires_at) VALUES ('${"b".repeat(64)}', 'admin_link', ${mid}, '/account', 1, 9999999999)`);
+  const edited = await t.call(studentRoute, "PUT", "/", { params: { id: mid }, body: { email: "Mira.S@Example.com", phone: "98111 22233" } });
+  assert.equal(edited.status, 200, JSON.stringify(edited.body));
+  assert.deepEqual([edited.body.email, edited.body.phone, edited.body.name], ["mira.s@example.com", "+919811122233", "Mira"]);
+  assert.ok(t.db.get("SELECT used_at FROM login_tokens WHERE student_id = ?", Number(mid)).used_at > 0, "old links end");
+  assert.equal((await t.call(studentRoute, "PUT", "/", { params: { id: mid }, body: { email: "kavya@example.com" } })).status, 409);
+  assert.equal((await t.call(studentRoute, "PUT", "/", { params: { id: mid }, body: { email: "" } })).status, 400);
+  const audit = t.db.get("SELECT data FROM audit_log WHERE action = 'student.update_details'").data;
+  assert.equal(audit.includes("mira"), false, "the audit row names what changed, never the values");
 
   const id = String(added.body.id);
   const again = await t.call(grantRoute, "POST", "/", { params: { id }, body: { courseId: 1 } });
@@ -174,6 +194,8 @@ test("students: sign-out everywhere, access link (W3 stub), and erase", async ()
   assert.equal(link.status, 200);
   assert.match(link.body.url, /^https:\/\/courses\.feelingsbeautycare\.in\/auth\/continue\?t=[A-Za-z0-9_-]{43}$/);
   assert.match(link.body.whatsappUrl, /^https:\/\/wa\.me\/919876543210\?text=/);
+  // No mailer in this fixture: the link isn't emailed, and the admin is told so.
+  assert.deepEqual([link.body.emailed, link.body.email], [false, "riya@example.com"]);
   assert.deepEqual(
     t.db.rows("SELECT actor FROM audit_log WHERE action = 'student.access_link'").map((r) => r.actor),
     ["admin"],

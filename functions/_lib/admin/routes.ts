@@ -17,6 +17,7 @@ import * as v from "../db/validate.ts";
 import { error, json } from "../http.ts";
 import { processWebhookEvent, refundOrder, syncOrder } from "../orders.ts";
 import { publishStatus, requestRebuild } from "../rebuild.ts";
+import { sendReceiptEmail } from "../signin-links.ts";
 import { ADMIN_ACTOR, changePassword, clearAdminCookie, login, revokeAdminSession, type LoginResult } from "./auth.ts";
 import { createBatch, deleteBatch, listBatches, updateBatch } from "./batches.ts";
 import { createCoupon, deleteCoupon, getCoupon, listCoupons, updateCoupon } from "./coupons.ts";
@@ -45,6 +46,7 @@ import {
   revokeEnrollment,
   signOutEverywhere,
   studentsCsv,
+  updateStudentDetails,
   type StudentFilters,
 } from "./students.ts";
 
@@ -205,9 +207,10 @@ export const studentsCsvRoute = adminRoute({
   },
 });
 
-/** GET /api/admin/students/:id */
+/** GET /api/admin/students/:id · PUT { name?, email?, phone? } (contact details; the email is how they sign in) */
 export const studentRoute = adminRoute({
   GET: async (ctx) => json(await getStudent(dbOf(ctx), pathId(ctx.params.id), studentOpts(ctx))),
+  PUT: async (ctx) => json(await updateStudentDetails(dbOf(ctx), pathId(ctx.params.id), await body(ctx), studentOpts(ctx))),
 });
 
 /** POST /api/admin/students/:id/enrollments { courseId, batchId?, expiresAt? } */
@@ -321,9 +324,12 @@ export const refundRoute = adminRoute({
 export const syncRoute = adminRoute({
   POST: async (ctx) => {
     const id = pathId(ctx.params.id);
-    await getOrder(dbOf(ctx), id);
+    const before = await getOrder(dbOf(ctx), id);
     await syncOrder(ctx.env, id);
-    return json(await getOrder(dbOf(ctx), id));
+    const after = await getOrder(dbOf(ctx), id);
+    // A payment only the sync found (the browser closed, no webhook): its receipt email goes now.
+    if (before.status !== "paid" && after.status === "paid") await sendReceiptEmail(ctx.env, id);
+    return json(after);
   },
 });
 
@@ -336,7 +342,9 @@ export const webhooksRoute = adminRoute({
 export const replayRoute = adminRoute({
   POST: async (ctx) => {
     const id = await webhookExists(dbOf(ctx), ctx.params.id);
-    await processWebhookEvent(ctx.env, id);
+    const outcome = await processWebhookEvent(ctx.env, id);
+    // A replay that marks an order paid sends its receipt email, as the webhook would have.
+    if (outcome.paidOrderId !== null) await sendReceiptEmail(ctx.env, outcome.paidOrderId);
     await auditStatement(dbOf(ctx), { actor: ADMIN_ACTOR, action: "webhook.replay", entity: "webhook", entityId: id, now: unixNow() }).run();
     return json({ ok: true });
   },

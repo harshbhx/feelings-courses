@@ -2,7 +2,7 @@
  * The student JSON API (W3, plan section 4). Route files in functions/api/** are one-liners that
  * call these, so tests can call them with a plain Request.
  *
- *   POST   /api/auth/restore                         phone or email + payment ID → session
+ *   POST   /api/auth/email-link                      email → a one-time sign-in link by email (same answer for every address)
  *   POST   /api/auth/signout                         this device, or { all: true }
  *   GET    /api/me                PUT /api/me        profile and enrollments
  *   GET    /api/me/sessions       DELETE /api/me/sessions/:id
@@ -18,30 +18,30 @@
  * a same-origin Origin; errors are { error, message }. "Not enrolled" and "no such course" give the
  * same 404, so the API doesn't tell anyone which courses exist as drafts.
  */
-import type { MeResponse, MyReceiptResponse, RestoreResponse } from "../../src/shared/api.ts";
+import type { EmailLinkResponse, MeResponse, MyReceiptResponse } from "../../src/shared/api.ts";
 import { checkCertificate, publicCheck } from "./certificates.ts";
-import { writeAudit } from "./db/audit.ts";
 import { unixNow } from "./db/d1.ts";
 import { hasDb, type Env } from "./env.ts";
-import { clientIp, error, errorResponse, isJson, json, methodNotAllowed, readJson, sameOrigin } from "./http.ts";
+import { error, errorResponse, isJson, json, methodNotAllowed, readJson, sameOrigin } from "./http.ts";
 import { claimCertificate, listEnrollments, loadLearnCourse, parseProgress, saveProgress } from "./learn.ts";
 import { playLesson } from "./play.ts";
 import { buildReceipt } from "./receipts.ts";
+import { ipSubject } from "./guard.ts";
 import { hit } from "./ratelimit.ts";
-import { restoreAccess } from "./restore.ts";
 import {
   clearSessionCookie,
-  createSession,
   readSession,
   requireEnrollment,
   revokeAllSessions,
   revokeSession,
-  safeRedirectPath,
   type SessionRef,
 } from "./session.ts";
+import { requestSignInLink } from "./signin-links.ts";
+import type { WaitUntil } from "./stub.ts";
+import { nextPath } from "./pages/auth.ts";
 import { getStudent, listOrders, listSessions, updateStudent } from "./students.ts";
 
-type Handler = (request: Request, env: Env, now: number) => Promise<Response>;
+type Handler = (request: Request, env: Env, now: number, ctx?: WaitUntil) => Promise<Response>;
 
 const notConfigured = () => error(503, "platform_not_configured", "This part of the site isn't set up yet.");
 const notSignedIn = () => error(401, "not_signed_in", "Please sign in again.");
@@ -49,7 +49,7 @@ const notEnrolled = () => error(404, "not_enrolled", "This course isn't in your 
 
 /** Method check, CSRF checks for writes, and error mapping around a handler. */
 function endpoint(methods: readonly string[], handler: Handler) {
-  return async (request: Request, env: Env, now = unixNow()): Promise<Response> => {
+  return async (request: Request, env: Env, now = unixNow(), ctx?: WaitUntil): Promise<Response> => {
     const method = request.method === "HEAD" ? "GET" : request.method;
     if (!methods.includes(method)) return methodNotAllowed(methods);
     if (method !== "GET") {
@@ -58,7 +58,7 @@ function endpoint(methods: readonly string[], handler: Handler) {
     }
     if (!hasDb(env)) return notConfigured();
     try {
-      return await handler(request, env, now);
+      return await handler(request, env, now, ctx);
     } catch (err) {
       return errorResponse(err);
     }
@@ -71,37 +71,25 @@ async function signedIn(request: Request, env: Env, now: number): Promise<Sessio
 
 // ---------------------------------------------------------------- auth
 
-export const handleRestore = endpoint(["POST"], async (request, env, now) => {
+/**
+ * POST /api/auth/email-link { email, next? }: emails a one-time sign-in link when the address has
+ * an account. 202 for every well-formed address (no enumeration); 400 for a malformed one; 429
+ * when the IP or the address asked too often.
+ */
+export const handleEmailLink = endpoint(["POST"], async (request, env, now, ctx) => {
   const body = await readJson(request);
   if (!body.ok) return body.response;
-  const result = await restoreAccess(env, request, body.value, now);
+  const result = await requestSignInLink(env, request, { email: body.value.email, next: nextPath(body.value.next) }, { now, ctx });
   if (!result.ok) {
-    if (result.reason === "rate_limited") {
-      return error(
-        429,
-        "rate_limited",
-        "Too many tries. Please wait a while, or message us on WhatsApp for a sign-in link.",
-        { retryAfter: result.retryAfter },
-        { "Retry-After": String(result.retryAfter) },
-      );
-    }
     return error(
-      400,
-      "no_match",
-      "We couldn't find a payment with those details. Check the payment ID and the phone number or email you paid with.",
+      429,
+      "rate_limited",
+      "Too many tries. Please wait a while, then ask for a new link.",
+      { retryAfter: result.retryAfter },
+      { "Retry-After": String(result.retryAfter) },
     );
   }
-  const { cookie } = await createSession(env.DB, result.studentId, request, now);
-  await writeAudit(env.DB, {
-    actor: `student:${result.studentId}`,
-    action: "student.restore",
-    entity: "student",
-    entityId: result.studentId,
-    data: { orderId: result.orderId, via: result.via },
-    now,
-  });
-  const redirect = safeRedirectPath(body.value.next) ?? "/account";
-  return json({ ok: true, redirect } satisfies RestoreResponse, 200, { "Set-Cookie": cookie });
+  return json({ ok: true } satisfies EmailLinkResponse, 202);
 });
 
 export const handleSignout = endpoint(["POST"], async (request, env, now) => {
@@ -229,7 +217,7 @@ export function handleCertificateClaim(slug: string) {
 
 export function handleCertificateCheck(code: string) {
   return endpoint(["GET"], async (request, env, now) => {
-    const limit = await hit(env.DB, "certificate_ip", clientIp(request), { now });
+    const limit = await hit(env.DB, "certificate_ip", ipSubject(request), { now });
     if (!limit.allowed) {
       return error(429, "rate_limited", "Too many checks. Please wait a minute.", { retryAfter: limit.retryAfter }, {
         "Retry-After": String(limit.retryAfter),

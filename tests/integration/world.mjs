@@ -1,6 +1,7 @@
 // The integration "world" shared by the tests in this folder: one published course (glow) on its
 // own host, a D1 shim, a fake R2 and a fake Razorpay, routed through the real Functions files by
 // site.mjs, with node:test's mocked Date. No real keys: every secret here is made up.
+import { fakeMailer } from "../helpers/mailer.mjs";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { createTestDb } from "../helpers/d1.mjs";
@@ -57,8 +58,11 @@ export async function setup(t) {
     "/c/glow": { body: "<!doctype html><title>Glow Makeup</title><h1>Glow Makeup</h1>", headers: { "Content-Type": "text/html; charset=utf-8" } },
     "/domains.json": JSON.stringify({ active: ["glow"] }),
   });
+  // Email through the real mailer Worker with a fake Email Service (tests/helpers/mailer.mjs).
+  const mail = fakeMailer();
   const env = {
     ...ENV,
+    ...mail.env,
     DB: db,
     MEDIA: media,
     ASSETS: assets,
@@ -81,7 +85,7 @@ export async function setup(t) {
     now: () => Math.floor(Date.now() / 1000),
     advance: (seconds) => t.mock.timers.tick(seconds * 1000),
   };
-  return { db, env, site, routes, refunds, rzp, clock, payments: new Map() };
+  return { db, env, site, routes, refunds, rzp, clock, mail, payments: new Map() };
 }
 
 /** A captured payment for `order` (what Razorpay's API answers once the buyer paid). */

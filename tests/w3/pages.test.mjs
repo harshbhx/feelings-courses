@@ -12,6 +12,7 @@ import { issueCertificate } from "../../functions/_lib/certificates.ts";
 import { issueLoginToken, readSession } from "../../functions/_lib/session.ts";
 import { LEGACY_ENROLL_COOKIE, SESSION_COOKIE } from "../../functions/_lib/config.ts";
 import { context, cookiesFrom, postForm, req } from "../helpers/http.mjs";
+import { fakeMailer } from "../helpers/mailer.mjs";
 import { ASHA, completeCourse, env, NOW, sessionCookie, setupDb } from "./fixtures.mjs";
 
 const cookieOf = (res) => {
@@ -59,55 +60,78 @@ test("GET /signin: a plain form; signed-in visitors go straight on", async () =>
   assert.equal(again.headers.get("Location"), "/learn/selfmakeup");
 });
 
-test("POST /signin: signs in, clears the demo cookie and follows next", async () => {
+test("POST /signin: emails a one-time link (landing on next); the same page for an unknown address", async () => {
   const db = await setupDb();
-  const res = await handleSignin(
-    postForm("/signin", { contact: "98765 43210", paymentId: ASHA.payment, next: "/learn/selfmakeup" }, { ip: "192.0.2.10" }),
-    env(db),
-    NOW,
-  );
-  assert.equal(res.status, 303);
-  assert.equal(res.headers.get("Location"), "/learn/selfmakeup");
-  const cookies = cookiesFrom(res);
-  assert.ok(cookies[SESSION_COOKIE].value);
+  const mail = fakeMailer();
+  const known = await handleSignin(postForm("/signin", { email: " Asha@Example.com ", next: "/learn/selfmakeup" }, { ip: "192.0.2.10" }), env(db, mail.env), NOW);
+  assert.equal(known.status, 200);
+  assertPageHeaders(known);
+  assert.equal(cookieOf(known), null, "asking for a link signs nobody in");
+  const knownBody = await known.text();
+  assert.ok(knownBody.includes("Check your email"));
+  assert.equal(mail.sent.length, 1);
+  assert.equal(mail.sent[0].to, ASHA.email);
+  const link = mail.lastLink(ASHA.email);
+  assert.match(link, /^https:\/\/courses\.feelingsbeautycare\.in\/auth\/continue\?t=[A-Za-z0-9_-]{43}$/);
+  const row = db.get("SELECT purpose, redirect_path, expires_at, created_at FROM login_tokens");
+  assert.deepEqual([row.purpose, row.redirect_path, row.expires_at - row.created_at], ["admin_link", "/learn/selfmakeup", 15 * 60]);
+
+  const unknown = await handleSignin(postForm("/signin", { email: "nobody@example.com", next: "/learn/selfmakeup" }, { ip: "192.0.2.10" }), env(db, mail.env), NOW);
+  assert.equal(unknown.status, 200);
+  const unknownBody = await unknown.text();
+  assert.equal(unknownBody.replaceAll("nobody@example.com", "X"), knownBody.replaceAll("asha@example.com", "X"), "the same page, whatever the address");
+  assert.equal(mail.sent.length, 1, "no mail to an address without an account");
+
+  // The link: Continue, then signed in on this device, the demo cookie cleared, landing on next.
+  const go = await handleContinue(postForm("/auth/continue", { t: mail.tokenOf(link) }), env(db), NOW + 60);
+  assert.equal(go.status, 303);
+  assert.equal(go.headers.get("Location"), "/learn/selfmakeup");
+  const cookies = cookiesFrom(go);
   assert.equal(cookies[LEGACY_ENROLL_COOKIE].attributes["max-age"], "0");
-  assert.equal((await readSession(env(db), req("/", { cookie: cookieOf(res) }), NOW)).studentId, ASHA.id);
+  assert.equal((await readSession(env(db), req("/", { cookie: cookieOf(go) }), NOW + 60)).studentId, ASHA.id);
 });
 
 test("POST /signin: errors re-render the form (escaped), cross-site posts are refused", async () => {
   const db = await setupDb();
-  const wrong = await handleSignin(postForm("/signin", { contact: "9812345678", paymentId: ASHA.payment }, { ip: "192.0.2.11" }), env(db), NOW);
+  const mail = fakeMailer();
+  const wrong = await handleSignin(postForm("/signin", { email: "asha at example" }, { ip: "192.0.2.11" }), env(db, mail.env), NOW);
   assert.equal(wrong.status, 400);
-  assert.ok((await wrong.text()).includes("couldn&#39;t find a payment"));
-  assert.equal(cookieOf(wrong), null);
+  assert.ok((await wrong.text()).includes("Enter an email like"));
 
-  const xss = await handleSignin(postForm("/signin", { contact: `"><script>x</script>`, paymentId: ASHA.payment }, { ip: "192.0.2.12" }), env(db), NOW);
+  const xss = await handleSignin(postForm("/signin", { email: `"><script>x</script>` }, { ip: "192.0.2.12" }), env(db, mail.env), NOW);
   assert.equal(xss.status, 400);
   const body = await xss.text();
   assert.equal(body.includes("<script>x</script>"), false);
   assert.ok(body.includes('aria-invalid="true"'));
 
-  const cross = await handleSignin(postForm("/signin", { contact: "9876543210", paymentId: ASHA.payment }, { origin: "https://evil.example" }), env(db), NOW);
+  const cross = await handleSignin(postForm("/signin", { email: ASHA.email }, { origin: "https://evil.example" }), env(db, mail.env), NOW);
   assert.equal(cross.status, 403);
-  assert.equal(cookieOf(cross), null, "login CSRF refused");
-
   const fetchSite = await handleSignin(
-    postForm("/signin", { contact: "9876543210", paymentId: ASHA.payment }, { origin: null, headers: { "Sec-Fetch-Site": "cross-site" } }),
-    env(db),
+    postForm("/signin", { email: ASHA.email }, { origin: null, headers: { "Sec-Fetch-Site": "cross-site" } }),
+    env(db, mail.env),
     NOW,
   );
   assert.equal(fetchSite.status, 403);
+  assert.equal(mail.sent.length, 0, "nothing sent for refused requests");
 });
 
-test("POST /signin: rate limited after 5 tries from one IP", async () => {
+test("POST /signin: rate limited per IP and per address", async () => {
   const db = await setupDb();
+  const mail = fakeMailer();
   let last;
-  for (let i = 0; i < 6; i++) {
-    last = await handleSignin(postForm("/signin", { contact: "asha@example.com", paymentId: "pay_Wrong000000001" }, { ip: "192.0.2.13" }), env(db), NOW);
+  for (let i = 0; i < 11; i++) {
+    last = await handleSignin(postForm("/signin", { email: `someone${i}@example.com` }, { ip: "192.0.2.13" }), env(db, mail.env), NOW);
   }
   assert.equal(last.status, 429);
   assert.ok(Number(last.headers.get("Retry-After")) > 0);
   assert.ok((await last.text()).includes("Too many tries"));
+  // Per address: 3 links in 15 minutes, from any IP.
+  const statuses = [];
+  for (let i = 0; i < 4; i++) {
+    statuses.push((await handleSignin(postForm("/signin", { email: ASHA.email }, { ip: `198.51.100.${i + 1}` }), env(db, mail.env), NOW)).status);
+  }
+  assert.deepEqual(statuses, [200, 200, 200, 429]);
+  assert.equal(mail.sent.length, 3);
 });
 
 test("/auth/continue: the payment handoff signs in at once and lands on its path", async () => {

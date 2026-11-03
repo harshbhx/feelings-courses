@@ -5,4 +5,4 @@
 import { routeVerify } from "../_lib/payments.ts";
 import type { Env } from "../_lib/env.ts";
 
-export const onRequest: PagesFunction<Env> = ({ request, env }) => routeVerify(request, env);
+export const onRequest: PagesFunction<Env> = (ctx) => routeVerify(ctx.request, ctx.env, { waitUntil: (p) => ctx.waitUntil(p) });

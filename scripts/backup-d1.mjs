@@ -8,7 +8,7 @@
 // `wrangler d1 execute --file` restores), then prints the file's size and SHA-256 so a copy can be
 // checked later. Needs `npx wrangler login` once. Read-only on Cloudflare's side.
 //
-// backups/ is gitignored: the file holds students' names and phone numbers. Keep it private.
+// backups/ is gitignored: the file holds students' names, emails and phone numbers. Keep it private.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";

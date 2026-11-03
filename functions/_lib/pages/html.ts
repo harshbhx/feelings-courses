@@ -11,6 +11,7 @@
 import { getSetting } from "../db/settings.ts";
 import type { Db } from "../db/d1.ts";
 import { securityHeaders } from "../http.ts";
+import { ICON_PATHS, type IconName } from "./icons.ts";
 
 // ---------------------------------------------------------------- escaping
 
@@ -69,6 +70,20 @@ export function formatLongDate(unix: number): string {
   const d = new Date((unix + IST) * 1000);
   const long = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   return `${d.getUTCDate()} ${long[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/** "2026-11-08" → "8 Nov 2026" (a calendar date, no time zone shift); anything else as it is. */
+export function formatDay(isoDate: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!m) return isoDate;
+  const month = MONTHS[Number(m[2]) - 1];
+  return month ? `${Number(m[3])} ${month} ${m[1]}` : isoDate;
+}
+
+/** "Sunday workshop, 8 Nov 2026" or "December batch, 1 Dec 2026 to 19 Dec 2026". */
+export function batchLine(batch: { title: string; startsOn: string; endsOn: string | null }): string {
+  const from = formatDay(batch.startsOn);
+  return batch.endsOn && batch.endsOn !== batch.startsOn ? `${batch.title}, ${from} to ${formatDay(batch.endsOn)}` : `${batch.title}, ${from}`;
 }
 
 /** "₹4,999" or "₹4,999.50" (Indian digit grouping). */
@@ -164,11 +179,56 @@ export interface LayoutOptions {
   business: Business;
   /** Show "My courses" and "Sign out" in the header. */
   signedIn?: boolean;
-  /** Extra class on <body> ("print" for the certificate page). */
+  /** Extra class on <body> ("certificate-page" for the certificate). */
   bodyClass?: string;
   /** Load /app/learn.js (lesson pages). */
   script?: boolean;
+  /** A wider column (the course home and lesson pages: video plus the lesson list). */
+  wide?: boolean;
+  /** Marks the header's "My courses" link as the current page. */
+  current?: "account";
 }
+
+// ---------------------------------------------------------------- icons and small parts
+
+/** A Phosphor icon (functions/_lib/pages/icons.ts). Decorative unless it gets a label. */
+export function icon(name: IconName, label?: string): Raw {
+  const a11y = label ? html`role="img" aria-label="${label}"` : raw(`aria-hidden="true" focusable="false"`);
+  return html`<svg class="icon" ${a11y} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="${ICON_PATHS[name]}"/></svg>`;
+}
+
+/** "3:05" or "1:02:09" for a position in a video. */
+export function formatClock(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const rest = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${rest}` : `${m}:${rest}`;
+}
+
+/** "1 lesson", "9 lessons". */
+export function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** The progress bar and its words: a native <progress> (screen readers announce it) and "3 of 9 lessons done". */
+export function progressLine(done: number, total: number): Raw {
+  return html`<p class="progress-line"><progress max="${total}" value="${done}" aria-label="Course progress">${done} of ${total}</progress>
+  <span class="count">${done} of ${total} ${total === 1 ? "lesson" : "lessons"} done</span></p>`;
+}
+
+/** An alert (error), notice (done) or info line with its icon. */
+export function callout(kind: "alert" | "notice" | "info", text: string | Raw, id?: string): Raw {
+  const name: IconName = kind === "alert" ? "warning-circle" : kind === "notice" ? "check-circle" : "info";
+  const role = kind === "alert" ? "alert" : "status";
+  return html`<p class="${kind}"${id ? html` id="${id}"` : ""} role="${role}">${icon(name)}<span>${text}</span></p>`;
+}
+
+const LEGAL_LINKS = [
+  { href: "/terms", label: "Terms" },
+  { href: "/refunds", label: "Refunds" },
+  { href: "/privacy", label: "Privacy" },
+];
 
 export function layout(options: LayoutOptions, content: Raw): Raw {
   const help = whatsappHref(options.business, "Hi Urmi, I need help with my course account.");
@@ -179,7 +239,9 @@ export function layout(options: LayoutOptions, content: Raw): Raw {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#ffffff">
 <title>${options.title} | ${options.business.name}</title>
+<link rel="preload" href="/app/fonts/plus-jakarta-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/app/app.css">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 ${options.script ? html`<script type="module" src="/app/learn.js"></script>` : ""}
@@ -187,38 +249,65 @@ ${options.script ? html`<script type="module" src="/app/learn.js"></script>` : "
 <body class="${options.bodyClass ?? ""}">
 <a class="skip" href="#main">Skip to content</a>
 <header class="top">
-  <div class="wrap top-row">
-    <a class="brand" href="/">${options.business.name}<span class="brand-sub">Courses</span></a>
+  <div class="wrap${options.wide ? " wide" : ""} top-row">
+    <a class="brand" href="${options.signedIn ? "/account" : "/"}"><img class="brand-mark" src="/favicon.svg" alt="" width="32" height="32"><span class="brand-text">${options.business.name}<span class="brand-sub">Courses</span></span></a>
     ${
       options.signedIn
         ? html`<nav class="top-nav" aria-label="Account">
-    <a href="/account">My courses</a>
-    <form method="post" action="/learn/logout"><button type="submit" class="linklike">Sign out</button></form>
+    <a class="nav-link" href="/account"${options.current === "account" ? raw(` aria-current="page"`) : ""}>${icon("book-open-text")}<span>My courses</span></a>
+    <form method="post" action="/learn/logout"><button type="submit" class="nav-link">${icon("sign-out")}<span class="nav-label-optional">Sign out</span></button></form>
   </nav>`
         : ""
     }
   </div>
 </header>
-<main id="main" class="wrap">
+<main id="main" class="wrap${options.wide ? " wide" : ""}">
 ${content}
 </main>
 <footer class="foot">
-  <div class="wrap">
-    ${help ? html`<a href="${help}" rel="noopener noreferrer" target="_blank">Need help? Message us on WhatsApp</a>` : html`<span>${options.business.name}</span>`}
+  <div class="wrap${options.wide ? " wide" : ""} foot-row">
+    ${help ? html`<a href="${help}" rel="noopener noreferrer" target="_blank">${icon("whatsapp")}Need help? Message us on WhatsApp</a>` : html`<span>${options.business.name}</span>`}
+    <nav class="foot-links" aria-label="Policies">${LEGAL_LINKS.map((l) => html`<a href="${l.href}">${l.label}</a>`)}</nav>
   </div>
 </footer>
 </body>
 </html>`;
 }
 
-/** A short message page (link expired, not found, rate limited…). */
-export function messagePage(options: LayoutOptions, heading: string, text: string, action?: { href: string; label: string }): Raw {
+export type Tone = "accent" | "ok" | "warn" | "info";
+
+export interface MessageExtras {
+  /** The icon in the circle above the heading. */
+  icon?: IconName;
+  tone?: Tone;
+  /** A second, quieter action (opens WhatsApp when external). */
+  secondary?: { href: string; label: string; external?: boolean };
+}
+
+/** A short state page (link expired, not found, rate limited…): an icon, a heading, a line and one clear next step. */
+export function messagePage(
+  options: LayoutOptions,
+  heading: string,
+  text: string,
+  action?: { href: string; label: string },
+  extras: MessageExtras = {},
+): Raw {
+  const tone = extras.tone ?? "accent";
+  const second = extras.secondary;
   return layout(
     options,
-    html`<section class="card narrow">
+    html`<section class="card narrow state tone-${tone}">
+  <span class="state-icon">${icon(extras.icon ?? "info")}</span>
   <h1>${heading}</h1>
   <p>${text}</p>
-  ${action ? html`<p><a class="btn" href="${action.href}">${action.label}</a></p>` : ""}
+  ${
+    action || second
+      ? html`<div class="btn-row">
+    ${action ? html`<a class="btn" href="${action.href}">${action.label}</a>` : ""}
+    ${second ? html`<a class="btn btn-quiet" href="${second.href}"${second.external ? raw(` target="_blank" rel="noopener noreferrer"`) : ""}>${second.external ? icon("whatsapp") : ""}${second.label}</a>` : ""}
+  </div>`
+      : ""
+  }
 </section>`,
   );
 }

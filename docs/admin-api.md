@@ -157,12 +157,19 @@ Same filters, up to 20,000 rows. Full phone numbers (the owner's own record), am
 
 Full contact details, `enrollments` (with `active`), `orders`, signed-in `sessions` (devices), `certificates`.
 
+### `PUT /api/admin/students/:id` — `AdminUpdateStudentRequest` → `AdminStudent`
+
+"Edit details": corrects `name`, `email` (how the student signs in) and `phone` (a contact detail; `null` or `""` removes it). A new email ends the student's unused sign-in links (they went to the old address) and needs a new proof before a purchase can sign a device in. Signed-in devices stay signed in: use sign-out-all when the old address wasn't theirs.
+
+- `email` is required to stay set (400); an email or phone another student has: **409 `student_exists`**; an erased student: 409.
+- Audit `student.update_details` with which fields changed, never the values.
+
 ### `POST /api/admin/students` — `AdminAddStudentRequest` → 201 `AdminStudent`
 
 Adds someone who paid at the studio, for example.
 
-- `name` 1 to 80. `phone`: 10-digit Indian mobile (with or without +91, 0, spaces) or `+<country><number>`. `email` optional.
-- A phone or email that already exists: **409 `student_exists`** (the message has the id).
+- `name` 1 to 80. `email` **required** (the student signs in with links sent to it). `phone` optional: 10-digit Indian mobile (with or without +91, 0, spaces) or `+<country><number>`.
+- An email or phone that already exists: **409 `student_exists`** (the message has the id).
 - With `courseId` (and `batchId`, `expiresAt`), access is granted at once, as below.
 
 ### `POST /api/admin/students/:id/enrollments` — `AdminGrantRequest` → 201 `EnrollmentSummary`
@@ -179,7 +186,7 @@ Ends access now and frees the batch seat. Repeating it is harmless.
 
 ### `POST /api/admin/students/:id/access-link` → `AdminAccessLinkResponse` (W3)
 
-`{ url, whatsappUrl, expiresAt }` (200): a one-time sign-in link (24 hours, single use) for a student on a new phone, made by W3's `createAccessLink`. Opening it shows a confirm page; its button signs the student in (so a link preview can't use it up). There is no email service: open `whatsappUrl` (a prefilled `wa.me` message to the student) so the owner sends it herself.
+`{ url, whatsappUrl, expiresAt, emailed, email }` (200): a one-time sign-in link (24 hours, single use) made by W3's `createAccessLink` and **emailed to the student** at once (`emailed` says whether it went; `email` is where, or null when there is none on file). Opening it shows a confirm page; its button signs the student in (so a mail scanner or link preview can't use it up), and opening it proves the student's email (`claim.ts`). The owner can also copy `url` or open `whatsappUrl` (a prefilled `wa.me` message to the student's phone, or without a number when there is none) to send it herself. A newer link (emailed or made here) replaces the student's unused older ones.
 
 ### `POST /api/admin/students/:id/signout-all` → 204
 

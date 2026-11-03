@@ -5,4 +5,4 @@
 import { routeOrder } from "../_lib/payments.ts";
 import type { Env } from "../_lib/env.ts";
 
-export const onRequest: PagesFunction<Env> = ({ request, env }) => routeOrder(request, env);
+export const onRequest: PagesFunction<Env> = (ctx) => routeOrder(ctx.request, ctx.env, { waitUntil: (p) => ctx.waitUntil(p) });

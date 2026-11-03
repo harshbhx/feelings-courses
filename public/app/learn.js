@@ -11,6 +11,12 @@ if (video instanceof HTMLVideoElement) {
   let completedSent = false;
   let timer = 0;
 
+  // The player shows a quiet loading mark until the first frame is ready.
+  const player = video.closest(".player");
+  const ready = () => player?.classList.add("ready");
+  if (video.readyState >= 2) ready();
+  else video.addEventListener("loadeddata", ready, { once: true });
+
   video.addEventListener(
     "loadedmetadata",
     () => {
@@ -49,6 +55,9 @@ if (video instanceof HTMLVideoElement) {
     button.textContent = "✓ Done (undo)";
     button.setAttribute("aria-pressed", "true");
     button.classList.add("btn-quiet");
+    // The next lesson is one tap away once this one is done.
+    const nextLink = document.querySelector("[data-next-lesson]");
+    if (nextLink instanceof HTMLElement) nextLink.hidden = false;
   };
 
   video.addEventListener("play", () => {

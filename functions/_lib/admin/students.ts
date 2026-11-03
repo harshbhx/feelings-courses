@@ -9,6 +9,9 @@
  *   live). Expiry defaults to the course's access_days (365 by the owner's decision).
  * - Erase keeps orders (amounts are business records) but removes the student's name, phone and
  *   email everywhere they are stored, ends their sessions and access, and withdraws certificates.
+ * - The email is the student's identity (owner decision, 23 Oct 2026): they sign in with links sent
+ *   to it. Only the admin changes it (a typo at checkout, a new address); a change ends the
+ *   student's unused sign-in links and needs a new proof (claim.ts). The phone is a contact detail.
  */
 import type { Page } from "../../../src/shared/api.ts";
 import type {
@@ -407,15 +410,16 @@ export async function addStudent(
 ): Promise<AdminStudent> {
   const { now } = opts;
   const name = v.text(input.name, "name", { max: 80 });
-  const phone = v.phone(input.phone, "phone");
-  const email = v.optionalEmail(input.email, "email");
+  // The email is how the student signs in; the phone is an optional contact detail.
+  const email = v.email(input.email, "email");
+  const phone = v.optionalPhone(input.phone, "phone");
   const grant = v.isMissing(input.courseId) ? null : await planGrant(db, input, now);
 
   const clash = await db
-    .prepare("SELECT id FROM students WHERE phone = ? OR (? IS NOT NULL AND email = ?)")
-    .bind(phone, email, email)
+    .prepare("SELECT id FROM students WHERE email = ? OR (? IS NOT NULL AND phone = ?)")
+    .bind(email, phone, phone)
     .first<{ id: number }>();
-  if (clash) throw new ConflictError("student_exists", `A student with this phone or email already exists (#${clash.id}).`);
+  if (clash) throw new ConflictError("student_exists", `A student with this email or phone already exists (#${clash.id}).`);
 
   let id: number;
   try {
@@ -428,13 +432,13 @@ export async function addStudent(
         db
           .prepare(
             "INSERT INTO enrollments (student_id, course_id, batch_id, source, mode, starts_at, expires_at, created_at, updated_at) " +
-              "VALUES ((SELECT id FROM students WHERE phone = ?), ?, ?, 'manual', 'live', ?, ?, ?, ?)",
+              "VALUES ((SELECT id FROM students WHERE email = ?), ?, ?, 'manual', 'live', ?, ?, ?, ?)",
           )
-          .bind(phone, grant.courseId, grant.batchId, now, grant.expiresAt, now, now),
+          .bind(email, grant.courseId, grant.batchId, now, grant.expiresAt, now, now),
     ]);
     id = (results[0]!.results[0] as { id: number }).id;
   } catch (err) {
-    if (isUniqueViolation(err, "students.")) throw new ConflictError("student_exists", "A student with this phone or email already exists.");
+    if (isUniqueViolation(err, "students.")) throw new ConflictError("student_exists", "A student with this email or phone already exists.");
     throw err;
   }
   await auditStatement(db, {
@@ -445,6 +449,45 @@ export async function addStudent(
     data: grant ? { courseId: grant.courseId, batchId: grant.batchId, expiresAt: grant.expiresAt } : {},
     now,
   }).run();
+  return getStudent(db, id, opts);
+}
+
+/**
+ * The admin corrects a student's name, email or phone (PUT /api/admin/students/:id). A new email
+ * ends the student's unused sign-in links (they went to the old address) and needs a new proof
+ * before a purchase can sign a device in (claim.ts). Signed-in devices stay signed in: use "sign
+ * out everywhere" when the old address was someone else's. The audit row says what changed, never
+ * the values.
+ */
+export async function updateStudentDetails(
+  db: Db,
+  id: number,
+  input: Record<string, unknown>,
+  opts: { now: number; live: boolean; hubOrigin: string },
+): Promise<AdminStudent> {
+  const { now } = opts;
+  const current = await studentRow(db, id);
+  if (current.erased_at !== null) throw new ConflictError("conflict", "This student's details were erased.");
+  const name = "name" in input ? v.text(input.name, "name", { max: 80 }) : current.name;
+  const email = "email" in input ? v.email(input.email, "email") : current.email;
+  const phone = "phone" in input ? v.optionalPhone(input.phone, "phone") : current.phone;
+  if (email === null) throw new ValidationError("email", "Enter the student's email: they sign in with it.");
+  const changed = { name: name !== current.name, email: email !== current.email, phone: phone !== current.phone };
+  if (!changed.name && !changed.email && !changed.phone) return getStudent(db, id, opts);
+  try {
+    await batch(db, [
+      db
+        .prepare("UPDATE students SET name = ?, email = ?, phone = ?, updated_at = ? WHERE id = ? AND erased_at IS NULL")
+        .bind(name, email, phone, now, id),
+      changed.email &&
+        db.prepare("UPDATE login_tokens SET used_at = ? WHERE student_id = ? AND used_at IS NULL").bind(now, id),
+      auditStatement(db, { actor: ADMIN_ACTOR, action: "student.update_details", entity: "student", entityId: id, data: changed, now }),
+    ]);
+  } catch (err) {
+    if (isUniqueViolation(err, "students.email")) throw new ConflictError("student_exists", "Another student already has this email.");
+    if (isUniqueViolation(err, "students.phone")) throw new ConflictError("student_exists", "Another student already has this phone number.");
+    throw err;
+  }
   return getStudent(db, id, opts);
 }
 
@@ -474,6 +517,7 @@ export async function eraseStudent(db: Db, id: number, opts: { now: number; live
       db.prepare("UPDATE orders SET payer_contact = NULL, payer_email = NULL, updated_at = ? WHERE student_id = ?").bind(now, id),
       db.prepare("UPDATE sessions SET revoked_at = ? WHERE student_id = ? AND revoked_at IS NULL").bind(now, id),
       db.prepare("DELETE FROM login_tokens WHERE student_id = ?").bind(id),
+      db.prepare("DELETE FROM email_verifications WHERE student_id = ?").bind(id),
       db
         .prepare(
           "UPDATE batches SET seats_taken = seats_taken - 1, updated_at = ? WHERE seats_taken > 0 AND id IN " +

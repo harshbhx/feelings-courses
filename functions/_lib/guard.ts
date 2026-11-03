@@ -2,8 +2,8 @@
  * Rate-limit helpers for endpoints (plan 1.13, W7), on top of W0's ratelimit.ts.
  *
  *   const limited = await enforceRateLimits(env.DB, [
- *     { rule: "restore_ip", subject: ipSubject(request) },
- *     { rule: "restore_contact", subject: await contactSubject(contact) },
+ *     { rule: "signin_ip", subject: ipSubject(request) },
+ *     { rule: "signin_email", subject: await contactSubject(email) },
  *   ]);
  *   if (limited) return limited;            // 429 with Retry-After
  *
