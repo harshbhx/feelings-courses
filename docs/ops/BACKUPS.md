@@ -7,7 +7,7 @@ The data that matters lives in D1 (`fbc-courses`): courses, students, orders, en
 | Layer | What | When | Kept | Restores |
 |---|---|---|---|---|
 | 1. D1 Time Travel | Cloudflare's point-in-time history of the database | always on | 7 days (free plan), 30 days (paid) | the whole database to any minute |
-| 2. R2 dumps | `functions/_lib/backup.ts`: an SQL dump, gzipped, at `fbc-media/backups/d1/<time>.sql.gz` | daily (lazy daily job), and on demand from the admin (W5) | the last 35 | every business table |
+| 2. R2 dumps | `functions/_lib/backup.ts`: an SQL dump, gzipped, at `fbc-media/backups/d1/<time>.sql.gz` | daily (lazy daily job), and on demand from the admin (W5) | the last 35, and never more than 35 days (an R2 lifecycle rule `npm run setup` adds) | every business table |
 | 3. Offline export | `node scripts/backup-d1.mjs`: `wrangler d1 export` to `backups/` on the owner's computer | monthly, and before risky changes (a migration, go-live) | as long as you keep it | schema and data |
 
 `settings.last_backup_at` holds the last R2 dump's time; the admin shows it (W5/W6). If it is older than two days, the daily job isn't running: check that an admin page was opened (the job is triggered by admin visits and Razorpay webhooks, since Pages has no cron) and read the `daily.failed` entries in the audit log.
