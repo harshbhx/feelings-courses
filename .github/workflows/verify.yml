@@ -1,0 +1,104 @@
+# The full verification, on demand: everything CI does, then the built site under
+# `wrangler pages dev` (real Pages routing, _headers, Functions, a local D1 and R2) probed by
+# scripts/ci/smoke-local.mjs, with the build and logs kept as artifacts.
+#
+# Start it with either:
+#   - the "full-verify" label on a pull request (works before this file reaches main), or
+#   - Actions → Verify → Run workflow (GitHub only lists it once it is on main), or
+#     `gh workflow run verify.yml --ref <branch>`.
+# docs/CI-FIRST-RUN.md lists the failures to expect and how to read them.
+name: Verify
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'full-verify'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      SNAPSHOT_SOURCE: seed
+      ASTRO_TELEMETRY_DISABLED: "1"
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Versions
+        run: node -v && npm -v && npx wrangler --version && npx astro --version
+
+      - name: Install (npm ci, lockfile must match)
+        run: npm ci
+
+      - name: Type check (Astro)
+        run: npm run check
+
+      - name: Type check (Pages Functions)
+        run: npx tsc -p functions --noEmit
+
+      - name: Tests (unit, integration, checkout, learn)
+        run: npm test
+
+      - name: Migrations on D1 (workerd)
+        run: node --experimental-strip-types --no-warnings --import ./tests/helpers/register.mjs scripts/ci/d1-check.mjs
+
+      - name: Migrations through wrangler (apply twice)
+        run: |
+          cfg="$RUNNER_TEMP/wrangler-d1.json"
+          printf '{"name":"fc-verify","compatibility_date":"2026-10-01","d1_databases":[{"binding":"DB","database_name":"fc-verify","database_id":"00000000-0000-0000-0000-000000000000","migrations_dir":"%s"}]}' "$PWD/migrations" > "$cfg"
+          npx wrangler d1 migrations apply fc-verify --local --config "$cfg" --persist-to "$RUNNER_TEMP/d1"
+          npx wrangler d1 migrations apply fc-verify --local --config "$cfg" --persist-to "$RUNNER_TEMP/d1" | tee "$RUNNER_TEMP/d1-second.txt"
+          grep -q "No migrations to apply" "$RUNNER_TEMP/d1-second.txt"
+
+      - name: Bundle Pages Functions
+        run: |
+          npx wrangler pages functions build functions --outdir "$RUNNER_TEMP/functions" --compatibility-date 2026-10-01
+          raw=$(wc -c < "$RUNNER_TEMP/functions/index.js")
+          gz=$(gzip -9c "$RUNNER_TEMP/functions/index.js" | wc -c)
+          echo "Functions bundle: $raw bytes, $gz gzipped" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$gz" -lt 3000000
+
+      # The full build, as Cloudflare Pages runs it (astro check included).
+      - name: Build (npm run build)
+        run: npm run build
+
+      - name: Check dist
+        run: node scripts/check-dist.mjs
+
+      - name: Smoke test under wrangler pages dev
+        run: |
+          npx wrangler pages dev dist --d1 DB --r2 MEDIA --ip 127.0.0.1 --port 8788 \
+            --compatibility-date 2026-10-01 --persist-to "$RUNNER_TEMP/pages-dev" > "$RUNNER_TEMP/pages-dev.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/pages-dev.pid"
+          node scripts/ci/smoke-local.mjs http://127.0.0.1:8788
+
+      - name: Stop wrangler pages dev
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/pages-dev.pid" ]; then kill "$(cat "$RUNNER_TEMP/pages-dev.pid")" 2>/dev/null || true; fi
+          cp "$RUNNER_TEMP/pages-dev.log" dist-pages-dev.log 2>/dev/null || true
+
+      - name: Upload build and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-${{ github.run_number }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            dist/
+            dist-pages-dev.log

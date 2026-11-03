@@ -12,7 +12,9 @@
 // - bound values: string, number, null, ArrayBuffer/Uint8Array; booleans become 1/0 (as D1 does);
 //   undefined is refused (D1_TYPE_ERROR), so bugs show up here first;
 // - results look like D1's: { success, results, meta: { changes, last_row_id, ... } };
-// - foreign keys are enforced, as on D1.
+// - foreign keys are enforced, as on D1;
+// - D1's lower limits (D1_LIMITS: 100 bound parameters, 5 compound SELECT terms, 50-byte LIKE
+//   patterns) are refused, as D1 refuses them.
 //
 // Migrations are applied through the real functions/_lib/migrate.ts, with the same statement
 // splitting as the build (scripts/lib/migrations.mjs).
@@ -38,6 +40,41 @@ function toBindable(value, index) {
   throw new D1TypeError(`Type '${typeof value}' not supported for value at index ${index}`);
 }
 
+// D1 runs SQLite with lower limits than node:sqlite's defaults. A statement over one of them works
+// here but fails on Cloudflare (seen: the seed's 9-term UNION ALL, "too many terms in compound
+// SELECT"). These are D1's documented limits, checked with `wrangler d1 execute --local`:
+export const D1_LIMITS = {
+  /** Bound parameters per statement. */
+  boundParams: 100,
+  /** Terms in one compound SELECT (UNION / UNION ALL / INTERSECT / EXCEPT chain). */
+  compoundTerms: 5,
+  /** Bytes in a LIKE or GLOB pattern. */
+  likePatternBytes: 50,
+};
+
+const COMPOUND_RE = /\b(?:UNION|INTERSECT|EXCEPT)\b/gi;
+const utf8Bytes = (s) => new TextEncoder().encode(s).length;
+
+/**
+ * Refuses what D1 refuses. The compound count is per statement (stricter than SQLite's per chain);
+ * the LIKE check looks at bound strings that start or end with % in a statement with `LIKE ?`.
+ */
+export function checkD1Limits(sql, params = []) {
+  if (params.length > D1_LIMITS.boundParams) {
+    throw wrapError(new Error(`too many SQL variables (${params.length}; D1 allows ${D1_LIMITS.boundParams})`));
+  }
+  const code = sql.replace(/'(?:[^']|'')*'/g, "''");
+  const terms = (code.match(COMPOUND_RE)?.length ?? 0) + 1;
+  if (terms > D1_LIMITS.compoundTerms) throw wrapError(new Error(`too many terms in compound SELECT (${terms})`));
+  if (/\b(?:LIKE|GLOB)\s+\?/i.test(code)) {
+    for (const p of params) {
+      if (typeof p === "string" && /^%|%$/.test(p) && utf8Bytes(p) > D1_LIMITS.likePatternBytes) {
+        throw wrapError(new Error(`LIKE or GLOB pattern too complex (${utf8Bytes(p)} bytes)`));
+      }
+    }
+  }
+}
+
 function wrapError(err) {
   if (err instanceof D1TypeError) return err;
   const e = new Error(`D1_ERROR: ${err?.message ?? String(err)}`, { cause: err });
@@ -57,6 +94,7 @@ class Statement {
 
   /** Runs the statement and returns D1's result shape. Synchronous inside. */
   _exec() {
+    checkD1Limits(this.sql, this.params);
     const sqlite = this.db.sqlite;
     const before = sqlite.prepare("SELECT total_changes() AS t").get().t;
     let rows;
