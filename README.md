@@ -5,7 +5,7 @@ The makeup course of Feelings Beauty Care, on courses.feelingsbeautycare.in. It 
 - a Razorpay checkout, in test mode for now;
 - a gated course area where buyers watch the lessons.
 
-**Status: demo.** The price and lessons are examples until the client confirms them. Read `CLAUDE.md` first.
+**Status: coming soon** (since 2026-11-04). The home page announces the online courses on the way and every "Notify me" opens a coming-soon sheet with a WhatsApp link; checkout and the course area are switched off by `comingSoon: true` in `src/data/course.ts` (kept in the repo, not deleted). How to switch back at launch: `CLAUDE.md`, "Going live". The old demo (example price and lessons, test checkout) comes back only with `comingSoon: false`. Read `CLAUDE.md` first.
 
 ```bash
 npm install
