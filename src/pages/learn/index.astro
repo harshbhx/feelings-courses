@@ -8,8 +8,13 @@ import LessonList from "../../components/learn/LessonList.astro";
 import HelpCard from "../../components/learn/HelpCard.astro";
 import { course } from "../../data/course";
 import { modules, lessons, formatMinutes } from "../../data/lessons";
+import { comingSoonHome } from "../../lib/coming-soon";
 
 const totalMinutes = lessons.reduce((sum, lesson) => sum + lesson.minutes, 0);
+
+// Coming soon: this page sends visitors home (src/lib/coming-soon.ts).
+const soonHome = comingSoonHome();
+if (soonHome) return Astro.redirect(soonHome, 307);
 ---
 
 <LearnLayout

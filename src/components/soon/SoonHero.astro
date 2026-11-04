@@ -1,0 +1,317 @@
+---
+/**
+ * Coming-soon hero: the online courses are on the way, from Urmi, with a glimpse of the academy.
+ *
+ * Same frame as the course hero (landing/Hero.astro): the words first on phones, then the glimpse
+ * as a 4:5 cover; from 48rem the words left and a tall 9:16 reel right. No price, no lesson counts,
+ * no dates: the three "what to expect" lines describe the format only.
+ *
+ * The red button opens the coming-soon sheet ([data-enroll], ComingSoonSheet.astro). Without JS it
+ * is a plain link to the closing section, which has the WhatsApp link itself.
+ */
+import Icon from "../Icon.astro";
+import Reel from "../landing/Reel.astro";
+import { course } from "../../data/course";
+import { site } from "../../data/site";
+import { ratingCount, ratingMonth } from "../landing/facts";
+
+const promo = course.glimpses[0];
+// "Urmi’s makeup courses are coming online": the last word in red italic, then the bindi.
+const words = [`${course.teacher.split(" ")[0]}’s`, "makeup", "courses", "are", "coming"];
+const expect = [
+  { icon: "video-camera", text: "Short video lessons" },
+  { icon: "device-mobile", text: "On your phone or laptop" },
+  { icon: "list-checks", text: "Self makeup to bridal, nail art and mehndi" },
+];
+---
+
+<section class="hero" aria-labelledby="hero-title">
+  <div class="container hero-grid">
+    <div class="hero-text">
+      <p class="soon-pill enter">
+        <span class="soon-dot" aria-hidden="true"></span>
+        Coming soon
+        <span class="soon-sep" aria-hidden="true"></span>
+        <span class="soon-sub">Online academy</span>
+      </p>
+      <h1 id="hero-title" class="hero-title words">
+        {
+          words.map((word, i) => (
+            <>
+              <span style={`--w: ${i}`}>{word}</span>{" "}
+            </>
+          ))
+        }
+        <span style={`--w: ${words.length}`}><em>online</em><span class="bindi" aria-hidden="true" /></span>
+      </h1>
+      <p class="lead hero-lead enter" style="--i: 1">
+        {course.teacher} has run {site.name} in {site.address.city} since {site.foundedYear}. Now she is bringing her makeup academy
+        online, with many courses on the way: learn from her at home, at your own pace.
+      </p>
+
+      <ul class="expect enter" style="--i: 2" aria-label="What to expect">
+        {
+          expect.map((e) => (
+            <li>
+              <Icon name={e.icon} />
+              <span>{e.text}</span>
+            </li>
+          ))
+        }
+      </ul>
+
+      <div class="hero-actions enter" style="--i: 3" data-cta-zone="hero">
+        <a class="btn btn-primary hero-cta" href="#notify" data-enroll>
+          Notify me at launch
+          <Icon name="arrow-right" />
+        </a>
+        <a class="link-arrow hero-more" href="#courses">See what’s coming</a>
+      </div>
+      <p class="hero-rating enter" style="--i: 4">
+        <Icon name="star-fill" />
+        <span>
+          <strong>{site.googleRating.rating}</strong> from {ratingCount} Google reviews of the studio
+          <span class="nowrap">({ratingMonth})</span>
+        </span>
+      </p>
+    </div>
+
+    {
+      promo && (
+        <div class="hero-media">
+          <div class="hero-reel">
+            <Reel
+              id={promo.id}
+              label={promo.label}
+              eager
+              sizes="(min-width: 48rem) min(32vw, 22rem), calc(100vw - 2.5rem)"
+              widths={[360, 540, 720]}
+            />
+          </div>
+          <p class="hero-caption">
+            <Icon name="play-fill" />
+            <span>
+              <span class="visually-hidden">Video: </span>
+              {promo.label}
+            </span>
+          </p>
+        </div>
+      )
+    }
+  </div>
+</section>
+
+<style>
+  .hero {
+    overflow-x: clip;
+    padding-block: var(--space-5) var(--section-y-tight);
+  }
+
+  .hero-grid {
+    display: grid;
+    gap: var(--space-7);
+  }
+
+  .hero-text {
+    display: grid;
+    gap: var(--space-5);
+    justify-items: start;
+    min-width: 0;
+  }
+
+  /* "Coming soon · Online academy": a blush pill with the bindi, the page's status at a glance. */
+  .soon-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.25rem;
+    padding: 0.35rem 0.95rem 0.35rem 0.75rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--bg-soft);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-strong);
+    line-height: 1.2;
+    color: var(--accent);
+  }
+
+  .soon-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .soon-sep {
+    width: 1px;
+    height: 0.9rem;
+    background: var(--border-strong);
+  }
+
+  .soon-sub {
+    font-weight: var(--weight-ui);
+    color: var(--text-muted);
+  }
+
+  /* 44px on a 390px phone, up to 68px. */
+  .hero-title {
+    font-size: clamp(2.75rem, 1.8rem + 3.9vw, 4.25rem);
+    max-width: 12ch;
+    margin-top: calc(var(--space-1) * -1);
+  }
+
+  .hero-lead {
+    max-width: 30em;
+  }
+
+  .expect {
+    list-style: none;
+    display: grid;
+    gap: var(--space-3);
+    width: 100%;
+    max-width: 30rem;
+    padding-block: var(--space-4);
+    border-block: 1px solid var(--border-strong);
+  }
+
+  .expect li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-weight: var(--weight-ui);
+    line-height: 1.35;
+    color: var(--text);
+  }
+
+  .expect :global(.icon) {
+    width: 1.35rem;
+    height: 1.35rem;
+    color: var(--bg-deep);
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4) var(--space-6);
+    width: 100%;
+    margin-top: var(--space-2);
+  }
+
+  .hero-cta {
+    min-height: 3.375rem;
+    padding-inline: 1.75rem;
+    font-size: var(--text-lg);
+    box-shadow: var(--shadow-accent);
+  }
+
+  .hero-rating {
+    margin-top: calc(var(--space-2) * -1);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--text-muted);
+    text-wrap: balance;
+  }
+
+  .hero-rating strong {
+    font-weight: var(--weight-strong);
+    color: var(--text);
+  }
+
+  .hero-rating :global(.icon) {
+    display: inline-block;
+    width: 1.05rem;
+    height: 1.05rem;
+    margin-right: 0.3em;
+    vertical-align: -0.17em;
+    color: var(--bg-deep);
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 29.99rem) {
+    .hero-cta {
+      flex: 1 1 100%;
+    }
+
+    .hero-more {
+      margin-inline: auto;
+    }
+
+    .hero-rating {
+      width: 100%;
+      text-align: center;
+    }
+  }
+
+  /* ── The glimpse ── */
+  .hero-media {
+    position: relative;
+    isolation: isolate;
+    min-width: 0;
+    --reel-ratio: 4 / 5;
+    --reel-pos: 50% 6%;
+    --reel-radius: var(--radius-lg);
+  }
+
+  .hero-caption {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    color: var(--text-muted);
+  }
+
+  .hero-caption :global(.icon) {
+    width: 0.85em;
+    height: 0.85em;
+    color: var(--bg-deep);
+  }
+
+  @media (min-width: 48rem) {
+    .hero {
+      padding-top: var(--space-6);
+    }
+
+    .hero-grid {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      column-gap: clamp(var(--space-6), 5vw, var(--space-9));
+    }
+
+    .hero-media {
+      --reel-ratio: 9 / 16;
+      --reel-pos: 50% 50%;
+      width: clamp(15rem, min(32vw, (100vh - 13rem) * 0.5625), 22rem);
+      margin-right: var(--space-5);
+    }
+
+    /* A blush card offset behind the reel, like the next one in a stack. */
+    .hero-reel {
+      position: relative;
+    }
+
+    .hero-reel::before {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      inset: var(--space-5) calc(var(--space-5) * -1) calc(var(--space-5) * -1) var(--space-5);
+      border-radius: var(--radius-lg);
+      background: var(--bg-tint);
+    }
+
+    .hero-caption {
+      margin-top: var(--space-6);
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .hero {
+      padding-top: var(--space-7);
+    }
+  }
+</style>

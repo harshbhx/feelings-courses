@@ -4,7 +4,10 @@
 // id ("razorpay-test"), which can't be verified without the secret; see checkout.ts for why that is
 // acceptable only for the demo.
 // The logic lives in functions/_lib/checkout.ts, where scripts/test-checkout.mjs tests it.
-import { handleVerify } from "../_lib/checkout.ts";
+// While course.comingSoon is true it answers 503 "coming_soon" and issues no enrollment.
+import { course } from "../../src/data/course.ts";
+import { comingSoonResponse, handleVerify } from "../_lib/checkout.ts";
 import type { CheckoutEnv } from "../_lib/checkout.ts";
 
-export const onRequest: PagesFunction<CheckoutEnv> = ({ request, env }) => handleVerify(request, env);
+export const onRequest: PagesFunction<CheckoutEnv> = ({ request, env }) =>
+  course.comingSoon ? comingSoonResponse() : handleVerify(request, env);

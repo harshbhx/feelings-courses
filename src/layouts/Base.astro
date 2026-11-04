@@ -37,8 +37,8 @@ const imageUrl = new URL(image, site.url).href;
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
-    {/* Demo: kept out of search until the client confirms the course (also X-Robots-Tag in public/_headers). */}
-    {course.demo && <meta name="robots" content="noindex, nofollow" />}
+    {/* Demo or coming soon: kept out of search until the course is real (also X-Robots-Tag in public/_headers). */}
+    {(course.demo || course.comingSoon) && <meta name="robots" content="noindex, nofollow" />}
     {/* Link previews. The noindex above doesn't stop WhatsApp, Instagram or X fetching these. */}
     <meta property="og:type" content={type} />
     <meta property="og:site_name" content={site.name} />
@@ -63,7 +63,7 @@ const imageUrl = new URL(image, site.url).href;
   </head>
   <body>
     {
-      course.demo && (
+      course.demo && !course.comingSoon && (
         <p class="demo-ribbon" role="note">
           Demo preview: the price and lessons are examples, and payments run in test mode. No real money is charged.
         </p>

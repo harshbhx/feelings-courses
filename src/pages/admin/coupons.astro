@@ -6,6 +6,11 @@
 import Admin from "../../layouts/Admin.astro";
 import Icon from "../../components/Icon.astro";
 import CouponDrawer from "../../components/admin/coupons/CouponDrawer.astro";
+import { comingSoonHome } from "../../lib/coming-soon";
+
+// Coming soon: this page sends visitors home (src/lib/coming-soon.ts).
+const soonHome = comingSoonHome();
+if (soonHome) return Astro.redirect(soonHome, 307);
 ---
 
 <Admin title="Coupons" active="coupons" icons={["copy", "pencil-simple", "trash", "trend-up", "ticket", "plus"]}>

@@ -4,6 +4,11 @@
 import Admin from "../../layouts/Admin.astro";
 import Icon from "../../components/Icon.astro";
 import CoverData from "../../components/admin/CoverData.astro";
+import { comingSoonHome } from "../../lib/coming-soon";
+
+// Coming soon: this page sends visitors home (src/lib/coming-soon.ts).
+const soonHome = comingSoonHome();
+if (soonHome) return Astro.redirect(soonHome, 307);
 ---
 
 <Admin title="Courses" active="courses" icons={["pencil-simple", "eye", "users-three", "book-open-text", "plus"]}>

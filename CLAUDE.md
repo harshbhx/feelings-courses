@@ -7,7 +7,31 @@ The online makeup course of Feelings Beauty Care (Jamnagar; ladies' parlour, bri
 
 The main site is a separate repo, `harshbhx/feelings-beauty-care` (live on feelingsbeautycare.in). Its brand system was copied here: tokens, fonts, global and motion CSS, icons, logo and CSP script. Read its `docs/03-design-system.md` for the look. Never copy the old dark-and-gold site.
 
-## Status: DEMO (since 2026-10-20)
+## Status: COMING SOON (since 2026-11-04)
+
+The owner decided on 2026-11-04: no demo anywhere a visitor can reach. The site is a "coming soon" page for the online courses (many, not one) until launch. One switch, `course.comingSoon` in `src/data/course.ts`, controls it:
+
+| | `comingSoon: true` (now) | `comingSoon: false` |
+|---|---|---|
+| `/` | The coming-soon page: `src/components/soon/*`, content in `src/data/upcoming.ts` | The course page (`landing/*`) |
+| `[data-enroll]` | Opens the coming-soon sheet (`soon/ComingSoonSheet.astro`): "Get notified on WhatsApp" with a prefilled message, the topic chips, the in-person academy link | Opens checkout (`checkout/Checkout.astro`) |
+| `POST /api/order`, `/api/verify` | 503 `coming_soon` (`comingSoonResponse()` in `functions/_lib/checkout.ts`); no order, no cookie | The checkout, unchanged |
+| `/learn*`, `/thank-you`, `/payment-failed`, `/catalog`, `/course`, `/admin*` | Forward home (`src/lib/coming-soon.ts`; `/catalog` to `/#courses`). `/learn` still passes the enrollment gate first, whose 302 to `/?locked=1#pricing` opens the sheet | As before |
+| Demo ribbon | Hidden | Shown while `demo` is true |
+| Search | noindexed (meta + `X-Robots-Tag`) | noindexed while `demo` is true |
+
+Nothing was deleted: the course page, checkout, Razorpay and the course area are all still in the repo, and their tests still run (through the handlers, `npm run test:checkout`; the gate, `npm run test:learn`).
+
+**Coming-soon content rules.** `src/data/upcoming.ts` names only topics the academy teaches today (the main site's `services.ts`, academy entry) or that are already in `course.ts`. No price, launch date, countdown, student count or "first N" offer: the page says the order and dates aren't fixed. Change the topics there, never in a component.
+
+**Going live (switching checkout back on):**
+1. Confirm everything in `course.toConfirm` with the client and put the real values in `course.ts` (title, price, modules and lessons, duration, certificate, access). Line `src/data/lessons.ts` up with the modules.
+2. Agree live Razorpay keys with the owner; the owner sets `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and a **new** `ENROLL_SECRET` in Cloudflare (see README).
+3. Set `comingSoon: false` and `demo: false` in `course.ts`. (`comingSoon: false` with `demo: true` brings back the old demo, ribbon and test checkout included: only for showing the client, never on `main`.)
+4. Decide with the owner whether to index the site: drop the `X-Robots-Tag` line in `public/_headers` (the meta tag follows `demo`/`comingSoon` by itself).
+5. `npm run build`, `npm run test:checkout`, `npm run test:learn`, then a branch, a PR and the owner's merge. Update the main site's "Online course" labels to match.
+
+## History: DEMO (2026-10-20 to 2026-11-04)
 
 Built to show the client before they confirm anything:
 - **Content:** everything in `src/data/course.ts` is example content while `course.demo` is true. That covers price, modules, lessons, duration, certificate and access.
@@ -35,7 +59,7 @@ Three parts were built in parallel. Keep these boundaries:
 | Checkout and enrollment | `functions/api/*`, `functions/_lib/*` (including `enrollment.ts`), `src/components/checkout/*`, `src/pages/thank-you.astro`, `src/pages/payment-failed.astro`, Razorpay origins in `scripts/csp.mjs` |
 | Course area and deploy | `src/pages/learn/*`, `functions/learn/*`, `src/components/learn/*`, README deploy notes |
 
-- **Enroll buttons:** any element with `data-enroll` opens checkout. On the landing page they are plain links to `#pricing`, so they still work without JS. The checkout component (`src/components/checkout/Checkout.astro`) is included once on the landing page and binds to every `[data-enroll]`.
+- **Enroll buttons:** while `course.comingSoon` is true, any element with `data-enroll` opens the coming-soon sheet instead (an optional `data-topic` preselects that topic in the WhatsApp message), and its fallback `href` is `#notify`. Otherwise, any element with `data-enroll` opens checkout. On the landing page they are plain links to `#pricing`, so they still work without JS. The checkout component (`src/components/checkout/Checkout.astro`) is included once on the landing page and binds to every `[data-enroll]`.
 - **Enrollment cookie:** see `functions/_lib/enrollment.ts`. Checkout issues it after a verified payment. The course area's middleware only calls `verifyEnrollment()`.
 - **Course data:** every part reads `src/data/course.ts`; nobody retypes course facts. Business facts are in `src/data/site.ts`, copied from the main site; keep them in sync.
 
@@ -55,6 +79,7 @@ Three parts were built in parallel. Keep these boundaries:
 4. **Motion:** small, opacity and transform only, tiered reduced motion. No auto-playing carousels, countdown timers or fake urgency.
 5. **CSP:** no inline event handlers or `javascript:` URLs (the build fails on them). JS that measures layout must do it in an IntersectionObserver or ResizeObserver, not at script start.
 6. **WhatsApp:** plain `wa.me` links via `src/lib/whatsapp.ts`.
+7. **Coming soon:** no demo, example price or "test payment" wording may reach a visitor while `course.comingSoon` is true. Hype comes from the real topics, Urmi and the studio, never from invented numbers, dates or urgency.
 
 ## Deploy
 

@@ -9,6 +9,11 @@ import PaymentMode from "../../components/admin/settings/PaymentMode.astro";
 import SiteDomain from "../../components/admin/settings/SiteDomain.astro";
 import Notifications from "../../components/admin/settings/Notifications.astro";
 import ResetDemo from "../../components/admin/settings/ResetDemo.astro";
+import { comingSoonHome } from "../../lib/coming-soon";
+
+// Coming soon: this page sends visitors home (src/lib/coming-soon.ts).
+const soonHome = comingSoonHome();
+if (soonHome) return Astro.redirect(soonHome, 307);
 ---
 
 <Admin title="Settings" active="settings">

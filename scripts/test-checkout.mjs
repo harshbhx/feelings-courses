@@ -11,8 +11,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 
-import { onRequest as orderFn } from "../functions/api/order.ts";
-import { onRequest as verifyFn } from "../functions/api/verify.ts";
+import { onRequest as orderRoute } from "../functions/api/order.ts";
+import { onRequest as verifyRoute } from "../functions/api/verify.ts";
 import { handleOrder, handleVerify, parseBuyer, paymentMode } from "../functions/_lib/checkout.ts";
 import { verifyRazorpaySignature } from "../functions/_lib/razorpay.ts";
 import { timingSafeEqual } from "../functions/_lib/crypto.ts";
@@ -39,6 +39,11 @@ const INSTAGRAM_UA =
 const TEST_PAYMENT_ID = "pay_FakeTestPay001";
 
 // ---------- helpers ----------
+
+// The checkout is tested through the handlers the routes call. While course.comingSoon is true the
+// routes themselves answer 503 instead (see "coming soon" at the end).
+const orderFn = ({ request, env }) => handleOrder(request, env);
+const verifyFn = ({ request, env }) => handleVerify(request, env);
 
 const post = (path, body, headers = {}) =>
   new Request(`${SITE}${path}`, {
@@ -665,4 +670,21 @@ test("order/verify: cross-site posts, other methods, bad JSON and big bodies are
   assert.equal((await orderFn({ request: post("/api/order", { name: "x".repeat(5000) }), env: {} })).status, 413);
   // Every JSON reply is uncacheable.
   assert.equal(cross.headers.get("Cache-Control"), "no-store");
+});
+
+test("coming soon: the routes start no payment and issue no enrollment", { skip: !course.comingSoon }, async () => {
+  const cases = [
+    [orderRoute, "/api/order", {}],
+    [verifyRoute, "/api/verify", { demo_order_id: "demo_0123456789abcdef01234567" }],
+    [verifyRoute, "/api/verify", signedIds()],
+  ];
+  for (const env of [{}, TEST_KEYS, { ...LIVE_KEYS, ...ENROLL }]) {
+    for (const [route, path, body] of cases) {
+      const res = await route({ request: post(path, body), env });
+      assert.equal(res.status, 503, path);
+      assert.equal((await res.json()).error, "coming_soon", path);
+      assert.equal(res.headers.get("Set-Cookie"), null, path);
+      assert.equal(res.headers.get("Cache-Control"), "no-store", path);
+    }
+  }
 });

@@ -1,0 +1,262 @@
+---
+/**
+ * "Many courses are on the way": one card per topic in src/data/upcoming.ts, then a wide card that
+ * asks what visitors would like to learn. Each card's "Notify me" ([data-enroll] with data-topic)
+ * opens the coming-soon sheet with that topic in the WhatsApp message.
+ *
+ * Quiet cards: hairline, a big muted numeral, the service tone only as a small dot (never a fill),
+ * and secondary buttons, so the hero and the closing band keep the page's only red buttons.
+ */
+import Icon from "../Icon.astro";
+import { course } from "../../data/course";
+import { messages, topics } from "../../data/upcoming";
+import { whatsappLink } from "../../lib/whatsapp";
+
+const pad = (n: number) => String(n).padStart(2, "0");
+const firstName = course.teacher.split(" ")[0];
+---
+
+<section class="section courses" id="courses" aria-labelledby="courses-title">
+  <div class="container">
+    <div class="section-head" data-reveal>
+      <h2 id="courses-title">Many courses are on the way<span class="bindi" aria-hidden="true"></span></h2>
+      <p class="lead">
+        {firstName} teaches all of this at her academy today. Now it is coming online, one course after another. Which opens first, and
+        when, will be shared on WhatsApp.
+      </p>
+    </div>
+
+    <ul class="topic-grid" data-reveal="stagger">
+      {
+        topics.map((t, i) => (
+          <li class="topic" style={`--i: ${i}; --tone: var(--tone-${t.tone})`}>
+            <div class="topic-top">
+              <span class="topic-num" aria-hidden="true">{pad(i + 1)}</span>
+              <span class="topic-tag">Coming soon</span>
+            </div>
+            <h3 class="topic-name">
+              <span class="topic-dot" aria-hidden="true" />
+              {t.name}
+            </h3>
+            <p class="topic-line">{t.line}</p>
+            <ul class="topic-covers" aria-label={`${t.name}: topics`}>
+              {t.covers.map((c) => (
+                <li>{c}</li>
+              ))}
+            </ul>
+            <a class="btn btn-secondary btn-sm topic-cta" href="#notify" data-enroll data-topic={t.name}>
+              Notify me
+              <span class="visually-hidden">about {t.name}</span>
+            </a>
+          </li>
+        ))
+      }
+      <li class="topic topic-more" style={`--i: ${topics.length}`}>
+        <div class="more-text">
+          <span class="more-mark" aria-hidden="true"><Icon name="sparkle" /></span>
+          <h3 class="topic-name">And more to follow</h3>
+          <p class="topic-line">Is there something you want to learn from {firstName}? Tell her. It helps decide what comes next.</p>
+        </div>
+        <a class="btn btn-secondary btn-sm topic-cta" href={whatsappLink(messages.suggest)} target="_blank" rel="noopener">
+          <Icon name="whatsapp" />
+          Suggest a course
+        </a>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<style>
+  .topic-grid {
+    list-style: none;
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .topic {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--bg);
+    /* No transition of its own: the stagger reveal (motion.css) owns this element's transition. */
+  }
+
+  .topic:hover {
+    border-color: var(--border-control);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .topic-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .topic-num {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--border-control);
+    font-variant-numeric: tabular-nums;
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+
+  .topic:hover .topic-num {
+    color: var(--text);
+  }
+
+  .topic-tag {
+    padding: 0.2rem 0.65rem;
+    border-radius: var(--radius-pill);
+    background: var(--bg-soft);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    line-height: 1.4;
+    color: var(--text-muted);
+  }
+
+  .topic-name {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    font-size: var(--text-xl);
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+  }
+
+  /* The service tone, as a dot only. */
+  .topic-dot {
+    flex: none;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--tone);
+    transform: translateY(-0.12em);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .topic-dot {
+      transition: transform var(--dur-base) var(--ease-out);
+    }
+
+    .topic:hover .topic-dot {
+      transform: translateY(-0.12em) scale(1.35);
+    }
+  }
+
+  .topic-line {
+    color: var(--text-body);
+    line-height: 1.5;
+  }
+
+  .topic-covers {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+
+  .topic-covers li {
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-ui);
+    line-height: 1.35;
+    color: var(--text-muted);
+  }
+
+  /* The button sits at the bottom of every card, so a row of cards lines up. */
+  .topic-cta {
+    align-self: flex-start;
+    min-height: 2.75rem;
+    margin-top: auto;
+  }
+
+  .topic-cta :global(.icon) {
+    color: var(--bg-deep);
+  }
+
+  /* ── "And more to follow": a dashed, open-ended card ── */
+  .topic-more {
+    border-style: dashed;
+    border-color: var(--border-control);
+    background: var(--bg-soft);
+  }
+
+  .more-text {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .topic-more .topic-name {
+    margin-top: var(--space-1);
+  }
+
+  .more-mark {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: var(--bg-tint);
+    color: var(--bg-deep);
+  }
+
+  .more-mark :global(.icon) {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  @media (min-width: 40rem) {
+    .topic-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .topic-more {
+      grid-column: 1 / -1;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-5);
+    }
+
+    .topic-more .topic-cta {
+      margin-top: 0;
+      align-self: center;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .topic-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-5);
+    }
+
+    .topic {
+      padding: var(--space-6);
+    }
+
+    .more-text {
+      grid-template-columns: auto minmax(0, 1fr);
+      column-gap: var(--space-4);
+      align-items: center;
+    }
+
+    .more-mark {
+      grid-row: span 2;
+    }
+
+    .topic-more .topic-name {
+      margin-top: 0;
+    }
+  }
+</style>

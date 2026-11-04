@@ -7,9 +7,14 @@ import Icon from "../../components/Icon.astro";
 import { TXN_ICONS } from "../../components/admin/payments/icons";
 import "../../components/admin/payments/txn.css";
 import "../../components/admin/students/students.css";
+import { comingSoonHome } from "../../lib/coming-soon";
 
 const icons = ["caret-right", "circle", "users-three", "magnifying-glass", "arrow-right", ...TXN_ICONS];
 const skeletons = Array.from({ length: 6 });
+
+// Coming soon: this page sends visitors home (src/lib/coming-soon.ts).
+const soonHome = comingSoonHome();
+if (soonHome) return Astro.redirect(soonHome, 307);
 ---
 
 <Admin title="Students" active="students" icons={icons}>

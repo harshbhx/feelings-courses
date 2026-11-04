@@ -3,7 +3,10 @@
 // it returns what Razorpay's test Checkout needs, without an order ("razorpay-test"), or a demo order
 // for the built-in demo sheet.
 // The logic lives in functions/_lib/checkout.ts, where scripts/test-checkout.mjs tests it.
-import { handleOrder } from "../_lib/checkout.ts";
+// While course.comingSoon is true it answers 503 "coming_soon" and starts nothing.
+import { course } from "../../src/data/course.ts";
+import { comingSoonResponse, handleOrder } from "../_lib/checkout.ts";
 import type { CheckoutEnv } from "../_lib/checkout.ts";
 
-export const onRequest: PagesFunction<CheckoutEnv> = ({ request, env }) => handleOrder(request, env);
+export const onRequest: PagesFunction<CheckoutEnv> = ({ request, env }) =>
+  course.comingSoon ? comingSoonResponse() : handleOrder(request, env);

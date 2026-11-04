@@ -6,6 +6,7 @@ import Icon from "../../components/Icon.astro";
 import Logo from "../../components/landing/Logo.astro";
 import { site } from "../../data/site";
 import { course } from "../../data/course";
+import { comingSoonHome } from "../../lib/coming-soon";
 
 const features = [
   { icon: "book-open-text", text: "Create a course and publish it in minutes" },
@@ -13,6 +14,10 @@ const features = [
   { icon: "credit-card", text: "Follow payments as they come in" },
   { icon: "ticket", text: "Make a coupon code for each reel" },
 ];
+
+// Coming soon: this page sends visitors home (src/lib/coming-soon.ts).
+const soonHome = comingSoonHome();
+if (soonHome) return Astro.redirect(soonHome, 307);
 ---
 
 <Admin title="Sign in" bare>

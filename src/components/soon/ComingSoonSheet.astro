@@ -1,0 +1,484 @@
+---
+/**
+ * The coming-soon sheet: what every [data-enroll] opens while `course.comingSoon` is true, in place
+ * of checkout (src/components/checkout/Checkout.astro, which is not mounted then).
+ *
+ * A native <dialog> opened with showModal(), so focus stays inside, Escape closes it and the page
+ * behind is inert. Phones: a bottom sheet that slides up. From 48rem: a centred card. Closing also
+ * works from the close button and a tap on the backdrop; focus returns to the button that opened it.
+ *
+ * Inside: the status, the courses on the way as chips (tap one to say which interests you most:
+ * it goes into the prefilled WhatsApp message), one red "Get notified on WhatsApp" link (a plain
+ * wa.me anchor, rule 6) and the in-person academy as the other honest next step.
+ *
+ * A card's "Notify me" passes its topic in data-topic, so that chip starts selected. A visit to
+ * /#pricing (old "Enroll" links and the course area's locked redirect) opens the sheet too.
+ * Without JS, or without <dialog> support, [data-enroll] links simply scroll to #notify.
+ */
+import Icon from "../Icon.astro";
+import { course } from "../../data/course";
+import { site } from "../../data/site";
+import { messages, topics } from "../../data/upcoming";
+import { whatsappLink } from "../../lib/whatsapp";
+
+const firstName = course.teacher.split(" ")[0];
+---
+
+<dialog class="soon-sheet" aria-labelledby="soon-title" aria-describedby="soon-text" data-soon-sheet>
+  <div class="sheet-body">
+    <div class="sheet-top" style="--i: 0">
+      <p class="sheet-pill">
+        <span class="sheet-dot" aria-hidden="true"></span>
+        Coming soon
+      </p>
+      <button type="button" class="sheet-close" data-sheet-close aria-label="Close">
+        <Icon name="close" />
+      </button>
+    </div>
+
+    {/* Focus starts on the title (read out first), not on the close button's ring. */}
+    <h2 id="soon-title" class="sheet-title" style="--i: 1" tabindex="-1" autofocus>
+      Online courses are coming soon<span class="bindi" aria-hidden="true"></span>
+    </h2>
+    <p id="soon-text" class="sheet-text" style="--i: 2">
+      Nothing is on sale yet. {firstName} is preparing many online courses, and you can be the first to hear when they open.
+    </p>
+
+    <fieldset class="sheet-pick" style="--i: 3">
+      <legend>Which one interests you most? <span class="optional">(optional)</span></legend>
+      <ul class="chips">
+        {
+          topics.map((t) => (
+            <li>
+              <button
+                type="button"
+                class="chip"
+                style={`--tone: var(--tone-${t.tone})`}
+                aria-pressed="false"
+                data-chip={t.name}
+              >
+                <span class="chip-dot" aria-hidden="true" />
+                {t.name}
+              </button>
+            </li>
+          ))
+        }
+      </ul>
+    </fieldset>
+
+    <div class="sheet-actions" style="--i: 4">
+      <a
+        class="btn btn-primary sheet-cta"
+        href={whatsappLink(messages.notify)}
+        target="_blank"
+        rel="noopener"
+        data-sheet-wa
+      >
+        <Icon name="whatsapp" />
+        Get notified on WhatsApp
+      </a>
+      <p class="sheet-note">One message is enough. You’ll hear from {firstName} when the courses open.</p>
+      <a class="link-arrow sheet-academy" href={site.academyUrl} target="_blank" rel="noopener">
+        Or learn in person at the academy
+        <Icon name="arrow-up-right" />
+      </a>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  import { messages } from "../../data/upcoming";
+  import { whatsappLink } from "../../lib/whatsapp";
+
+  const sheet = document.querySelector<HTMLDialogElement>("[data-soon-sheet]");
+  const wa = sheet?.querySelector<HTMLAnchorElement>("[data-sheet-wa]");
+  const chips = Array.from(sheet?.querySelectorAll<HTMLButtonElement>("[data-chip]") ?? []);
+  const root = document.documentElement;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  if (sheet && wa && typeof sheet.showModal === "function") {
+    let opener: HTMLElement | null = null;
+    let closing = 0;
+
+    // The WhatsApp link always says what is selected, so the tap opens WhatsApp straight away.
+    const select = (topic: string | null) => {
+      for (const chip of chips) chip.setAttribute("aria-pressed", String(chip.dataset.chip === topic));
+      wa.href = whatsappLink(topic ? messages.topic(topic) : messages.notify);
+    };
+
+    const open = (from: HTMLElement | null, topic: string | null) => {
+      window.clearTimeout(closing);
+      sheet.classList.remove("is-closing");
+      opener = from;
+      select(topic);
+      if (!sheet.open) sheet.showModal();
+      root.classList.add("sheet-open");
+    };
+
+    const finish = () => {
+      window.clearTimeout(closing);
+      sheet.classList.remove("is-closing");
+      if (sheet.open) sheet.close();
+    };
+
+    // Plays the way out (a short slide or fade), then closes. The timer is the safety net.
+    const close = () => {
+      if (!sheet.open || sheet.classList.contains("is-closing")) return;
+      sheet.classList.add("is-closing");
+      closing = window.setTimeout(finish, reduceMotion.matches ? 180 : 280);
+    };
+
+    sheet.addEventListener("animationend", (event) => {
+      if (event.target === sheet && sheet.classList.contains("is-closing")) finish();
+    });
+
+    sheet.addEventListener("close", () => {
+      root.classList.remove("sheet-open");
+      opener?.focus({ preventScroll: true });
+      opener = null;
+    });
+
+    // Escape: close with the same animation instead of at once.
+    sheet.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      close();
+    });
+
+    sheet.addEventListener("click", (event) => {
+      const target = event.target as Element;
+      if (target.closest("[data-sheet-close]")) return close();
+      const chip = target.closest<HTMLButtonElement>("[data-chip]");
+      if (chip) return select(chip.getAttribute("aria-pressed") === "true" ? null : (chip.dataset.chip ?? null));
+      // A tap on the backdrop lands on the dialog itself, outside its box.
+      if (target === sheet) {
+        const box = sheet.getBoundingClientRect();
+        const { clientX: x, clientY: y } = event;
+        if (x < box.left || x > box.right || y < box.top || y > box.bottom) close();
+      }
+    });
+
+    // Every enroll button on the page: the coming-soon sheet instead of checkout.
+    document.addEventListener("click", (event) => {
+      const trigger = (event.target as Element | null)?.closest?.<HTMLElement>("[data-enroll]");
+      if (!trigger) return;
+      event.preventDefault();
+      open(trigger, trigger.dataset.topic ?? null);
+    });
+
+    // Old "Enroll" links (#pricing) and the course area's locked redirect land on the sheet.
+    if (location.hash === "#pricing") {
+      history.replaceState(null, "", location.pathname + location.search.replace(/[?&]locked=1\b/, "").replace(/^&/, "?"));
+      open(null, null);
+    }
+  }
+</script>
+
+<style>
+  /* While the sheet is open the page behind it doesn't scroll. */
+  :global(html.sheet-open) {
+    overflow: hidden;
+  }
+
+  /* Phones: a bottom sheet. */
+  .soon-sheet {
+    width: 100%;
+    max-width: 100%;
+    max-height: min(92dvh, 46rem);
+    margin: auto 0 0;
+    padding: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: var(--bg);
+    color: var(--text-body);
+    box-shadow: var(--shadow-md);
+  }
+
+  .soon-sheet::backdrop {
+    background: var(--scrim-soft);
+  }
+
+  .soon-sheet :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+  }
+
+  .sheet-body {
+    display: grid;
+    gap: var(--space-5);
+    padding: var(--space-5) var(--gutter) calc(var(--space-6) + env(safe-area-inset-bottom));
+  }
+
+  .sheet-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  .sheet-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0.3rem 0.85rem 0.3rem 0.7rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--bg-soft);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-strong);
+    line-height: 1.3;
+    color: var(--accent);
+  }
+
+  .sheet-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .sheet-close {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-right: calc(var(--space-2) * -1);
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease-out);
+  }
+
+  .sheet-close:hover {
+    border-color: var(--text);
+  }
+
+  .sheet-close :global(.icon) {
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+
+  .sheet-title:focus {
+    outline: none;
+  }
+
+  .sheet-title {
+    font-size: clamp(1.75rem, 1.4rem + 1.5vw, 2.25rem);
+    max-width: 14ch;
+  }
+
+  .sheet-text {
+    max-width: 32em;
+    font-size: var(--text-lg);
+    line-height: 1.55;
+  }
+
+  /* ── Pick a topic ── */
+  .sheet-pick {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .sheet-pick legend {
+    padding: 0;
+    margin-bottom: var(--space-3);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-strong);
+    color: var(--text);
+  }
+
+  .optional {
+    font-weight: var(--weight-body);
+    color: var(--text-muted);
+  }
+
+  .chips {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.75rem;
+    padding: 0.5rem 0.95rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-ui);
+    line-height: 1.2;
+    cursor: pointer;
+    transition:
+      border-color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .chip:hover {
+    border-color: var(--border-control);
+  }
+
+  .chip[aria-pressed="true"] {
+    border-color: var(--text);
+    background: var(--bg-soft);
+    font-weight: var(--weight-strong);
+  }
+
+  .chip-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--tone);
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+
+  .chip[aria-pressed="true"] .chip-dot {
+    transform: scale(1.4);
+  }
+
+  /* ── The one red action ── */
+  .sheet-actions {
+    display: grid;
+    gap: var(--space-3);
+    justify-items: center;
+    text-align: center;
+  }
+
+  .sheet-cta {
+    width: 100%;
+    min-height: 3.375rem;
+    font-size: var(--text-lg);
+    box-shadow: var(--shadow-accent);
+  }
+
+  .sheet-note {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+
+  .sheet-academy {
+    margin-top: var(--space-2);
+    font-size: var(--text-sm);
+  }
+
+  /* From 48rem: a centred card. */
+  @media (min-width: 48rem) {
+    .soon-sheet {
+      width: min(100% - var(--gutter) * 2, 34rem);
+      margin: auto;
+      border-radius: var(--radius-lg);
+    }
+
+    .sheet-body {
+      gap: var(--space-5);
+      padding: var(--space-6) var(--space-6) var(--space-7);
+    }
+  }
+
+  /* ── Motion: in by sliding up (phones) or rising (cards), out the same way, faster ── */
+  @media (prefers-reduced-motion: no-preference) {
+    .soon-sheet[open] {
+      animation: sheet-up 420ms var(--ease-soft) both;
+    }
+
+    .soon-sheet[open]::backdrop {
+      animation: sheet-fade 320ms var(--ease-out) both;
+    }
+
+    .soon-sheet.is-closing {
+      animation: sheet-down 240ms var(--ease-out) both;
+    }
+
+    .soon-sheet.is-closing::backdrop {
+      animation: sheet-fade 240ms var(--ease-out) reverse both;
+    }
+
+    /* The contents follow the sheet in, a beat apart. */
+    .soon-sheet[open]:not(.is-closing) .sheet-body > * {
+      animation: sheet-rise 480ms var(--ease-soft) both;
+      animation-delay: calc(120ms + var(--i, 0) * 50ms);
+    }
+
+    @keyframes sheet-up {
+      from {
+        transform: translateY(100%);
+      }
+    }
+
+    @keyframes sheet-down {
+      to {
+        transform: translateY(100%);
+      }
+    }
+
+    @keyframes sheet-rise {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+    }
+
+    @media (min-width: 48rem) {
+      .soon-sheet[open] {
+        animation-name: sheet-pop;
+        animation-duration: 360ms;
+      }
+
+      .soon-sheet.is-closing {
+        animation-name: sheet-drop;
+        animation-duration: 200ms;
+      }
+
+      @keyframes sheet-pop {
+        from {
+          opacity: 0;
+          transform: translateY(16px) scale(0.98);
+        }
+      }
+
+      @keyframes sheet-drop {
+        to {
+          opacity: 0;
+          transform: translateY(8px) scale(0.99);
+        }
+      }
+    }
+  }
+
+  @keyframes sheet-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* Reduced motion: no movement, a short fade in and out. */
+  @media (prefers-reduced-motion: reduce) {
+    .soon-sheet[open],
+    .soon-sheet[open]::backdrop {
+      animation: sheet-fade 160ms ease-out both;
+    }
+
+    .soon-sheet.is-closing,
+    .soon-sheet.is-closing::backdrop {
+      animation: sheet-fade 140ms ease-out reverse both;
+    }
+
+    .chip,
+    .chip-dot,
+    .sheet-close {
+      transition: none;
+    }
+  }
+</style>
