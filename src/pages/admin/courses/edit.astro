@@ -8,8 +8,13 @@ import Icon from "../../../components/Icon.astro";
 import CoverData from "../../../components/admin/CoverData.astro";
 import { getGlimpseCovers } from "../../../components/admin/glimpse-covers";
 import { LANGUAGES, LEVELS } from "../../../lib/demo-store";
+import { comingSoonHome } from "../../../lib/coming-soon";
 
 const glimpses = await getGlimpseCovers(320);
+
+// Coming soon: this page sends visitors home (src/lib/coming-soon.ts).
+const soonHome = comingSoonHome();
+if (soonHome) return Astro.redirect(soonHome, 307);
 ---
 
 <Admin

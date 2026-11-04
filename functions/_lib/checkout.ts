@@ -193,6 +193,17 @@ export function normalisePhone(value: string): string | null {
   return null;
 }
 
+// ---------- coming soon ----------
+
+/**
+ * While course.comingSoon is true, functions/api/order.ts and verify.ts answer with this instead of
+ * calling handleOrder and handleVerify: no order, no payment check, no enrollment cookie. The
+ * handlers themselves are untouched, so their tests and the switch back at launch stay simple.
+ */
+export function comingSoonResponse(): Response {
+  return error(503, "coming_soon", "Online courses are coming soon. Enrolment isn't open yet.");
+}
+
 // ---------- POST /api/order ----------
 
 export async function handleOrder(request: Request, env: CheckoutEnv, options: CheckoutOptions = {}): Promise<Response> {

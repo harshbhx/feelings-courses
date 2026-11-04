@@ -10,6 +10,7 @@ import Icon from "../../components/Icon.astro";
 import { course } from "../../data/course";
 import { lessons, modules, type Lesson } from "../../data/lessons";
 import { whatsappLink } from "../../lib/whatsapp";
+import { comingSoonHome } from "../../lib/coming-soon";
 
 export const getStaticPaths = (() =>
   lessons.map((lesson, i) => ({
@@ -27,6 +28,10 @@ const { lesson, prev, next } = Astro.props;
 const total = lessons.length;
 const moduleLessonCount = modules[lesson.moduleNumber - 1]!.lessons.length;
 const question = whatsappLink(`Hi Urmi, I have a question about the lesson "${lesson.title}" in the ${course.title}.`);
+
+// Coming soon: this page sends visitors home (src/lib/coming-soon.ts).
+const soonHome = comingSoonHome();
+if (soonHome) return Astro.redirect(soonHome, 307);
 ---
 
 <LearnLayout

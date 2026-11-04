@@ -14,6 +14,11 @@ import IconSprite from "../components/admin/IconSprite.astro";
 import CoverData from "../components/admin/CoverData.astro";
 import { course as mainCourse } from "../data/course";
 import { site } from "../data/site";
+import { comingSoonHome } from "../lib/coming-soon";
+
+// Coming soon: this page sends visitors home (src/lib/coming-soon.ts).
+const soonHome = comingSoonHome();
+if (soonHome) return Astro.redirect(soonHome, 307);
 ---
 
 <Base title={`Course | ${site.name}`} description={`An online course by ${mainCourse.teacher}, ${site.name}.`}>

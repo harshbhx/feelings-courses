@@ -7,9 +7,14 @@ import Icon from "../components/Icon.astro";
 import { course, lessonCount } from "../data/course";
 import { site } from "../data/site";
 import { whatsappLink } from "../lib/whatsapp";
+import { comingSoonHome } from "../lib/coming-soon";
 
 const firstModule = course.modules[0].title;
 const askUrmi = whatsappLink(`Hi Urmi, I just enrolled in the ${course.title}. I have a question.`);
+
+// Coming soon: this page sends visitors home (src/lib/coming-soon.ts).
+const soonHome = comingSoonHome();
+if (soonHome) return Astro.redirect(soonHome, 307);
 ---
 
 <ResultPage title={`You're enrolled | ${course.title} | ${site.name}`} description={`Your ${course.title} lessons are ready.`}>

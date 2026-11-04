@@ -6,8 +6,13 @@ import Admin from "../../layouts/Admin.astro";
 import Icon from "../../components/Icon.astro";
 import CoverData from "../../components/admin/CoverData.astro";
 import { course } from "../../data/course";
+import { comingSoonHome } from "../../lib/coming-soon";
 
 const firstName = course.teacher.split(" ")[0];
+
+// Coming soon: this page sends visitors home (src/lib/coming-soon.ts).
+const soonHome = comingSoonHome();
+if (soonHome) return Astro.redirect(soonHome, 307);
 ---
 
 <Admin title="Dashboard" active="dashboard" icons={["trend-up", "trend-down", "arrow-right", "ticket"]}>

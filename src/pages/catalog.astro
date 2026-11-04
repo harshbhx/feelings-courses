@@ -12,6 +12,7 @@ import CoverData from "../components/admin/CoverData.astro";
 import { getGlimpseCovers } from "../components/admin/glimpse-covers";
 import { course, lessonCount, totalMinutes } from "../data/course";
 import { site } from "../data/site";
+import { comingSoonHome } from "../lib/coming-soon";
 
 const covers = await getGlimpseCovers();
 const mainCover = covers.find((c) => c.id === course.glimpses[3]?.id) ?? covers[0];
@@ -19,6 +20,10 @@ const hours = Math.floor(totalMinutes / 60);
 const mins = totalMinutes % 60;
 const NB = "\xa0";
 const mainDuration = hours ? `${hours}${NB}h${mins ? `${NB}${mins}${NB}min` : ""}` : `${mins}${NB}min`;
+
+// Coming soon: this page sends visitors home (src/lib/coming-soon.ts).
+const soonHome = comingSoonHome("#courses");
+if (soonHome) return Astro.redirect(soonHome, 307);
 ---
 
 <Base title={`All courses | ${site.name}`} description={`Online makeup courses by ${course.teacher}, ${site.name}, ${site.address.city}.`}>
