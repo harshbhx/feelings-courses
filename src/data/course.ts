@@ -5,9 +5,16 @@
  * certificate yet. Until they do, `demo` stays true: the site shows a visible "demo" ribbon, stays
  * noindexed, and checkout runs in test mode only. When the client confirms a value, replace it
  * here and remove it from `toConfirm`.
+ *
+ * COMING SOON (since 2026-11-04, the owner's decision). While `comingSoon` is true, visitors never
+ * see the demo above: the home page is the coming-soon page (src/components/soon/), every
+ * [data-enroll] opens the coming-soon sheet instead of checkout, POST /api/order and /api/verify
+ * answer 503, and the course area, checkout results, catalog and admin demo redirect home. Nothing
+ * is deleted: set it to false to bring the course page and checkout back (see CLAUDE.md).
  */
 
 export const course = {
+  comingSoon: true as boolean,
   demo: true,
   toConfirm: ["title", "price", "modules and lessons", "duration", "certificate", "access period", "promo video"],
 
