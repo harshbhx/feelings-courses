@@ -1,8 +1,13 @@
 ---
 // The course's landing page, for visitors arriving from Instagram on their phones.
 // Every word and number comes from src/data/course.ts and src/data/site.ts (see CLAUDE.md).
-// Every "Enroll" button is a plain link to #pricing with data-enroll: the checkout component
-// opens the payment sheet on click, and without JavaScript the link still scrolls to the price.
+//
+// Two versions, chosen by course.comingSoon:
+// - coming soon (now): the online courses on the way (src/components/soon/ and
+//   src/data/upcoming.ts). Every [data-enroll] opens the coming-soon sheet; checkout isn't mounted.
+// - the course page: every "Enroll" button is a plain link to #pricing with data-enroll: the
+//   checkout component opens the payment sheet on click, and without JavaScript the link still
+//   scrolls to the price.
 import Base from "../layouts/Base.astro";
 import Reveal from "../components/landing/Reveal.astro";
 import Header from "../components/landing/Header.astro";
@@ -17,26 +22,55 @@ import FinalCta from "../components/landing/FinalCta.astro";
 import EnrollBar from "../components/landing/EnrollBar.astro";
 import Footer from "../components/landing/Footer.astro";
 import Checkout from "../components/checkout/Checkout.astro";
+import SoonHero from "../components/soon/SoonHero.astro";
+import SoonCourses from "../components/soon/SoonCourses.astro";
+import SoonSteps from "../components/soon/SoonSteps.astro";
+import SoonFinal from "../components/soon/SoonFinal.astro";
+import ComingSoonSheet from "../components/soon/ComingSoonSheet.astro";
 import { course } from "../data/course";
 import { site } from "../data/site";
+import { soonFaqs, topicList } from "../data/upcoming";
+
+const soon = course.comingSoon;
+const title = soon
+  ? `Online makeup courses by ${course.teacher}, coming soon | ${site.name}`
+  : `${course.title} by ${course.teacher} | ${site.name}`;
+const description = soon
+  ? `${course.teacher} is bringing her makeup academy online: ${topicList}, in short video lessons. Get notified on WhatsApp when they open.`
+  : course.subtitle;
 ---
 
-<Base title={`${course.title} by ${course.teacher} | ${site.name}`} description={course.subtitle}>
+<Base title={title} description={description}>
   <Reveal />
   <a class="skip-link" href="#main">Skip to content</a>
   <Header />
-  <main id="main">
-    <Hero />
-    <Glimpses />
-    <Curriculum />
-    <Teacher />
-    <ForWho />
-    <Pricing />
-    <Faq />
-    <FinalCta />
-    <Checkout />
-  </main>
-  <EnrollBar />
+  {
+    soon ? (
+      <main id="main">
+        <SoonHero />
+        <SoonCourses />
+        <Glimpses />
+        <Teacher soon />
+        <SoonSteps />
+        <Faq items={soonFaqs} />
+        <SoonFinal />
+        <ComingSoonSheet />
+      </main>
+    ) : (
+      <main id="main">
+        <Hero />
+        <Glimpses />
+        <Curriculum />
+        <Teacher />
+        <ForWho />
+        <Pricing />
+        <Faq />
+        <FinalCta />
+        <Checkout />
+      </main>
+    )
+  }
+  <EnrollBar soon={soon} />
   <Footer />
 </Base>
 

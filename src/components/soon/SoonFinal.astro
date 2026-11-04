@@ -1,0 +1,102 @@
+---
+/**
+ * The closing band (#notify): the one place the WhatsApp "notify me" link lives in the HTML, so
+ * every [data-enroll] link still lands somewhere useful without JavaScript. With JS those links
+ * open the coming-soon sheet instead, which offers the same link.
+ */
+import Icon from "../Icon.astro";
+import Avatar from "../landing/Avatar.astro";
+import { course } from "../../data/course";
+import { site } from "../../data/site";
+import { messages } from "../../data/upcoming";
+import { whatsappLink } from "../../lib/whatsapp";
+
+const firstName = course.teacher.split(" ")[0];
+---
+
+<section class="section band-tint final" id="notify" aria-labelledby="final-title">
+  <div class="container-narrow final-inner" data-reveal>
+    <Avatar size="5rem" class="final-avatar" />
+    <h2 id="final-title">Be the first to know<span class="bindi" aria-hidden="true"></span></h2>
+    <p class="lead">
+      Send {firstName} one WhatsApp message and you’ll hear as soon as the online courses open. Nothing to pay, no form to fill.
+    </p>
+    <div class="final-actions" data-cta-zone>
+      <a class="btn btn-primary final-cta" href={whatsappLink(messages.notify)} target="_blank" rel="noopener">
+        <Icon name="whatsapp" />
+        Get notified on WhatsApp
+      </a>
+      <a class="btn btn-secondary" href={site.social.instagram} target="_blank" rel="noopener">
+        <Icon name="instagram" />
+        Follow on Instagram
+      </a>
+    </div>
+    <p class="final-note">
+      Prefer to learn in person? <a href={site.academyUrl} target="_blank" rel="noopener">See the academy in {site.address.city}</a>.
+    </p>
+  </div>
+</section>
+
+<style>
+  .final-inner {
+    display: grid;
+    gap: var(--space-5);
+    justify-items: center;
+    text-align: center;
+  }
+
+  .final-inner :global(.final-avatar) {
+    box-shadow:
+      0 0 0 4px var(--bg),
+      var(--shadow-md);
+  }
+
+  .final-inner .lead {
+    max-width: 28em;
+  }
+
+  .final-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-3);
+    width: 100%;
+    margin-top: var(--space-2);
+  }
+
+  .final-actions .btn {
+    min-height: 3.375rem;
+  }
+
+  .final-cta {
+    font-size: var(--text-lg);
+    box-shadow: var(--shadow-accent);
+  }
+
+  .final-actions .btn-secondary :global(.icon) {
+    color: var(--bg-deep);
+  }
+
+  .final-note {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+
+  .final-note a {
+    font-weight: var(--weight-ui);
+    color: var(--text);
+    text-decoration-color: var(--border-control);
+    text-underline-offset: 0.2em;
+  }
+
+  .final-note a:hover {
+    color: var(--accent);
+    text-decoration-color: currentColor;
+  }
+
+  @media (max-width: 29.99rem) {
+    .final-actions .btn {
+      flex: 1 1 100%;
+    }
+  }
+</style>

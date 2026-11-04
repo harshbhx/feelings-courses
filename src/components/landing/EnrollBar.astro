@@ -5,18 +5,41 @@
  * block with an enroll button ([data-cta-zone]: the price card, the closing call to action) is on
  * screen, so a view never shows two red buttons. An IntersectionObserver does all the measuring.
  * Without JS it stays hidden: the page's own buttons still work.
+ *
+ * `soon` (the coming-soon page): no price, "Notify me" opens the coming-soon sheet instead.
  */
 import { course } from "../../data/course";
 import { accessLabel, lessonsLabel } from "./facts";
+
+interface Props {
+  soon?: boolean;
+}
+
+const { soon = false } = Astro.props;
 ---
 
-<aside class="enroll-bar" aria-label="Enroll" data-enroll-bar>
+<aside class="enroll-bar" aria-label={soon ? "Get notified" : "Enroll"} data-enroll-bar>
   <div class="bar-inner">
-    <p class="bar-text">
-      <span class="bar-price">{course.price.display}</span>
-      <span class="bar-meta">{lessonsLabel} · {accessLabel}</span>
-    </p>
-    <a class="btn btn-primary bar-enroll" href="#pricing" data-enroll>Enroll</a>
+    {
+      soon ? (
+        <p class="bar-text">
+          <span class="bar-price bar-soon">Coming soon<span class="bindi" aria-hidden="true" /></span>
+          <span class="bar-meta">Online courses by {course.teacher}</span>
+        </p>
+      ) : (
+        <p class="bar-text">
+          <span class="bar-price">{course.price.display}</span>
+          <span class="bar-meta">{lessonsLabel} · {accessLabel}</span>
+        </p>
+      )
+    }
+    {
+      soon ? (
+        <a class="btn btn-primary bar-enroll" href="#notify" data-enroll>Notify me</a>
+      ) : (
+        <a class="btn btn-primary bar-enroll" href="#pricing" data-enroll>Enroll</a>
+      )
+    }
   </div>
 </aside>
 
@@ -87,6 +110,11 @@ import { accessLabel, lessonsLabel } from "./facts";
     letter-spacing: -0.02em;
     color: var(--text);
     font-variant-numeric: tabular-nums;
+  }
+
+  .bar-soon {
+    font-size: var(--text-lg);
+    letter-spacing: -0.015em;
   }
 
   .bar-meta {

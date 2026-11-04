@@ -6,6 +6,8 @@
  *
  * The photo is the cut-out portrait the main site uses as Urmi on its About page (founder.webp).
  * It stands on the band's bottom edge: after the text on phones, beside it from 56rem.
+ *
+ * `soon` (the coming-soon page): speaks of the online courses on the way, not of one course.
  */
 import { getImage } from "astro:assets";
 import Icon from "../Icon.astro";
@@ -14,6 +16,11 @@ import { site } from "../../data/site";
 import { course } from "../../data/course";
 import { ratingCount, ratingMonth, teacherFirstName as firstName } from "./facts";
 
+interface Props {
+  soon?: boolean;
+}
+
+const { soon = false } = Astro.props;
 const sizes = "(min-width: 56rem) min(36vw, 28rem), min(80vw, 20rem)";
 const widths = [320, 480, 640, 960];
 const [avif, webp] = await Promise.all([
@@ -27,8 +34,8 @@ const [avif, webp] = await Promise.all([
     <div class="teacher-body" data-reveal>
       <h2 id="teacher-title">Your teacher, {firstName}<span class="bindi" aria-hidden="true"></span></h2>
       <p class="lead">
-        {course.teacher} runs {site.name} in {site.address.city}: a ladies’ parlour, bridal studio and makeup academy. She teaches
-        this course herself.
+        {course.teacher} runs {site.name} in {site.address.city}: a ladies’ parlour, bridal studio and makeup academy.
+        {soon ? "Now she is bringing what she teaches there online, so you can learn from her at home." : "She teaches this course herself."}
       </p>
 
       <ul class="creds">
